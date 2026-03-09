@@ -18,55 +18,70 @@ An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.co
 | `delete_aoi_monitor` | Delete an AOI monitor |
 | `resolve_location` | Resolve a place name to coordinates and WKT polygon via OpenStreetMap |
 
-## Quick Start
+## Tech Stack
 
-### Prerequisites
+- **Runtime**: [Bun](https://bun.sh)
+- **MCP SDK**: [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk)
+- **HTTP Framework**: [Hono](https://hono.dev)
+- **Validation**: [Zod](https://zod.dev)
+- **Database**: SQLite (lightweight; used for AOI alert persistence if enabled)
+- **Observability**: LangSmith tracing (planned at tool-call boundary)
+- **Deployment**: Railway (preferred); local self-hosting supported
+- **External APIs**: [SkyFi Platform API](https://app.skyfi.com/platform-api/redoc), [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org)
 
-- [Bun](https://bun.sh) runtime
-- A SkyFi API key ([get one here](https://app.skyfi.com))
+## Implementation Status
 
-### Install and Run
+Overall: ~72% complete.
 
-```bash
-bun install
-```
+### Phase 1 — Scaffold & SkyFi Client ✅ COMPLETE
 
-Set your API key via environment variable:
+- TypeScript project setup with Bun
+- Typed HTTP client covering all SkyFi API endpoints (archives, orders, pricing, feasibility, notifications)
+- Config loader supporting env variables and `~/.skyfi/config.json`
 
-```bash
-export SKYFI_API_KEY=your-key-here
-bun run dev
-```
+### Phase 2 — MCP Server + Core Read-Only Tools 🚧 PARTIAL
 
-Or create `~/.skyfi/config.json`:
+- MCP transport (HTTP + SSE via Hono) with per-session server instances: done
+- Tools implemented: `search_imagery` (with pagination), `check_feasibility` (async polling), `get_pricing`, `list_orders`, `get_order`: done
+- LangSmith tracing at tool-call boundary: not started
+- Real SkyFi API smoke test: not done
+- End-to-end validation with a live MCP client: not done
 
-```json
-{
-  "apiKey": "your-key-here"
-}
-```
+### Phase 3 — Conversational Ordering ✅ COMPLETE
 
-The server starts at `http://localhost:3000/mcp`.
+- `prepare_order` validates parameters, fetches pricing, returns a summary with a single-use confirmation token (5-minute TTL)
+- `confirm_order` accepts the token and executes the purchase
+- Tokens are random UUIDs, single-use, session-isolated
 
-### Connect from Claude Code
+### Phase 4 — AOI Monitoring 🚧 PARTIAL
 
-```bash
-claude mcp add skyfi -- http://localhost:3000/mcp
-```
+- `create_aoi_monitor`, `list_aoi_monitors`, `delete_aoi_monitor`: done
+- Inbound webhook receiver at `POST /webhooks/aoi`: done (logs payloads to console)
+- `get_aoi_monitor` (with history): not implemented
+- Persisted alert storage via SQLite + `get_aoi_alerts` tool: not implemented
 
-### Connect from Claude Desktop
+### Phase 5 — OpenStreetMap Integration ✅ COMPLETE
 
-Add to your Claude Desktop MCP config:
+- Nominatim client with `User-Agent` header for polite usage
+- `resolve_location` tool converts place names to bounding boxes and WKT polygons for use with SkyFi
 
-```json
-{
-  "mcpServers": {
-    "skyfi": {
-      "url": "http://localhost:3000/mcp"
-    }
-  }
-}
-```
+### Phase 6 — CLI Interface ❌ NOT STARTED
+
+Planned: `skyfi search`, `skyfi orders list/get`, `skyfi aoi list/create`, `skyfi auth login/status` — all backed by the same tool logic as the MCP server.
+
+### Phase 7 — Documentation 🚧 PARTIAL
+
+- General README and quick start: done
+- Platform-specific integration guides (ADK, LangChain/LangGraph, AI SDK, Claude Web, Claude Code, OpenAI, Gemini): not written
+- Railway deployment instructions: not written
+
+## Stretch Goals
+
+- **Demo Agent — Geospatial Deep Research**: A polished, open-source-ready agent using this MCP for geospatial-supported deep research (LangGraph or similar); LangSmith tracing included
+- **PostgreSQL migration**: Swap SQLite for PostgreSQL if AOI monitoring state or multi-user demand grows
+- **Rich notification delivery**: Slack, email, or webhook forwarding for AOI alerts beyond console logging
+- **Cloudflare Agents deployment**: Evaluate Cloudflare as an alternative hosting target if Railway proves insufficient for SSE or global edge requirements
+- **Payments integration**: In-MCP payment flow beyond credential-based API key usage
 
 ## Design Decisions
 
@@ -107,6 +122,90 @@ API key resolution follows this order:
 2. `SKYFI_API_KEY` environment variable
 3. `~/.skyfi/config.json` file
 
+## Local Development
+
+### Prerequisites
+
+- [Bun](https://bun.sh) runtime
+- A SkyFi API key ([get one here](https://app.skyfi.com))
+
+### Install and Run
+
+```bash
+bun install
+```
+
+Set your API key via environment variable:
+
+```bash
+export SKYFI_API_KEY=your-key-here
+bun run dev
+```
+
+Or create `~/.skyfi/config.json`:
+
+```json
+{
+  "apiKey": "your-key-here"
+}
+```
+
+The server starts at `http://localhost:3000/mcp`.
+
+### Scripts
+
+```bash
+bun run dev      # Start with hot reload
+bun run start    # Start production
+bun run check    # TypeScript type check
+```
+
+### Connect from Claude Code
+
+```bash
+claude mcp add skyfi -- http://localhost:3000/mcp
+```
+
+### Connect from Claude Desktop
+
+Add to your Claude Desktop MCP config:
+
+```json
+{
+  "mcpServers": {
+    "skyfi": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+## Endpoints
+
+| Path | Method | Purpose |
+|------|--------|---------|
+| `/mcp` | POST/GET/DELETE | MCP protocol (tool calls, SSE streams, session management) |
+| `/health` | GET | Health check |
+| `/webhooks/aoi` | POST | Inbound webhook receiver for AOI notifications |
+
+## Deployment
+
+### Railway (recommended)
+
+Railway is the preferred deployment target. The HTTP + SSE transport requires long-lived connections — verify Railway's request timeout behavior and configure SSE keepalive if needed.
+
+The inbound webhook endpoint (`POST /webhooks/aoi`) requires a stable public URL. Railway provides this automatically on deployment. For local development with webhooks, use a tunnel (e.g., ngrok).
+
+Environment variables to set on Railway:
+
+- `SKYFI_API_KEY` — your SkyFi API key
+- `LANGCHAIN_API_KEY` — LangSmith API key (when tracing is enabled)
+- `PORT` — Railway sets this automatically
+
+### Cloudflare (alternative)
+
+The Hono server and MCP SDK transport are compatible with Cloudflare Workers. Cloudflare is a documented fallback if Railway's SSE timeout limits prove problematic at scale. No code changes are required to switch transports.
+
 ## Project Structure
 
 ```
@@ -129,27 +228,3 @@ src/
     ├── aoi.ts             # create/list/delete AOI monitors
     └── location.ts        # resolve_location (OSM geocoding)
 ```
-
-## Scripts
-
-```bash
-bun run dev      # Start with hot reload
-bun run start    # Start production
-bun run check    # TypeScript type check
-```
-
-## Endpoints
-
-| Path | Method | Purpose |
-|------|--------|---------|
-| `/mcp` | POST/GET/DELETE | MCP protocol (tool calls, SSE streams, session management) |
-| `/health` | GET | Health check |
-| `/webhooks/aoi` | POST | Inbound webhook receiver for AOI notifications |
-
-## Tech Stack
-
-- **Runtime**: [Bun](https://bun.sh)
-- **MCP SDK**: [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk)
-- **HTTP Framework**: [Hono](https://hono.dev)
-- **Validation**: [Zod](https://zod.dev)
-- **External APIs**: [SkyFi Platform API](https://app.skyfi.com/platform-api/redoc), [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org)
