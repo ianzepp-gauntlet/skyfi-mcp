@@ -1,3 +1,17 @@
+/**
+ * Unit tests for ConfirmationStore.
+ *
+ * These tests verify the security-critical properties of the two-step order
+ * confirmation flow:
+ * - Tokens are single-use (double-submit is rejected).
+ * - Tokens expire after the configured TTL (users can't confirm stale orders).
+ * - Unknown tokens are rejected cleanly.
+ *
+ * Time is controlled by injecting a `now` parameter to `store` and `consume`,
+ * which makes TTL-related tests deterministic without relying on real clock
+ * time or `sleep` calls.
+ */
+
 import { test, expect, describe } from "bun:test";
 import { ConfirmationStore } from "./confirmation.js";
 

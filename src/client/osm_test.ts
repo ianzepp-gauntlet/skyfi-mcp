@@ -1,3 +1,13 @@
+/**
+ * Unit tests for OSM utility functions.
+ *
+ * `bboxToWkt` is a pure coordinate transformation with no external dependencies,
+ * so these tests are purely deterministic. They document the expected WKT output
+ * format — particularly the coordinate ordering (lon lat, i.e. X Y) and the
+ * closed-ring requirement (first vertex repeated at the end) that the SkyFi API
+ * requires.
+ */
+
 import { test, expect, describe } from "bun:test";
 import { bboxToWkt } from "./osm.js";
 

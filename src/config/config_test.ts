@@ -1,3 +1,16 @@
+/**
+ * Unit tests for `loadConfig`.
+ *
+ * These tests verify the API key and base URL priority order without touching
+ * the filesystem (no `~/.skyfi/config.json` is read in any test case). Env
+ * vars are saved and restored around each test that mutates them to prevent
+ * state leakage between tests.
+ *
+ * Priority under test:
+ * - API key: header argument > SKYFI_API_KEY env var > (local config, not tested here)
+ * - Base URL: SKYFI_BASE_URL env var > (local config) > hardcoded default
+ */
+
 import { test, expect, describe } from "bun:test";
 import { loadConfig } from "./index.js";
 

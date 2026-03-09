@@ -1,15 +1,63 @@
+/**
+ * MCP tools: `list_orders`, `get_order`, `prepare_order`, `confirm_order`
+ *
+ * Exposes the SkyFi order management system as MCP tools, covering two
+ * distinct responsibilities:
+ *
+ *  1. **Read-only order inspection** (`list_orders`, `get_order`) — let an AI
+ *     look up existing orders without any risk of side effects.
+ *
+ *  2. **Human-in-the-loop ordering** (`prepare_order`, `confirm_order`) — a
+ *     two-step flow that prevents the AI from placing paid orders without
+ *     explicit human approval:
+ *
+ *     - `prepare_order` validates parameters, fetches pricing, and returns a
+ *       short-lived confirmation token alongside a pricing summary. No order
+ *       is placed at this step.
+ *     - `confirm_order` consumes the token and submits the actual API call.
+ *       The token expires after 5 minutes, forcing the user to re-review
+ *       pricing if they wait too long.
+ *
+ * Architecture:
+ * - `ConfirmationStore` is injected as a parameter (defaulting to a new instance
+ *   per registration) so tests can inject a pre-populated store or inspect
+ *   stored tokens without needing to invoke the tool handler directly.
+ * - Both archive and tasking order types are handled by the same `prepare_order`
+ *   and `confirm_order` tools, with a `type` discriminator field. This avoids
+ *   proliferating tool count and keeps the MCP surface small.
+ *
+ * TRADE-OFFS:
+ * - `prepare_order` fetches pricing at preparation time, not at confirmation
+ *   time. Prices could theoretically change in the 5-minute window between
+ *   prepare and confirm. This is accepted because SkyFi pricing is stable
+ *   over short windows, and re-checking at confirm would require storing less
+ *   state (just the order params, not the pricing too).
+ */
+
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SkyFiClient } from "../client/skyfi.js";
 import type { OrderArchiveRequest, OrderTaskingRequest } from "../client/types.js";
 import { ConfirmationStore } from "./confirmation.js";
 
+/**
+ * Register order management tools on the given MCP server.
+ *
+ * Registers four tools: `list_orders`, `get_order`, `prepare_order`, and
+ * `confirm_order`.
+ *
+ * @param server - The MCP server instance to register the tools on.
+ * @param client - Authenticated SkyFi API client used for order API calls.
+ * @param confirmationStore - Token store for the prepare/confirm flow. Defaults
+ *   to a new `ConfirmationStore` with a 5-minute TTL. Inject a custom instance
+ *   in tests to control token state.
+ */
 export function registerOrderTools(
   server: McpServer,
   client: SkyFiClient,
   confirmationStore = new ConfirmationStore()
 ) {
-  // ── List Orders ──
+  // ── List Orders ────────────────────────────────────────────────────────────
 
   server.registerTool("list_orders", {
     title: "List Orders",
@@ -25,6 +73,8 @@ export function registerOrderTools(
     return {
       content: [{
         type: "text" as const,
+        // WHY: Project to a summary view. Full order objects include delivery
+        // credentials and verbose metadata that are not useful for listing.
         text: JSON.stringify({
           total: result.total,
           orders: result.orders.map((o) => ({
@@ -38,7 +88,7 @@ export function registerOrderTools(
     };
   });
 
-  // ── Get Order Detail ──
+  // ── Get Order Detail ───────────────────────────────────────────────────────
 
   server.registerTool("get_order", {
     title: "Get Order Details",
@@ -52,12 +102,14 @@ export function registerOrderTools(
     return {
       content: [{
         type: "text" as const,
+        // WHY: Return the full order object here (unlike list_orders) because
+        // the user explicitly requested detail on a specific order.
         text: JSON.stringify(order, null, 2),
       }],
     };
   });
 
-  // ── Prepare Order (step 1 of human-in-the-loop) ──
+  // ── Prepare Order (step 1 of human-in-the-loop) ───────────────────────────
 
   server.registerTool("prepare_order", {
     title: "Prepare Order",
@@ -76,7 +128,10 @@ export function registerOrderTools(
       deliveryPath: z.string().optional().describe("Delivery path within bucket"),
     },
   }, async (params) => {
-    const pricing = await client.getPricing({ aoi: params.aoi });
+    // PHASE 1: VALIDATE ORDER-TYPE-SPECIFIC PARAMETERS
+    // Validate fields that are conditionally required based on the order type.
+    // These cross-type checks can't be expressed in the Zod schema without
+    // a discriminated union, and the mixed schema is simpler for the AI to call.
 
     const deliveryParams = {
       bucket: params.deliveryBucket,
@@ -116,7 +171,17 @@ export function registerOrderTools(
       } satisfies OrderTaskingRequest;
     }
 
+    // PHASE 2: FETCH PRICING
+    // Get current pricing for the AOI so the user can review costs before
+    // committing. Pricing is fetched here (at prepare time) and stored in the
+    // confirmation token rather than re-fetched at confirm time. This ensures
+    // the user is shown exactly the same pricing they will be charged.
+    const pricing = await client.getPricing({ aoi: params.aoi });
     const pricingSummary = JSON.stringify(pricing, null, 2);
+
+    // PHASE 3: STORE PENDING ORDER AND RETURN TOKEN
+    // Persist the fully-constructed order params and pricing under a short-lived
+    // token. The token is what the user (via the AI) must supply to confirm_order.
     const token = confirmationStore.store({
       type: params.type,
       params: orderParams,
@@ -130,6 +195,8 @@ export function registerOrderTools(
           confirmationToken: token,
           orderType: params.type,
           expiresInSeconds: 300,
+          // WHY: Emphasize in the response text that the order has NOT been placed
+          // to reduce the risk of the AI presenting this as a completed transaction.
           message: "ORDER NOT YET PLACED. Review the pricing below and call confirm_order with the confirmation token to execute the purchase.",
           pricing: JSON.parse(pricingSummary),
           orderDetails: {
@@ -149,7 +216,7 @@ export function registerOrderTools(
     };
   });
 
-  // ── Confirm Order (step 2 of human-in-the-loop) ──
+  // ── Confirm Order (step 2 of human-in-the-loop) ───────────────────────────
 
   server.registerTool("confirm_order", {
     title: "Confirm and Place Order",
@@ -159,6 +226,9 @@ export function registerOrderTools(
       confirmationToken: z.string().describe("Confirmation token from prepare_order"),
     },
   }, async ({ confirmationToken }) => {
+    // WHY: `consume` is atomic — it retrieves and deletes the token in one
+    // operation. This prevents double-submission if the AI calls this tool
+    // twice with the same token (e.g. due to a retry after a network error).
     const pending = confirmationStore.consume(confirmationToken);
     if (!pending) {
       return {

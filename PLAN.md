@@ -1,5 +1,15 @@
 # SkyFi MCP Server — Implementation Plan
 
+## Current Status (2026-03-09)
+
+- Phase 1 is mostly complete: project scaffold, typed SkyFi client, config loading, and tests are in place.
+- Phase 2 is partially complete: MCP transport and core read-only tools exist, including archive pagination support, but LangSmith tracing and end-to-end client validation are still pending.
+- Phase 3 is implemented for the current PoC: `prepare_order` and `confirm_order` exist with single-use, session-isolated confirmation tokens.
+- Phase 4 is partially complete: AOI create/list/delete tools and the webhook receiver exist, but monitor detail/history and persisted alert retrieval are not implemented.
+- Phase 5 is complete for the PoC: OSM location resolution is implemented with WKT conversion.
+- Phase 6 is not started.
+- Phase 7 is partially complete: a general `README.md` exists, but the targeted integration/deployment guides are not written.
+
 ## Key Findings
 
 1. **Muninn packages don't exist on npm** — `muninn-kernel-ts` and `muninn-frames-ts` are not published. Skip for PoC; implement tool dispatch directly with the MCP SDK. The patterns (prefix routing, frame lifecycle) can be adopted later without the abstraction layer.
@@ -70,38 +80,39 @@ skyfi/
 
 **Goal:** Typed HTTP client wrapping the SkyFi API, runnable with Bun.
 
-1. `bun init`, install deps: `@modelcontextprotocol/sdk`, `hono`, `zod`
-2. Build typed SkyFi client covering:
-   - `POST /archives` — search catalog
-   - `GET /archives` — paginated search continuation
-   - `GET /archives/:id` — single archive detail
-   - `POST /pricing` — pricing matrix
-   - `POST /feasibility` — check feasibility
-   - `GET /feasibility/:id` — poll feasibility status
-   - `GET /orders` — list orders
-   - `POST /order-archive` — create archive order
-   - `POST /order-tasking` — create tasking order
-   - `GET /orders/:id` — order status
-   - `POST /notifications` — create notification
-   - `GET /notifications` — list notifications
-   - `DELETE /notifications/:id` — delete notification
-   - `GET /auth/whoami` — current user
-3. Config loader: read `SKYFI_API_KEY` from env or `~/.skyfi/config.json`
-4. Smoke test: run a search against the real API
+1. [x] `bun init`, install deps: `@modelcontextprotocol/sdk`, `hono`, `zod`
+2. [x] Build typed SkyFi client covering:
+   - [x] `POST /archives` — search catalog
+   - [x] `GET /archives` — paginated search continuation
+   - [x] `GET /archives/:id` — single archive detail
+   - [x] `POST /pricing` — pricing matrix
+   - [x] `POST /feasibility` — check feasibility
+   - [x] `GET /feasibility/:id` — poll feasibility status
+   - [x] `GET /orders` — list orders
+   - [x] `POST /order-archive` — create archive order
+   - [x] `POST /order-tasking` — create tasking order
+   - [x] `GET /orders/:id` — order status
+   - [x] `POST /notifications` — create notification
+   - [x] `GET /notifications` — list notifications
+   - [x] `DELETE /notifications/:id` — delete notification
+   - [x] `GET /auth/whoami` — current user
+3. [x] Config loader: read `SKYFI_API_KEY` from env or `~/.skyfi/config.json`
+4. [ ] Smoke test: run a search against the real API
 
 ### Phase 2: MCP Server + Core Read-Only Tools
 
 **Goal:** Working MCP server that an AI agent can connect to and search imagery.
 
-1. Set up Hono HTTP+SSE server using `@modelcontextprotocol/sdk` `StreamableHTTPServerTransport`
-2. Register read-only tools:
-   - `search_imagery` — wraps `POST /archives` with params: aoi (GeoJSON/bbox), date range, cloud cover, resolution
-   - `check_feasibility` — wraps `POST /feasibility` + polls `GET /feasibility/:id`
-   - `get_pricing` — wraps `POST /pricing`
-   - `list_orders` — wraps `GET /orders`
-   - `get_order` — wraps `GET /orders/:id`
-3. Add LangSmith tracing at tool-call boundary (wrap each tool handler)
-4. Test with Claude Code as MCP client
+1. [x] Set up Hono HTTP+SSE server using `@modelcontextprotocol/sdk` transport
+   - Implemented with per-session MCP server instances and request-header API key support
+2. [x] Register read-only tools:
+   - [x] `search_imagery` — wraps `POST /archives` and now supports next-page cursors
+   - [x] `check_feasibility` — wraps `POST /feasibility` + polls `GET /feasibility/:id`
+   - [x] `get_pricing` — wraps `POST /pricing`
+   - [x] `list_orders` — wraps `GET /orders`
+   - [x] `get_order` — wraps `GET /orders/:id`
+3. [ ] Add LangSmith tracing at tool-call boundary (wrap each tool handler)
+4. [ ] Test with Claude Code as MCP client
 
 ### Phase 3: Order Placement + Human-in-the-Loop
 
@@ -109,50 +120,58 @@ skyfi/
 
 Two-tool pattern enforces the confirmation gate:
 
-- `prepare_order` — accepts order params (archive ID or tasking params, delivery config). Internally calls `POST /pricing` to get cost. Returns pricing summary + a short-lived confirmation token. No order is placed.
-- `confirm_order` — accepts the confirmation token. Validates it, then executes `POST /order-archive` or `POST /order-tasking`. Fails without a valid token.
+- [x] `prepare_order` — accepts order params (archive ID or tasking params, delivery config). Internally calls `POST /pricing` to get cost. Returns pricing summary + a short-lived confirmation token. No order is placed.
+- [x] `confirm_order` — accepts the confirmation token. Validates it, then executes `POST /order-archive` or `POST /order-tasking`. Fails without a valid token.
 
 This is safer than a single tool with a flag — the agent must make two distinct calls, and the human sees the price in between.
 
-Token implementation: generate a random UUID, store in a `Map<string, OrderIntent>` with a 5-minute TTL. `confirm_order` looks up and deletes the token on use.
+Token implementation status:
+
+- [x] Random UUID confirmation tokens
+- [x] 5-minute TTL
+- [x] Single-use token consumption
+- [x] Session isolation via per-session server instances
 
 ### Phase 4: AOI Monitoring
 
 **Goal:** Tools to create, list, and delete AOI monitors; inbound webhook for notifications.
 
-1. `create_aoi_monitor` — wraps `POST /notifications` (aoi, gsd range, product type, webhook URL)
-2. `list_aoi_monitors` — wraps `GET /notifications`
-3. `get_aoi_monitor` — wraps `GET /notifications/:id` (includes history)
-4. `delete_aoi_monitor` — wraps `DELETE /notifications/:id`
-5. Add inbound webhook route on Hono: `POST /webhooks/aoi` receives SkyFi callbacks
-6. For PoC: log notifications to console. Store in SQLite for retrieval via a `get_aoi_alerts` tool.
+1. [x] `create_aoi_monitor` — wraps `POST /notifications` (aoi, gsd range, product type, webhook URL)
+2. [x] `list_aoi_monitors` — wraps `GET /notifications`
+3. [ ] `get_aoi_monitor` — wraps `GET /notifications/:id` (includes history)
+4. [x] `delete_aoi_monitor` — wraps `DELETE /notifications/:id`
+5. [x] Add inbound webhook route on Hono: `POST /webhooks/aoi` receives SkyFi callbacks
+6. [ ] For PoC: log notifications to console. Store in SQLite for retrieval via a `get_aoi_alerts` tool.
+   - Current implementation logs webhook payloads to console only.
 
 ### Phase 5: OSM Integration
 
 **Goal:** Conversational geo-lookup so users can say "near downtown Kyiv" instead of providing coordinates.
 
-1. Build Nominatim client (`osm.ts`) — `GET https://nominatim.openstreetmap.org/search`
-2. `resolve_location` tool — takes place name string, returns bounding box and GeoJSON polygon
-3. Respect Nominatim rate limits (1 req/sec, include User-Agent)
+1. [x] Build Nominatim client (`osm.ts`) — `GET https://nominatim.openstreetmap.org/search`
+2. [x] `resolve_location` tool — takes place name string, returns bounding box plus WKT polygon for SkyFi
+3. [x] Respect Nominatim rate limits enough for polite PoC usage by setting a dedicated `User-Agent`
+4. [ ] Add caching/rate limiting if this moves beyond low-volume PoC usage
 
 ### Phase 6: CLI
 
 **Goal:** Secondary interface mirroring MCP tools.
 
 Wire `commander` to call the same tool logic:
-- `skyfi search --bbox ... --from ... --to ...`
-- `skyfi orders list`
-- `skyfi orders get <id>`
-- `skyfi aoi list`
-- `skyfi aoi create ...`
-- `skyfi auth status`
-- `skyfi auth login`
+- [ ] `skyfi search --bbox ... --from ... --to ...`
+- [ ] `skyfi orders list`
+- [ ] `skyfi orders get <id>`
+- [ ] `skyfi aoi list`
+- [ ] `skyfi aoi create ...`
+- [ ] `skyfi auth status`
+- [ ] `skyfi auth login`
 
 ### Phase 7: Documentation
 
 Write after tools are stable:
-- Usage guides for: ADK (Google), LangChain/LangGraph, AI SDK (Vercel), Claude Web, Claude Code, OpenAI, Gemini
-- Local and Railway deployment instructions
+- [ ] Usage guides for: ADK (Google), LangChain/LangGraph, AI SDK (Vercel), Claude Web, Claude Code, OpenAI, Gemini
+- [ ] Local and Railway deployment instructions
+- [x] General project README / quick start
 
 ## Build Order (PoC Priority)
 

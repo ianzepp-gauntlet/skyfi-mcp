@@ -1,7 +1,37 @@
+/**
+ * MCP tool: `check_feasibility`
+ *
+ * Exposes the SkyFi tasking feasibility API as a single synchronous-feeling
+ * MCP tool. Feasibility analysis determines whether any satellites have viable
+ * collection opportunities over a specified AOI within a given capture window.
+ *
+ * The underlying SkyFi API is asynchronous: callers must submit a request and
+ * then poll for results. This tool hides that async pattern by combining the
+ * submit and poll steps, so the AI sees a single call-and-response interaction.
+ *
+ * Design notes:
+ * - Polling is delegated to `SkyFiClient.pollFeasibility`, which owns the
+ *   retry interval and timeout configuration. Tool code stays linear.
+ * - `opportunities` defaults to an empty array in the response so the AI can
+ *   always iterate the field without checking for undefined.
+ * - This tool must be called before `prepare_order` when placing a tasking
+ *   order, because the `provider_window_id` from an opportunity can be used
+ *   to pin the order to a specific satellite pass.
+ */
+
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SkyFiClient } from "../client/skyfi.js";
 
+/**
+ * Register the `check_feasibility` tool on the given MCP server.
+ *
+ * The tool is read-only — it queries satellite pass schedules but does not
+ * commit any order or consume credits.
+ *
+ * @param server - The MCP server instance to register the tool on.
+ * @param client - Authenticated SkyFi API client used to submit and poll the check.
+ */
 export function registerFeasibilityTools(server: McpServer, client: SkyFiClient) {
   server.registerTool("check_feasibility", {
     title: "Check Tasking Feasibility",
@@ -16,6 +46,7 @@ export function registerFeasibilityTools(server: McpServer, client: SkyFiClient)
     },
     annotations: { readOnlyHint: true },
   }, async ({ aoi, window_start, window_end, product_type, resolution }) => {
+    // PHASE 1: SUBMIT — enqueue the feasibility check and get the tracking ID.
     const initial = await client.checkFeasibility({
       aoi,
       window_start,
@@ -24,6 +55,8 @@ export function registerFeasibilityTools(server: McpServer, client: SkyFiClient)
       resolution,
     });
 
+    // PHASE 2: POLL — wait for the check to reach a terminal state.
+    // pollFeasibility handles the retry loop with configurable interval/timeout.
     const result = await client.pollFeasibility(initial.feasibility_id);
 
     return {
@@ -32,6 +65,8 @@ export function registerFeasibilityTools(server: McpServer, client: SkyFiClient)
         text: JSON.stringify({
           feasibilityId: result.feasibility_id,
           status: result.status,
+          // WHY: Default to empty array so the AI can always iterate
+          // opportunities without a null check.
           opportunities: result.opportunities ?? [],
           message: result.message,
         }, null, 2),
