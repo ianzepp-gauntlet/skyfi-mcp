@@ -201,13 +201,32 @@ The project includes unit tests co-located with each module (files ending in `_t
 bun test
 ```
 
-Coverage areas:
-- `config/config_test.ts` — API key and base URL priority order (header > env > local config)
-- `client/skyfi_test.ts` — HTTP client edge cases (204/205 No Content handling)
-- `client/osm_test.ts` — `bboxToWkt` coordinate transformation
-- `server/transport_test.ts` — Per-session API key/env propagation, stateless mode session rejection
-- `tools/search_test.ts` — `searchImagerySchema` cross-field validation
-- `tools/confirmation_test.ts` — `ConfirmationStore` TTL expiry and single-use enforcement
+Run coverage:
+
+```bash
+bun test --coverage
+```
+
+#### Testing Stats
+
+Latest unit test snapshot:
+
+- **Tests:** 52 passing, 0 failing
+- **Overall coverage:** 97.46% lines, 95.83% functions
+- **Scope:** 14 test files covering client, config, transport, and tool modules
+
+Major covered areas:
+
+- **SkyFi client (`src/client/skyfi.ts`)**: request serialization, error handling, polling behavior, endpoint wrappers, notification create/delete paths
+- **Transport layer (`src/server/transport.ts`)**: stateful/stateless behavior, session rejection/lookup, health and webhook endpoints, deterministic session lifecycle testing
+- **Order safety flow (`src/tools/orders.ts`)**: prepare/confirm human-in-the-loop flow, archive/tasking validation, token error handling, response projection
+- **Tool handlers (`src/tools/*.ts`)**: search, feasibility, pricing, AOI monitoring, and location resolution happy/sad/edge paths
+- **Config and utility logic**: config precedence and confirmation-token TTL/single-use semantics
+
+Known gaps:
+
+- **Entry-point modules are not unit-tested directly**: `src/index.ts` and `src/worker.ts` are thin bootstrap files and are covered indirectly through tested shared modules.
+- **Test harness helper is intentionally not fully covered**: `src/tools/test_harness.ts` is a small testing utility with non-critical uncovered lines.
 
 ### Connect from Claude Code
 
