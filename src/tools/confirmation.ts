@@ -120,7 +120,7 @@ export class ConfirmationStore {
   store(order: Omit<PendingOrder, "createdAt">, now = Date.now()): string {
     this.cleanExpired(now);
     const token = crypto.randomUUID();
-    this.pending.set(token, { ...order, createdAt: now });
+    this.pending.set(token, { ...order, createdAt: now } as PendingOrder);
     return token;
   }
 

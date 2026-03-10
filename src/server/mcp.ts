@@ -27,6 +27,16 @@ import { registerPricingTools } from "../tools/pricing.js";
 import { registerOrderTools } from "../tools/orders.js";
 import { registerAoiTools } from "../tools/aoi.js";
 import { registerLocationTools } from "../tools/location.js";
+import type { AlertStore } from "../tools/alerts.js";
+
+/** Options for MCP server creation beyond the base SkyFi config. */
+export interface CreateMcpServerOptions {
+  /**
+   * Shared alert store for AOI webhook alerts. When provided, the
+   * `get_aoi_monitor` and `get_aoi_alerts` tools can return stored alerts.
+   */
+  alertStore?: AlertStore;
+}
 
 /**
  * Create and fully configure an MCP server for the given SkyFi account.
@@ -40,9 +50,10 @@ import { registerLocationTools } from "../tools/location.js";
  * threaded through every tool handler.
  *
  * @param config - SkyFi API credentials and base URL for this session.
+ * @param options - Additional options (e.g. shared alert store).
  * @returns A fully registered `McpServer` instance, not yet connected to a transport.
  */
-export function createMcpServer(config: SkyFiConfig): McpServer {
+export function createMcpServer(config: SkyFiConfig, options?: CreateMcpServerOptions): McpServer {
   const server = new McpServer({
     name: "skyfi",
     version: "0.1.0",
@@ -56,7 +67,7 @@ export function createMcpServer(config: SkyFiConfig): McpServer {
   registerFeasibilityTools(server, client);
   registerPricingTools(server, client);
   registerOrderTools(server, client);
-  registerAoiTools(server, client);
+  registerAoiTools(server, client, options?.alertStore);
   // Location tools use OpenStreetMap, not the SkyFi API, so they don't
   // need a SkyFiClient reference.
   registerLocationTools(server);

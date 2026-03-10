@@ -19,14 +19,16 @@ import { loadConfig } from "./config/index.js";
 import { loadLocalConfig } from "./config/local.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createApp } from "./server/transport.js";
+import { AlertStore } from "./tools/alerts.js";
 
 const port = parseInt(process.env.PORT ?? "3000", 10);
+const alertStore = new AlertStore();
 
 const app = createApp((headerApiKey, env) => {
   const localConfig = loadLocalConfig();
   const config = loadConfig(headerApiKey, localConfig, env);
-  return createMcpServer(config);
-});
+  return createMcpServer(config, { alertStore });
+}, { alertStore });
 
 console.log(`SkyFi MCP server listening on http://localhost:${port}/mcp`);
 

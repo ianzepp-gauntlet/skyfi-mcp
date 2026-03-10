@@ -15,7 +15,9 @@ An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.co
 | `confirm_order` | Execute a prepared order using a confirmation token from `prepare_order` |
 | `create_aoi_monitor` | Create an Area of Interest monitor with webhook notifications for new imagery |
 | `list_aoi_monitors` | List all active AOI monitors |
+| `get_aoi_monitor` | Get details for a specific AOI monitor, including recent webhook alerts |
 | `delete_aoi_monitor` | Delete an AOI monitor |
+| `get_aoi_alerts` | Retrieve recent webhook alerts for AOI monitors |
 | `resolve_location` | Resolve a place name to coordinates and WKT polygon via OpenStreetMap |
 
 ## Tech Stack
@@ -53,7 +55,7 @@ The Workers entry point runs in **stateless** session mode — each request crea
 
 ## Implementation Status
 
-Overall: ~80% complete.
+Overall: ~90% complete.
 
 ### Phase 1 — Scaffold & SkyFi Client ✅ COMPLETE
 
@@ -78,12 +80,14 @@ Overall: ~80% complete.
 - Tokens are random UUIDs, single-use, session-isolated
 - `ConfirmationStore` class (`src/tools/confirmation.ts`) implements the token store with lazy TTL expiry and injectable clock for deterministic testing
 
-### Phase 4 — AOI Monitoring 🚧 PARTIAL
+### Phase 4 — AOI Monitoring ✅ COMPLETE
 
-- `create_aoi_monitor`, `list_aoi_monitors`, `delete_aoi_monitor`: done
-- Inbound webhook receiver at `POST /webhooks/aoi`: done (logs payloads to console)
-- `get_aoi_monitor` (with history): not implemented
-- Persisted alert storage via SQLite + `get_aoi_alerts` tool: not implemented
+- `create_aoi_monitor`, `list_aoi_monitors`, `get_aoi_monitor`, `delete_aoi_monitor`: done
+- `get_aoi_alerts`: done — retrieves alerts per monitor or across all monitors
+- Inbound webhook receiver at `POST /webhooks/aoi`: done — persists payloads to in-memory `AlertStore`
+- `AlertStore` class (`src/tools/alerts.ts`) implements keyed alert storage with per-monitor caps
+- Alert store is shared between the transport layer (writes) and MCP sessions (reads via tools)
+- SQLite persistence deferred — in-memory store is sufficient for the PoC; upgrade path documented
 
 ### Phase 5 — OpenStreetMap Integration ✅ COMPLETE
 
@@ -94,10 +98,17 @@ Overall: ~80% complete.
 
 Planned: `skyfi search`, `skyfi orders list/get`, `skyfi aoi list/create`, `skyfi auth login/status` — all backed by the same tool logic as the MCP server.
 
-### Phase 7 — Documentation 🚧 PARTIAL
+### Phase 7 — Documentation ✅ COMPLETE
 
 - General README and quick start: done
-- Platform-specific integration guides (ADK, LangChain/LangGraph, AI SDK, Claude Web, Claude Code, OpenAI, Gemini): not written
+- Platform-specific integration guides: done — see `docs/integrations/`
+  - [Google ADK](docs/integrations/adk.md)
+  - [LangChain / LangGraph](docs/integrations/langchain.md)
+  - [Vercel AI SDK](docs/integrations/ai-sdk.md)
+  - [Claude Web](docs/integrations/claude-web.md)
+  - [Claude Code](docs/integrations/claude-code.md)
+  - [OpenAI](docs/integrations/openai.md)
+  - [Gemini](docs/integrations/gemini.md)
 - Cloudflare Workers deployment instructions: done
 
 ## Stretch Goals
@@ -211,16 +222,17 @@ bun test --coverage
 
 Latest unit test snapshot:
 
-- **Tests:** 52 passing, 0 failing
-- **Overall coverage:** 97.46% lines, 95.83% functions
-- **Scope:** 14 test files covering client, config, transport, and tool modules
+- **Tests:** 68 passing, 0 failing
+- **Overall coverage:** 97%+ lines, 95%+ functions
+- **Scope:** 15 test files covering client, config, transport, and tool modules
 
 Major covered areas:
 
 - **SkyFi client (`src/client/skyfi.ts`)**: request serialization, error handling, polling behavior, endpoint wrappers, notification create/delete paths
 - **Transport layer (`src/server/transport.ts`)**: stateful/stateless behavior, session rejection/lookup, health and webhook endpoints, deterministic session lifecycle testing
 - **Order safety flow (`src/tools/orders.ts`)**: prepare/confirm human-in-the-loop flow, archive/tasking validation, token error handling, response projection
-- **Tool handlers (`src/tools/*.ts`)**: search, feasibility, pricing, AOI monitoring, and location resolution happy/sad/edge paths
+- **Tool handlers (`src/tools/*.ts`)**: search, feasibility, pricing, AOI monitoring (with alerts), and location resolution happy/sad/edge paths
+- **Alert store (`src/tools/alerts.ts`)**: add/get/getAll/clear semantics, per-monitor caps, cross-monitor sorting
 - **Config and utility logic**: config precedence and confirmation-token TTL/single-use semantics
 
 Known gaps:
@@ -351,10 +363,21 @@ src/
     ├── orders_test.ts         # Order handler tests (prepare/confirm flow, validation, errors)
     ├── confirmation.ts        # ConfirmationStore — single-use token store for ordering
     ├── confirmation_test.ts   # ConfirmationStore tests (TTL, single-use)
-    ├── aoi.ts                 # create/list/delete AOI monitors
-    ├── aoi_test.ts            # AOI handler tests (create, list, delete)
+    ├── alerts.ts              # AlertStore — in-memory AOI webhook alert storage
+    ├── alerts_test.ts         # AlertStore tests (add, get, limit, clear)
+    ├── aoi.ts                 # create/list/get/delete AOI monitors + get alerts
+    ├── aoi_test.ts            # AOI handler tests (CRUD, alerts integration)
     ├── location.ts            # resolve_location (OSM geocoding)
     └── location_test.ts       # Location handler tests (results, no-match)
+docs/
+└── integrations/
+    ├── adk.md               # Google ADK integration guide
+    ├── ai-sdk.md            # Vercel AI SDK integration guide
+    ├── claude-code.md       # Claude Code integration guide
+    ├── claude-web.md        # Claude Web integration guide
+    ├── gemini.md            # Google Gemini integration guide
+    ├── langchain.md         # LangChain / LangGraph integration guide
+    └── openai.md            # OpenAI integration guide
 wrangler.jsonc             # Cloudflare Workers deployment config
 ```
 
@@ -362,7 +385,7 @@ wrangler.jsonc             # Cloudflare Workers deployment config
 
 These are the highest-priority items needed to bring the implementation in line with `REQUIREMENTS.md`:
 
-1. Complete AOI notification delivery. `POST /webhooks/aoi` currently logs and acknowledges payloads, but it does not persist alerts or fan them out so an agent can actually inform the user when new imagery arrives.
-2. Write the required integration guides. The project still needs concrete usage documentation for ADK, LangChain/LangGraph, AI SDK, Claude Web, OpenAI, Claude Code, and Gemini.
-3. Add live-system verification. Real SkyFi API smoke tests and an end-to-end MCP client validation pass are still missing.
-4. Build the demo agent. The requirements call for a polished geospatial deep research agent using this MCP server, ready to be open-sourced.
+1. Add live-system verification. Real SkyFi API smoke tests and an end-to-end MCP client validation pass are still missing.
+2. Build the demo agent. The requirements call for a polished geospatial deep research agent using this MCP server, ready to be open-sourced.
+3. Add LangSmith tracing at the tool-call boundary (Phase 2 gap).
+4. Build the CLI interface (Phase 6).

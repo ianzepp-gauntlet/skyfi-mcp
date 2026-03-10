@@ -13,8 +13,10 @@
  * The core application (Hono routes, MCP server, tools) is shared with the
  * Bun entry point — only the bootstrap and config sourcing differ.
  *
- * Environment bindings are threaded to the config layer via the Hono context
- * (`c.env`), which the transport layer passes through the server factory.
+ * NOTE: On Workers, the AlertStore is ephemeral per isolate. Since Workers
+ * are stateless and isolates may be recycled at any time, alerts are not
+ * guaranteed to persist across requests. A durable storage backend (D1, KV)
+ * would be needed for production alert persistence on Workers.
  *
  * @see src/index.ts — Bun/Node.js entry point (filesystem config, TCP port).
  */
@@ -22,11 +24,14 @@
 import { loadConfig } from "./config/index.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createApp } from "./server/transport.js";
+import { AlertStore } from "./tools/alerts.js";
+
+const alertStore = new AlertStore();
 
 const app = createApp((headerApiKey, env) => {
   const config = loadConfig(headerApiKey, undefined, env);
-  return createMcpServer(config);
-}, { sessionMode: "stateless" });
+  return createMcpServer(config, { alertStore });
+}, { sessionMode: "stateless", alertStore });
 
 export default {
   fetch: app.fetch,

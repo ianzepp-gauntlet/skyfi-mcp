@@ -36,6 +36,7 @@
 import { Hono } from "hono";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { AlertStore } from "../tools/alerts.js";
 
 /**
  * Holds the live MCP server and its bound transport for an active session.
@@ -87,6 +88,11 @@ interface CreateAppOptions {
   sessionMode?: "stateful" | "stateless";
   transportFactory?: TransportFactory;
   sessionIdGenerator?: () => string;
+  /**
+   * Shared alert store for persisting inbound AOI webhook payloads.
+   * When provided, `POST /webhooks/aoi` writes alerts here instead of just logging.
+   */
+  alertStore?: AlertStore;
 }
 
 /**
@@ -207,12 +213,20 @@ export function createApp(
   // Liveness probe for load balancers and orchestrators.
   app.get("/health", (c) => c.json({ status: "ok" }));
 
-  // AOI webhook receiver — placeholder for Phase 4 fanout logic.
-  // Currently logs the payload and acknowledges receipt so the SkyFi platform
-  // does not retry delivery.
+  // AOI webhook receiver — persists alerts to the shared AlertStore.
+  // The SkyFi platform POSTs here when new imagery matches an AOI monitor.
+  // Payloads are stored keyed by monitor ID so MCP tool handlers can retrieve them.
   app.post("/webhooks/aoi", async (c) => {
     const body = await c.req.json();
     console.log("[webhook] AOI notification received:", JSON.stringify(body));
+
+    if (options.alertStore) {
+      // The SkyFi webhook payload includes a notification_id (the monitor ID).
+      // Fall back to "unknown" if the field is absent, so we never lose data.
+      const monitorId = (body.notification_id ?? body.notificationId ?? "unknown") as string;
+      options.alertStore.add(monitorId, body);
+    }
+
     return c.json({ received: true });
   });
 
