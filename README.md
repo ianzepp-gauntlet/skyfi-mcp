@@ -66,7 +66,7 @@ Overall: ~80% complete.
 - MCP transport (HTTP + SSE via Hono) with per-session server instances: done
 - Dual-runtime support (Cloudflare Workers + Bun): done
 - Tools implemented: `search_imagery` (with pagination), `check_feasibility` (async polling), `get_pricing`, `list_orders`, `get_order`: done
-- Unit test suite covering config, client, transport, and tool-schema validation: done
+- Unit test suite: 52 tests across 14 files, 97% line coverage (config, clients, transport, all tool handlers): done
 - LangSmith tracing at tool-call boundary: not started
 - Real SkyFi API smoke test: not done
 - End-to-end validation with a live MCP client: not done
@@ -325,27 +325,36 @@ src/
 ├── config/
 │   ├── index.ts          # Portable config loader (env, headers) — no Node.js imports
 │   ├── local.ts          # Local config file loader (~/.skyfi/config.json) — Bun only
-│   └── config_test.ts    # Unit tests for loadConfig priority order
+│   └── config_test.ts    # Config priority order tests (header > env > local)
 ├── client/
 │   ├── types.ts          # SkyFi API request/response types
 │   ├── skyfi.ts          # Typed SkyFi HTTP client
-│   ├── skyfi_test.ts     # Unit tests for SkyFiClient (204/205 handling)
+│   ├── skyfi_test.ts     # SkyFiClient tests (204/205 handling)
+│   ├── skyfi_more_test.ts # Extended client tests (serialization, polling, errors, endpoints)
 │   ├── osm.ts            # OpenStreetMap Nominatim client
-│   └── osm_test.ts       # Unit tests for bboxToWkt
+│   ├── osm_test.ts       # bboxToWkt coordinate tests
+│   └── osm_more_test.ts  # Extended OSM tests (resolveLocation, error handling)
 ├── server/
 │   ├── mcp.ts            # MCP server factory — registers all tools
 │   ├── transport.ts      # Hono app with HTTP+SSE transport (stateful/stateless)
-│   └── transport_test.ts # Unit tests for createApp (API key propagation, session modes)
+│   └── transport_test.ts # Transport tests (API key propagation, session modes, lifecycle)
 └── tools/
-    ├── search.ts          # search_imagery
-    ├── search_test.ts     # Unit tests for searchImagerySchema validation
-    ├── feasibility.ts     # check_feasibility
-    ├── pricing.ts         # get_pricing
-    ├── orders.ts          # list_orders, get_order, prepare_order, confirm_order
-    ├── confirmation.ts    # ConfirmationStore — single-use token store for ordering
-    ├── confirmation_test.ts # Unit tests for ConfirmationStore (TTL, single-use)
-    ├── aoi.ts             # create/list/delete AOI monitors
-    └── location.ts        # resolve_location (OSM geocoding)
+    ├── test_harness.ts        # Shared test helper — creates mock MCP server + client
+    ├── search.ts              # search_imagery
+    ├── search_test.ts         # Schema cross-field validation tests
+    ├── search_handler_test.ts # search_imagery handler tests (projection, pagination)
+    ├── feasibility.ts         # check_feasibility
+    ├── feasibility_test.ts    # Feasibility handler tests (submit + poll flow)
+    ├── pricing.ts             # get_pricing
+    ├── pricing_test.ts        # Pricing handler tests (with/without AOI)
+    ├── orders.ts              # list_orders, get_order, prepare_order, confirm_order
+    ├── orders_test.ts         # Order handler tests (prepare/confirm flow, validation, errors)
+    ├── confirmation.ts        # ConfirmationStore — single-use token store for ordering
+    ├── confirmation_test.ts   # ConfirmationStore tests (TTL, single-use)
+    ├── aoi.ts                 # create/list/delete AOI monitors
+    ├── aoi_test.ts            # AOI handler tests (create, list, delete)
+    ├── location.ts            # resolve_location (OSM geocoding)
+    └── location_test.ts       # Location handler tests (results, no-match)
 wrangler.jsonc             # Cloudflare Workers deployment config
 ```
 
