@@ -20,28 +20,51 @@ An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.co
 
 ## Tech Stack
 
-- **Runtime**: [Bun](https://bun.sh)
+- **Runtimes**: [Cloudflare Workers](https://developers.cloudflare.com/workers/) (production) / [Bun](https://bun.sh) (local development)
 - **MCP SDK**: [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk)
-- **HTTP Framework**: [Hono](https://hono.dev)
+- **HTTP Framework**: [Hono](https://hono.dev) (runs on both runtimes)
 - **Validation**: [Zod](https://zod.dev)
 - **Database**: SQLite (lightweight; used for AOI alert persistence if enabled)
 - **Observability**: LangSmith tracing (planned at tool-call boundary)
-- **Deployment**: Railway (preferred); local self-hosting supported
+- **Deployment**: Cloudflare Workers (primary); Bun self-hosting supported
 - **External APIs**: [SkyFi Platform API](https://app.skyfi.com/platform-api/redoc), [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org)
+
+## Architecture
+
+The codebase is designed for **dual-runtime deployment** — all tools, clients, and types are shared between Cloudflare Workers and Bun. Only the entry point and config sourcing differ:
+
+```
+┌─────────────────────────────────────┐
+│  Tools / Client / Types / Config    │  ← 100% shared
+├─────────────────────────────────────┤
+│  MCP Server wiring (mcp.ts)         │  ← 100% shared
+├─────────────────────────────────────┤
+│  Hono transport (transport.ts)      │  ← Shared, with sessionMode option
+│    ├─ stateful (Bun)                │
+│    └─ stateless (Workers)           │
+├─────────────────────────────────────┤
+│  Entry point                        │
+│    ├─ src/worker.ts (Workers)       │
+│    └─ src/index.ts  (Bun)           │
+└─────────────────────────────────────┘
+```
+
+The Workers entry point runs in **stateless** session mode — each request creates a fresh MCP server and transport. The Bun entry point runs in **stateful** mode with in-memory session tracking, which also supports the optional `~/.skyfi/config.json` file for local developer convenience.
 
 ## Implementation Status
 
-Overall: ~72% complete.
+Overall: ~80% complete.
 
 ### Phase 1 — Scaffold & SkyFi Client ✅ COMPLETE
 
 - TypeScript project setup with Bun
 - Typed HTTP client covering all SkyFi API endpoints (archives, orders, pricing, feasibility, notifications)
-- Config loader supporting env variables and `~/.skyfi/config.json`
+- Config loader supporting env variables, request headers, and `~/.skyfi/config.json` (Bun only)
 
 ### Phase 2 — MCP Server + Core Read-Only Tools 🚧 PARTIAL
 
 - MCP transport (HTTP + SSE via Hono) with per-session server instances: done
+- Dual-runtime support (Cloudflare Workers + Bun): done
 - Tools implemented: `search_imagery` (with pagination), `check_feasibility` (async polling), `get_pricing`, `list_orders`, `get_order`: done
 - Unit test suite covering config, client, transport, and tool-schema validation: done
 - LangSmith tracing at tool-call boundary: not started
@@ -75,14 +98,13 @@ Planned: `skyfi search`, `skyfi orders list/get`, `skyfi aoi list/create`, `skyf
 
 - General README and quick start: done
 - Platform-specific integration guides (ADK, LangChain/LangGraph, AI SDK, Claude Web, Claude Code, OpenAI, Gemini): not written
-- Railway deployment instructions: not written
+- Cloudflare Workers deployment instructions: done
 
 ## Stretch Goals
 
 - **Demo Agent — Geospatial Deep Research**: A polished, open-source-ready agent using this MCP for geospatial-supported deep research (LangGraph or similar); LangSmith tracing included
 - **PostgreSQL migration**: Swap SQLite for PostgreSQL if AOI monitoring state or multi-user demand grows
 - **Rich notification delivery**: Slack, email, or webhook forwarding for AOI alerts beyond console logging
-- **Cloudflare Agents deployment**: Evaluate Cloudflare as an alternative hosting target if Railway proves insufficient for SSE or global edge requirements
 - **Payments integration**: In-MCP payment flow beyond credential-based API key usage
 
 ## Design Decisions
@@ -96,9 +118,12 @@ Ordering satellite imagery costs real money. The server enforces a hard human-in
 
 This two-tool pattern is intentionally safer than a single tool with a `confirmed: true` flag. The agent must make two separate calls, and the human sees the full price between them. Even if an agent tries to chain calls autonomously, the token mechanism ensures the prepare step visibly completed first.
 
-### Stateful Session Management
+### Dual-Runtime Session Management
 
-Each MCP client connection gets its own transport and session, tracked via the `mcp-session-id` header. This allows concurrent agent connections without cross-talk while keeping each session's pending order tokens isolated.
+The transport layer supports two session modes via `CreateAppOptions`:
+
+- **Stateful** (Bun, default): Each MCP client connection gets its own transport and session, tracked via the `mcp-session-id` header in an in-memory `Map`. This allows concurrent agent connections without cross-talk while keeping each session's pending order tokens isolated.
+- **Stateless** (Workers): Each request creates a fresh MCP server and transport. Requests with `mcp-session-id` are rejected with HTTP 501. This avoids relying on Worker isolate affinity, which is not guaranteed.
 
 ### No Muninn Framework (PoC)
 
@@ -110,7 +135,7 @@ The server uses `WebStandardStreamableHTTPServerTransport` from the MCP TypeScri
 
 - HTTP + SSE transport (the current MCP standard)
 - Works on Bun, Node.js, Cloudflare Workers, and Deno without changes
-- Session resumability support built in
+- Session resumability support on runtimes that support it (Bun/Node)
 
 ### SkyFi API as WKT
 
@@ -120,9 +145,9 @@ The SkyFi API uses WKT (Well-Known Text) polygons for areas of interest rather t
 
 API key resolution follows this order:
 
-1. Request header (for cloud/multi-user deployment)
-2. `SKYFI_API_KEY` environment variable
-3. `~/.skyfi/config.json` file
+1. `x-skyfi-api-key` request header (for cloud/multi-user deployment)
+2. `SKYFI_API_KEY` environment variable (or Worker env binding on Cloudflare)
+3. `~/.skyfi/config.json` file (Bun/Node only — not available on Workers)
 
 ## Local Development
 
@@ -160,10 +185,12 @@ The server starts at `http://localhost:3000/mcp`.
 ### Scripts
 
 ```bash
-bun run dev      # Start with hot reload
-bun run start    # Start production
+bun run dev      # Start Bun dev server with hot reload
+bun run start    # Start Bun production server
 bun run check    # TypeScript type check
 bun test         # Run unit tests
+bun run dev:cf   # Start Cloudflare Workers local dev server (wrangler)
+bun run deploy   # Deploy to Cloudflare Workers
 ```
 
 ### Testing
@@ -175,10 +202,10 @@ bun test
 ```
 
 Coverage areas:
-- `config/config_test.ts` — API key and base URL priority order
+- `config/config_test.ts` — API key and base URL priority order (header > env > local config)
 - `client/skyfi_test.ts` — HTTP client edge cases (204/205 No Content handling)
 - `client/osm_test.ts` — `bboxToWkt` coordinate transformation
-- `server/transport_test.ts` — Per-session API key header propagation
+- `server/transport_test.ts` — Per-session API key/env propagation, stateless mode session rejection
 - `tools/search_test.ts` — `searchImagerySchema` cross-field validation
 - `tools/confirmation_test.ts` — `ConfirmationStore` TTL expiry and single-use enforcement
 
@@ -212,30 +239,73 @@ Add to your Claude Desktop MCP config:
 
 ## Deployment
 
-### Railway (recommended)
+### Cloudflare Workers (recommended)
 
-Railway is the preferred deployment target. The HTTP + SSE transport requires long-lived connections — verify Railway's request timeout behavior and configure SSE keepalive if needed.
+Cloudflare Workers is the primary deployment target. The server runs in stateless session mode on Workers.
 
-The inbound webhook endpoint (`POST /webhooks/aoi`) requires a stable public URL. Railway provides this automatically on deployment. For local development with webhooks, use a tunnel (e.g., ngrok).
+**Prerequisites:**
 
-Environment variables to set on Railway:
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) (included as a devDependency)
+- A Cloudflare account
 
-- `SKYFI_API_KEY` — your SkyFi API key
-- `SKYFI_BASE_URL` — override the SkyFi API base URL (optional; defaults to `https://app.skyfi.com/platform-api`)
+**Set secrets:**
+
+```bash
+bunx wrangler secret put SKYFI_API_KEY
+```
+
+Optional environment variables (set in `wrangler.jsonc` or via `wrangler secret put`):
+
+- `SKYFI_BASE_URL` — override the SkyFi API base URL (defaults to `https://app.skyfi.com/platform-api`)
 - `LANGCHAIN_API_KEY` — LangSmith API key (when tracing is enabled)
-- `PORT` — Railway sets this automatically
 
-### Cloudflare (alternative)
+**Deploy:**
 
-The Hono server and MCP SDK transport are compatible with Cloudflare Workers. Cloudflare is a documented fallback if Railway's SSE timeout limits prove problematic at scale. No code changes are required to switch transports.
+```bash
+bun run deploy
+```
+
+The server deploys to `https://skyfi-mcp.<your-account>.workers.dev/mcp`.
+
+**Local Workers dev server:**
+
+```bash
+bun run dev:cf
+```
+
+This starts a local Wrangler dev server that simulates the Workers runtime, useful for testing Workers-specific behavior without deploying.
+
+**Connect a remote MCP client:**
+
+```bash
+claude mcp add skyfi -- https://skyfi-mcp.<your-account>.workers.dev/mcp
+```
+
+### Bun Self-Hosting
+
+For self-hosted deployments (Railway, VPS, Docker, etc.), use the Bun entry point:
+
+```bash
+export SKYFI_API_KEY=your-key-here
+bun run start
+```
+
+Environment variables:
+- `SKYFI_API_KEY` — your SkyFi API key
+- `SKYFI_BASE_URL` — override the SkyFi API base URL (optional)
+- `PORT` — listening port (default: 3000)
+
+The inbound webhook endpoint (`POST /webhooks/aoi`) requires a stable public URL. For local development with webhooks, use a tunnel (e.g., ngrok).
 
 ## Project Structure
 
 ```
 src/
-├── index.ts              # Entry point — starts Hono server
+├── index.ts              # Bun entry point — stateful sessions, local config file
+├── worker.ts             # Cloudflare Workers entry point — stateless sessions
 ├── config/
-│   ├── index.ts          # Config loader (env, JSON file, headers)
+│   ├── index.ts          # Portable config loader (env, headers) — no Node.js imports
+│   ├── local.ts          # Local config file loader (~/.skyfi/config.json) — Bun only
 │   └── config_test.ts    # Unit tests for loadConfig priority order
 ├── client/
 │   ├── types.ts          # SkyFi API request/response types
@@ -245,8 +315,8 @@ src/
 │   └── osm_test.ts       # Unit tests for bboxToWkt
 ├── server/
 │   ├── mcp.ts            # MCP server factory — registers all tools
-│   ├── transport.ts      # Hono app with HTTP+SSE transport
-│   └── transport_test.ts # Unit tests for createApp (API key propagation)
+│   ├── transport.ts      # Hono app with HTTP+SSE transport (stateful/stateless)
+│   └── transport_test.ts # Unit tests for createApp (API key propagation, session modes)
 └── tools/
     ├── search.ts          # search_imagery
     ├── search_test.ts     # Unit tests for searchImagerySchema validation
@@ -257,14 +327,14 @@ src/
     ├── confirmation_test.ts # Unit tests for ConfirmationStore (TTL, single-use)
     ├── aoi.ts             # create/list/delete AOI monitors
     └── location.ts        # resolve_location (OSM geocoding)
+wrangler.jsonc             # Cloudflare Workers deployment config
 ```
 
 ## Next Steps
 
 These are the highest-priority items needed to bring the implementation in line with `REQUIREMENTS.md`:
 
-1. Reconcile deployment architecture with the spec. The requirements call for a fully deployed remote MCP server built on Cloudflare Agents with stateless HTTP + SSE transport, while the current implementation is Bun/Hono with in-memory session state.
-2. Complete AOI notification delivery. `POST /webhooks/aoi` currently logs and acknowledges payloads, but it does not persist alerts or fan them out so an agent can actually inform the user when new imagery arrives.
-3. Write the required integration guides. The project still needs concrete usage documentation for ADK, LangChain/LangGraph, AI SDK, Claude Web, OpenAI, Claude Code, and Gemini.
-4. Add live-system verification. Real SkyFi API smoke tests and an end-to-end MCP client validation pass are still missing.
-5. Clarify deployment guidance in this README after the architecture decision is settled, so the deployment section matches the requirements doc and the actual production plan.
+1. Complete AOI notification delivery. `POST /webhooks/aoi` currently logs and acknowledges payloads, but it does not persist alerts or fan them out so an agent can actually inform the user when new imagery arrives.
+2. Write the required integration guides. The project still needs concrete usage documentation for ADK, LangChain/LangGraph, AI SDK, Claude Web, OpenAI, Claude Code, and Gemini.
+3. Add live-system verification. Real SkyFi API smoke tests and an end-to-end MCP client validation pass are still missing.
+4. Build the demo agent. The requirements call for a polished geospatial deep research agent using this MCP server, ready to be open-sourced.
