@@ -6,9 +6,9 @@
  * the `McpServerFactory` argument is replaced with a spy function that captures
  * what it was called with.
  *
- * Coverage focus: the per-request API key propagation path — ensuring that the
- * `x-skyfi-api-key` header is correctly extracted from the inbound HTTP request
- * and forwarded to the server factory so each session gets its own credentials.
+ * Coverage focus: the per-request API key and env bindings propagation path —
+ * ensuring that the `x-skyfi-api-key` header and runtime env are correctly
+ * extracted from the inbound HTTP request and forwarded to the server factory.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -16,18 +16,15 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createApp } from "./transport.js";
 
 describe("createApp", () => {
-  test("passes request API key header to the server factory", async () => {
-    // Spy on which API keys the factory receives across calls.
+  test("passes request API key header and env to the server factory", async () => {
     const seenHeaders: Array<string | undefined> = [];
-    const app = createApp((headerApiKey) => {
+    const seenEnvs: Array<Record<string, string> | undefined> = [];
+    const app = createApp((headerApiKey, env) => {
       seenHeaders.push(headerApiKey);
+      seenEnvs.push(env);
       return new McpServer({ name: "test-server", version: "0.1.0" });
     });
 
-    // WHY: Use accept: "text/event-stream" to trigger the stateless fallback
-    // path (GET /mcp without a session ID), which still calls the factory.
-    // This exercises the header extraction without needing to complete a full
-    // MCP initialization handshake.
     await app.fetch(
       new Request("http://localhost/mcp", {
         method: "GET",
@@ -40,5 +37,6 @@ describe("createApp", () => {
     );
 
     expect(seenHeaders).toEqual(["header-key"]);
+    expect(seenEnvs.length).toBe(1);
   });
 });

@@ -249,7 +249,7 @@ export class SkyFiClient {
    *
    * @param feasibilityId - Feasibility check to poll.
    * @param opts.intervalMs - How long to wait between polls (default 3 s).
-   * @param opts.timeoutMs - Maximum total wall time to poll (default 60 s).
+   * @param opts.timeoutMs - Maximum total wall time to poll (default 30 s).
    * @returns The last fetched feasibility response (terminal or timed-out).
    */
   async pollFeasibility(
@@ -257,7 +257,7 @@ export class SkyFiClient {
     opts?: { intervalMs?: number; timeoutMs?: number }
   ): Promise<FeasibilityResponse> {
     const interval = opts?.intervalMs ?? 3000;
-    const timeout = opts?.timeoutMs ?? 60000;
+    const timeout = opts?.timeoutMs ?? 30000;
     const start = Date.now();
 
     while (Date.now() - start < timeout) {

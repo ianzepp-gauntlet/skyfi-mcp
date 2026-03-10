@@ -19,7 +19,10 @@
  *   server construction, making both layers independently testable.
  * - Session state is held in a `Map` local to the `createApp` closure. This
  *   is intentionally process-local — no distributed session store is needed
- *   because each Bun process is single-tenant in the current deployment model.
+ *   because each deployment instance handles its own sessions.
+ * - Environment bindings are threaded through the factory so Cloudflare Workers
+ *   can pass `c.env` (Worker env bindings) and Bun can fall through to
+ *   `process.env` via the config layer.
  *
  * TRADE-OFFS:
  * - Sessions are held in memory indefinitely until the `onsessionclosed`
@@ -49,11 +52,20 @@ interface SessionContext {
 /**
  * Factory function that creates an `McpServer` for a new session.
  *
- * Receives the optional API key extracted from the HTTP request header so the
- * server can be constructed with per-caller credentials. Returns a fully
- * configured server that is not yet connected to a transport.
+ * Receives the optional API key extracted from the HTTP request header and
+ * the runtime environment bindings so the server can be constructed with
+ * per-caller credentials. Returns a fully configured server that is not yet
+ * connected to a transport.
+ *
+ * @param headerApiKey - API key from the `x-skyfi-api-key` request header.
+ * @param env - Runtime environment bindings. On Cloudflare Workers this is
+ *   `c.env` from the Hono context; on Bun/Node it can be omitted (the config
+ *   layer falls through to `process.env`).
  */
-type McpServerFactory = (headerApiKey?: string) => McpServer;
+type McpServerFactory = (
+  headerApiKey?: string,
+  env?: Record<string, string>
+) => McpServer;
 
 /**
  * HTTP header name for the caller-supplied SkyFi API key.
@@ -72,15 +84,15 @@ const INBOUND_API_KEY_HEADER = "x-skyfi-api-key";
  * - `POST /webhooks/aoi` — AOI change notification receiver (Phase 4 placeholder)
  *
  * @param createServer - Factory called once per new MCP session. Receives the
- *   API key from the request header so per-session credentials can be bound
- *   at server construction time.
- * @returns A Hono application whose `fetch` handler is compatible with Bun's
- *   `export default { fetch }` module convention.
+ *   API key from the request header and the runtime env bindings so per-session
+ *   credentials can be bound at server construction time.
+ * @returns A Hono application whose `fetch` handler is compatible with both
+ *   Bun's `export default { fetch }` and Cloudflare Workers' module format.
  */
 export function createApp(createServer: McpServerFactory): Hono {
   const app = new Hono();
 
-  // WHY: Sessions are stored in a closure-local Map rather than a module-level
+  // Sessions are stored in a closure-local Map rather than a module-level
   // singleton so that each call to createApp (e.g. in tests) gets an isolated
   // session namespace.
   const sessions = new Map<string, SessionContext>();
@@ -88,6 +100,11 @@ export function createApp(createServer: McpServerFactory): Hono {
   app.all("/mcp", async (c) => {
     const sessionId = c.req.header("mcp-session-id");
     const headerApiKey = c.req.header(INBOUND_API_KEY_HEADER);
+
+    // Thread runtime env bindings through to the factory. On Cloudflare
+    // Workers, c.env contains Worker bindings (secrets, KV, etc.). On Bun,
+    // c.env is empty and the config layer falls through to process.env.
+    const env = (c.env ?? {}) as Record<string, string>;
 
     // PHASE 1: EXISTING SESSION RESUMPTION
     // If the request carries a known session ID, route it directly to the
@@ -103,17 +120,17 @@ export function createApp(createServer: McpServerFactory): Hono {
     // Create a fresh server + transport pair, register lifecycle callbacks,
     // then handle the initialization request through the new transport.
     if (c.req.method === "POST" && !sessionId) {
-      const server = createServer(headerApiKey);
+      const server = createServer(headerApiKey, env);
       const transport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: () => crypto.randomUUID(),
         onsessioninitialized: (id) => {
-          // WHY: Store both server and transport so we can close the server
+          // Store both server and transport so we can close the server
           // when the session ends, not just remove the map entry.
           sessions.set(id, { server, transport });
         },
         onsessionclosed: (id) => {
           sessions.delete(id);
-          // WHY: Explicitly close the server to release any registered tool
+          // Explicitly close the server to release any registered tool
           // handlers and prevent memory leaks in long-running processes.
           void server.close();
         },
@@ -137,7 +154,7 @@ export function createApp(createServer: McpServerFactory): Hono {
     // Callers that do not use sessions (e.g. simple one-shot MCP clients) are
     // served by a stateless transport that creates a new server per request.
     // No session map entry is created.
-    const server = createServer(headerApiKey);
+    const server = createServer(headerApiKey, env);
     const transport = new WebStandardStreamableHTTPServerTransport({});
     await server.connect(transport);
     return transport.handleRequest(c.req.raw);

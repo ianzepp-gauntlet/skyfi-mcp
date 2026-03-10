@@ -57,7 +57,7 @@ export function createMcpServer(config: SkyFiConfig): McpServer {
   registerPricingTools(server, client);
   registerOrderTools(server, client);
   registerAoiTools(server, client);
-  // WHY: Location tools use OpenStreetMap, not the SkyFi API, so they don't
+  // Location tools use OpenStreetMap, not the SkyFi API, so they don't
   // need a SkyFiClient reference.
   registerLocationTools(server);
 

@@ -1,14 +1,13 @@
 /**
  * Unit tests for `loadConfig`.
  *
- * These tests verify the API key and base URL priority order without touching
- * the filesystem (no `~/.skyfi/config.json` is read in any test case). Env
- * vars are saved and restored around each test that mutates them to prevent
- * state leakage between tests.
+ * These tests verify the API key and base URL priority order. The `loadConfig`
+ * function now accepts `localConfig` and `env` as explicit parameters, making
+ * tests deterministic without mutating `process.env`.
  *
  * Priority under test:
- * - API key: header argument > SKYFI_API_KEY env var > (local config, not tested here)
- * - Base URL: SKYFI_BASE_URL env var > (local config) > hardcoded default
+ * - API key: header argument > env.SKYFI_API_KEY > localConfig.apiKey
+ * - Base URL: env.SKYFI_BASE_URL > localConfig.baseUrl > hardcoded default
  */
 
 import { test, expect, describe } from "bun:test";
@@ -20,50 +19,61 @@ describe("loadConfig", () => {
     expect(config.apiKey).toBe("header-key");
   });
 
-  test("falls back to SKYFI_API_KEY env var", () => {
-    const original = process.env.SKYFI_API_KEY;
-    process.env.SKYFI_API_KEY = "env-key";
-    try {
-      const config = loadConfig();
-      expect(config.apiKey).toBe("env-key");
-    } finally {
-      if (original !== undefined) {
-        process.env.SKYFI_API_KEY = original;
-      } else {
-        delete process.env.SKYFI_API_KEY;
-      }
-    }
+  test("falls back to env SKYFI_API_KEY", () => {
+    const config = loadConfig(undefined, undefined, { SKYFI_API_KEY: "env-key" });
+    expect(config.apiKey).toBe("env-key");
+  });
+
+  test("falls back to localConfig apiKey", () => {
+    const config = loadConfig(undefined, { apiKey: "local-key" }, {});
+    expect(config.apiKey).toBe("local-key");
+  });
+
+  test("header takes precedence over env and localConfig", () => {
+    const config = loadConfig(
+      "header-key",
+      { apiKey: "local-key" },
+      { SKYFI_API_KEY: "env-key" }
+    );
+    expect(config.apiKey).toBe("header-key");
+  });
+
+  test("env takes precedence over localConfig", () => {
+    const config = loadConfig(
+      undefined,
+      { apiKey: "local-key" },
+      { SKYFI_API_KEY: "env-key" }
+    );
+    expect(config.apiKey).toBe("env-key");
   });
 
   test("throws when no API key is available", () => {
-    const original = process.env.SKYFI_API_KEY;
-    delete process.env.SKYFI_API_KEY;
-    try {
-      expect(() => loadConfig()).toThrow("SkyFi API key not found");
-    } finally {
-      if (original !== undefined) {
-        process.env.SKYFI_API_KEY = original;
-      }
-    }
+    expect(() => loadConfig(undefined, {}, {})).toThrow("SkyFi API key not found");
   });
 
   test("uses default base URL", () => {
-    const config = loadConfig("key");
+    const config = loadConfig("key", undefined, {});
     expect(config.baseUrl).toBe("https://app.skyfi.com/platform-api");
   });
 
-  test("respects SKYFI_BASE_URL env var", () => {
-    const original = process.env.SKYFI_BASE_URL;
-    process.env.SKYFI_BASE_URL = "https://custom.example.com/api";
-    try {
-      const config = loadConfig("key");
-      expect(config.baseUrl).toBe("https://custom.example.com/api");
-    } finally {
-      if (original !== undefined) {
-        process.env.SKYFI_BASE_URL = original;
-      } else {
-        delete process.env.SKYFI_BASE_URL;
-      }
-    }
+  test("respects env SKYFI_BASE_URL", () => {
+    const config = loadConfig("key", undefined, {
+      SKYFI_BASE_URL: "https://custom.example.com/api",
+    });
+    expect(config.baseUrl).toBe("https://custom.example.com/api");
+  });
+
+  test("falls back to localConfig baseUrl", () => {
+    const config = loadConfig("key", { baseUrl: "https://local.example.com/api" }, {});
+    expect(config.baseUrl).toBe("https://local.example.com/api");
+  });
+
+  test("env baseUrl takes precedence over localConfig baseUrl", () => {
+    const config = loadConfig(
+      "key",
+      { baseUrl: "https://local.example.com" },
+      { SKYFI_BASE_URL: "https://env.example.com" }
+    );
+    expect(config.baseUrl).toBe("https://env.example.com");
   });
 });

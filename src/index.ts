@@ -1,36 +1,30 @@
 /**
- * SkyFi MCP Server — entry point.
+ * SkyFi MCP Server — Bun entry point.
  *
- * Bootstraps the application by wiring together configuration loading, MCP
- * server construction, and the HTTP transport, then exports a Bun-compatible
- * server object.
+ * This is the local development / self-hosted entry point that runs on Bun
+ * (or Node.js). It differs from the Cloudflare Workers entry point
+ * (`src/worker.ts`) in two ways:
  *
- * Architecture:
- * - Config is resolved lazily, once per MCP session, via the factory passed to
- *   `createApp`. This allows the API key to be supplied per-request via the
- *   `x-skyfi-api-key` header rather than fixed at startup.
- * - The MCP server itself is also created per session inside `createApp` (via
- *   `createMcpServer`), so each connected client gets an isolated server
- *   instance bound to its own credentials.
- * - Port defaults to 3000 but can be overridden via the `PORT` env var, which
- *   is the standard convention for container and platform deployments.
+ *  1. It loads the optional `~/.skyfi/config.json` file for local developer
+ *     convenience via `loadLocalConfig()`.
+ *  2. It binds to a TCP port for direct HTTP serving.
  *
- * The server listens at `/mcp` (MCP protocol) and `/health` (liveness probe).
- * See `src/server/transport.ts` for all route definitions.
+ * The core application (Hono routes, MCP server, tools) is shared with the
+ * Workers entry point — only the bootstrap and config sourcing differ.
+ *
+ * @see src/worker.ts — Cloudflare Workers entry point (no filesystem, no port).
  */
 
 import { loadConfig } from "./config/index.js";
+import { loadLocalConfig } from "./config/local.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createApp } from "./server/transport.js";
 
 const port = parseInt(process.env.PORT ?? "3000", 10);
+const localConfig = loadLocalConfig();
 
-const app = createApp((headerApiKey) => {
-  // WHY: Config is resolved inside the factory so the per-request API key
-  // header is incorporated. If config resolution fails (e.g. no API key found),
-  // the error surfaces as an MCP session initialization failure rather than
-  // preventing the server from starting entirely.
-  const config = loadConfig(headerApiKey);
+const app = createApp((headerApiKey, env) => {
+  const config = loadConfig(headerApiKey, localConfig, env);
   return createMcpServer(config);
 });
 
