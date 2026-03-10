@@ -64,4 +64,46 @@ describe("createApp", () => {
         "MCP session resumption is not supported in this deployment. Reconnect without mcp-session-id.",
     });
   });
+  test("returns 404 for unknown session id", async () => {
+    const app = createApp(
+      () => new McpServer({ name: "test-server", version: "0.1.0" }),
+      { sessionMode: "stateful" }
+    );
+
+    const response = await app.fetch(
+      new Request("http://localhost/mcp", {
+        method: "GET",
+        headers: {
+          "mcp-session-id": "missing-session",
+        },
+      }),
+      {} as never
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "Session not found" });
+  });
+
+  test("health endpoint returns ok", async () => {
+    const app = createApp(() => new McpServer({ name: "test-server", version: "0.1.0" }));
+    const response = await app.fetch(new Request("http://localhost/health", { method: "GET" }), {} as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: "ok" });
+  });
+
+  test("aoi webhook endpoint acknowledges payload", async () => {
+    const app = createApp(() => new McpServer({ name: "test-server", version: "0.1.0" }));
+    const response = await app.fetch(
+      new Request("http://localhost/webhooks/aoi", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ event: "created", id: "abc" }),
+      }),
+      {} as never
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ received: true });
+  });
 });
