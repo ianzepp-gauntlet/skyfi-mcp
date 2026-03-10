@@ -30,9 +30,11 @@ describe("resolveLocation", () => {
     }) as unknown) as typeof fetch;
 
     const result = await resolveLocation("Austin");
-    expect(result[0].lat).toBe(30.2);
-    expect(result[0].lon).toBe(-97.7);
-    expect(result[0].boundingBox).toEqual([30.1, 30.4, -98, -97.5]);
+    const first = result[0];
+    expect(first).toBeDefined();
+    expect(first!.lat).toBe(30.2);
+    expect(first!.lon).toBe(-97.7);
+    expect(first!.boundingBox).toEqual([30.1, 30.4, -98, -97.5]);
   });
 
   test("throws enriched error on non-ok responses", async () => {

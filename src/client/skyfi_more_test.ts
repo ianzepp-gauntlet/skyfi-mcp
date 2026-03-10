@@ -3,6 +3,8 @@ import { SkyFiClient } from "./skyfi.js";
 
 const originalFetch = globalThis.fetch;
 const originalSetTimeout = globalThis.setTimeout;
+type TestHeaders = Record<string, string>;
+type TimeoutCallback = (...args: unknown[]) => void;
 
 describe("SkyFiClient request and wrappers", () => {
   beforeEach(() => {
@@ -29,9 +31,9 @@ describe("SkyFiClient request and wrappers", () => {
   });
 
   test("sets content-type only when request has a body", async () => {
-    const headersSeen: Array<HeadersInit | undefined> = [];
+    const headersSeen: Array<TestHeaders | undefined> = [];
     globalThis.fetch = ((async (_url: string | URL | Request, init?: RequestInit) => {
-      headersSeen.push(init?.headers);
+      headersSeen.push(init?.headers as TestHeaders | undefined);
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }) as unknown) as typeof fetch;
 
@@ -80,7 +82,7 @@ describe("SkyFiClient request and wrappers", () => {
         status: 200,
       })) as unknown) as typeof fetch;
 
-    globalThis.setTimeout = ((fn: TimerHandler) => {
+    globalThis.setTimeout = ((fn: TimeoutCallback) => {
       if (typeof fn === "function") fn();
       return 0 as any;
     }) as typeof setTimeout;
@@ -146,7 +148,7 @@ describe("SkyFiClient request and wrappers (additional)", () => {
         status: 200,
       })) as unknown) as typeof fetch;
 
-    globalThis.setTimeout = ((fn: TimerHandler) => {
+    globalThis.setTimeout = ((fn: TimeoutCallback) => {
       if (typeof fn === "function") fn();
       return 0 as any;
     }) as typeof setTimeout;
