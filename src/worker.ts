@@ -26,7 +26,7 @@ import { createApp } from "./server/transport.js";
 const app = createApp((headerApiKey, env) => {
   const config = loadConfig(headerApiKey, undefined, env);
   return createMcpServer(config);
-});
+}, { sessionMode: "stateless" });
 
 export default {
   fetch: app.fetch,

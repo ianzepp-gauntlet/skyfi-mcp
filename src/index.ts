@@ -21,9 +21,9 @@ import { createMcpServer } from "./server/mcp.js";
 import { createApp } from "./server/transport.js";
 
 const port = parseInt(process.env.PORT ?? "3000", 10);
-const localConfig = loadLocalConfig();
 
 const app = createApp((headerApiKey, env) => {
+  const localConfig = loadLocalConfig();
   const config = loadConfig(headerApiKey, localConfig, env);
   return createMcpServer(config);
 });

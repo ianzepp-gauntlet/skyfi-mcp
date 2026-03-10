@@ -67,6 +67,16 @@ type McpServerFactory = (
   env?: Record<string, string>
 ) => McpServer;
 
+interface CreateAppOptions {
+  /**
+   * Session handling mode.
+   *
+   * - `stateful`: supports MCP session creation and resumption via an in-memory map.
+   * - `stateless`: creates a fresh transport per request and rejects resumed sessions.
+   */
+  sessionMode?: "stateful" | "stateless";
+}
+
 /**
  * HTTP header name for the caller-supplied SkyFi API key.
  *
@@ -89,8 +99,12 @@ const INBOUND_API_KEY_HEADER = "x-skyfi-api-key";
  * @returns A Hono application whose `fetch` handler is compatible with both
  *   Bun's `export default { fetch }` and Cloudflare Workers' module format.
  */
-export function createApp(createServer: McpServerFactory): Hono {
+export function createApp(
+  createServer: McpServerFactory,
+  options: CreateAppOptions = {}
+): Hono {
   const app = new Hono();
+  const sessionMode = options.sessionMode ?? "stateful";
 
   // Sessions are stored in a closure-local Map rather than a module-level
   // singleton so that each call to createApp (e.g. in tests) gets an isolated
@@ -105,6 +119,19 @@ export function createApp(createServer: McpServerFactory): Hono {
     // Workers, c.env contains Worker bindings (secrets, KV, etc.). On Bun,
     // c.env is empty and the config layer falls through to process.env.
     const env = (c.env ?? {}) as Record<string, string>;
+
+    if (sessionMode === "stateless" && sessionId) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "MCP session resumption is not supported in this deployment. Reconnect without mcp-session-id.",
+        }),
+        {
+          status: 501,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
 
     // PHASE 1: EXISTING SESSION RESUMPTION
     // If the request carries a known session ID, route it directly to the
@@ -153,7 +180,8 @@ export function createApp(createServer: McpServerFactory): Hono {
     // PHASE 4: STATELESS FALLBACK
     // Callers that do not use sessions (e.g. simple one-shot MCP clients) are
     // served by a stateless transport that creates a new server per request.
-    // No session map entry is created.
+    // No session map entry is created. This is also the only mode used for
+    // runtimes that cannot reliably guarantee per-session affinity.
     const server = createServer(headerApiKey, env);
     const transport = new WebStandardStreamableHTTPServerTransport({});
     await server.connect(transport);

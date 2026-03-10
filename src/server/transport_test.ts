@@ -39,4 +39,29 @@ describe("createApp", () => {
     expect(seenHeaders).toEqual(["header-key"]);
     expect(seenEnvs.length).toBe(1);
   });
+
+  test("rejects resumed sessions in stateless mode", async () => {
+    const app = createApp(
+      () => new McpServer({ name: "test-server", version: "0.1.0" }),
+      { sessionMode: "stateless" }
+    );
+
+    const response = await app.fetch(
+      new Request("http://localhost/mcp", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "mcp-session-id": "existing-session",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+      }),
+      {} as never
+    );
+
+    expect(response.status).toBe(501);
+    await expect(response.json()).resolves.toEqual({
+      error:
+        "MCP session resumption is not supported in this deployment. Reconnect without mcp-session-id.",
+    });
+  });
 });
