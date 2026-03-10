@@ -43,6 +43,7 @@ Overall: ~72% complete.
 
 - MCP transport (HTTP + SSE via Hono) with per-session server instances: done
 - Tools implemented: `search_imagery` (with pagination), `check_feasibility` (async polling), `get_pricing`, `list_orders`, `get_order`: done
+- Unit test suite covering config, client, transport, and tool-schema validation: done
 - LangSmith tracing at tool-call boundary: not started
 - Real SkyFi API smoke test: not done
 - End-to-end validation with a live MCP client: not done
@@ -52,6 +53,7 @@ Overall: ~72% complete.
 - `prepare_order` validates parameters, fetches pricing, returns a summary with a single-use confirmation token (5-minute TTL)
 - `confirm_order` accepts the token and executes the purchase
 - Tokens are random UUIDs, single-use, session-isolated
+- `ConfirmationStore` class (`src/tools/confirmation.ts`) implements the token store with lazy TTL expiry and injectable clock for deterministic testing
 
 ### Phase 4 — AOI Monitoring 🚧 PARTIAL
 
@@ -146,9 +148,12 @@ Or create `~/.skyfi/config.json`:
 
 ```json
 {
-  "apiKey": "your-key-here"
+  "apiKey": "your-key-here",
+  "baseUrl": "https://app.skyfi.com/platform-api"
 }
 ```
+
+Both `apiKey`/`api_key` and `baseUrl`/`base_url` spellings are accepted.
 
 The server starts at `http://localhost:3000/mcp`.
 
@@ -158,7 +163,24 @@ The server starts at `http://localhost:3000/mcp`.
 bun run dev      # Start with hot reload
 bun run start    # Start production
 bun run check    # TypeScript type check
+bun test         # Run unit tests
 ```
+
+### Testing
+
+The project includes unit tests co-located with each module (files ending in `_test.ts`). Tests use Bun's built-in test runner and do not require a real SkyFi API key.
+
+```bash
+bun test
+```
+
+Coverage areas:
+- `config/config_test.ts` — API key and base URL priority order
+- `client/skyfi_test.ts` — HTTP client edge cases (204/205 No Content handling)
+- `client/osm_test.ts` — `bboxToWkt` coordinate transformation
+- `server/transport_test.ts` — Per-session API key header propagation
+- `tools/search_test.ts` — `searchImagerySchema` cross-field validation
+- `tools/confirmation_test.ts` — `ConfirmationStore` TTL expiry and single-use enforcement
 
 ### Connect from Claude Code
 
@@ -199,6 +221,7 @@ The inbound webhook endpoint (`POST /webhooks/aoi`) requires a stable public URL
 Environment variables to set on Railway:
 
 - `SKYFI_API_KEY` — your SkyFi API key
+- `SKYFI_BASE_URL` — override the SkyFi API base URL (optional; defaults to `https://app.skyfi.com/platform-api`)
 - `LANGCHAIN_API_KEY` — LangSmith API key (when tracing is enabled)
 - `PORT` — Railway sets this automatically
 
@@ -212,19 +235,26 @@ The Hono server and MCP SDK transport are compatible with Cloudflare Workers. Cl
 src/
 ├── index.ts              # Entry point — starts Hono server
 ├── config/
-│   └── index.ts          # Config loader (env, JSON file, headers)
+│   ├── index.ts          # Config loader (env, JSON file, headers)
+│   └── config_test.ts    # Unit tests for loadConfig priority order
 ├── client/
 │   ├── types.ts          # SkyFi API request/response types
 │   ├── skyfi.ts          # Typed SkyFi HTTP client
-│   └── osm.ts            # OpenStreetMap Nominatim client
+│   ├── skyfi_test.ts     # Unit tests for SkyFiClient (204/205 handling)
+│   ├── osm.ts            # OpenStreetMap Nominatim client
+│   └── osm_test.ts       # Unit tests for bboxToWkt
 ├── server/
 │   ├── mcp.ts            # MCP server factory — registers all tools
-│   └── transport.ts      # Hono app with HTTP+SSE transport
+│   ├── transport.ts      # Hono app with HTTP+SSE transport
+│   └── transport_test.ts # Unit tests for createApp (API key propagation)
 └── tools/
     ├── search.ts          # search_imagery
+    ├── search_test.ts     # Unit tests for searchImagerySchema validation
     ├── feasibility.ts     # check_feasibility
     ├── pricing.ts         # get_pricing
     ├── orders.ts          # list_orders, get_order, prepare_order, confirm_order
+    ├── confirmation.ts    # ConfirmationStore — single-use token store for ordering
+    ├── confirmation_test.ts # Unit tests for ConfirmationStore (TTL, single-use)
     ├── aoi.ts             # create/list/delete AOI monitors
     └── location.ts        # resolve_location (OSM geocoding)
 ```
