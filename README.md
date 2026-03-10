@@ -228,3 +228,13 @@ src/
     ├── aoi.ts             # create/list/delete AOI monitors
     └── location.ts        # resolve_location (OSM geocoding)
 ```
+
+## Next Steps
+
+These are the highest-priority items needed to bring the implementation in line with `REQUIREMENTS.md`:
+
+1. Reconcile deployment architecture with the spec. The requirements call for a fully deployed remote MCP server built on Cloudflare Agents with stateless HTTP + SSE transport, while the current implementation is Bun/Hono with in-memory session state.
+2. Complete AOI notification delivery. `POST /webhooks/aoi` currently logs and acknowledges payloads, but it does not persist alerts or fan them out so an agent can actually inform the user when new imagery arrives.
+3. Write the required integration guides. The project still needs concrete usage documentation for ADK, LangChain/LangGraph, AI SDK, Claude Web, OpenAI, Claude Code, and Gemini.
+4. Add live-system verification. Real SkyFi API smoke tests and an end-to-end MCP client validation pass are still missing.
+5. Clarify deployment guidance in this README after the architecture decision is settled, so the deployment section matches the requirements doc and the actual production plan.
