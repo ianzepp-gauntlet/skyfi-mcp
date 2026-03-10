@@ -67,6 +67,16 @@ type McpServerFactory = (
   env?: Record<string, string>
 ) => McpServer;
 
+type TransportFactoryOptions = {
+  sessionIdGenerator?: () => string;
+  onsessioninitialized?: (id: string) => void;
+  onsessionclosed?: (id: string) => void;
+};
+
+type TransportFactory = (
+  options: TransportFactoryOptions
+) => WebStandardStreamableHTTPServerTransport;
+
 interface CreateAppOptions {
   /**
    * Session handling mode.
@@ -75,6 +85,8 @@ interface CreateAppOptions {
    * - `stateless`: creates a fresh transport per request and rejects resumed sessions.
    */
   sessionMode?: "stateful" | "stateless";
+  transportFactory?: TransportFactory;
+  sessionIdGenerator?: () => string;
 }
 
 /**
@@ -105,6 +117,10 @@ export function createApp(
 ): Hono {
   const app = new Hono();
   const sessionMode = options.sessionMode ?? "stateful";
+  const transportFactory =
+    options.transportFactory ??
+    ((transportOptions: TransportFactoryOptions) =>
+      new WebStandardStreamableHTTPServerTransport(transportOptions));
 
   // Sessions are stored in a closure-local Map rather than a module-level
   // singleton so that each call to createApp (e.g. in tests) gets an isolated
@@ -148,8 +164,8 @@ export function createApp(
     // then handle the initialization request through the new transport.
     if (c.req.method === "POST" && !sessionId) {
       const server = createServer(headerApiKey, env);
-      const transport = new WebStandardStreamableHTTPServerTransport({
-        sessionIdGenerator: () => crypto.randomUUID(),
+      const transport = transportFactory({
+        sessionIdGenerator: options.sessionIdGenerator ?? (() => crypto.randomUUID()),
         onsessioninitialized: (id) => {
           // Store both server and transport so we can close the server
           // when the session ends, not just remove the map entry.
@@ -183,7 +199,7 @@ export function createApp(
     // No session map entry is created. This is also the only mode used for
     // runtimes that cannot reliably guarantee per-session affinity.
     const server = createServer(headerApiKey, env);
-    const transport = new WebStandardStreamableHTTPServerTransport({});
+      const transport = transportFactory({});
     await server.connect(transport);
     return transport.handleRequest(c.req.raw);
   });

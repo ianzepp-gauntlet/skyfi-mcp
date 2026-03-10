@@ -156,3 +156,44 @@ describe("SkyFiClient request and wrappers (additional)", () => {
     expect(result.status).toBe("PENDING");
   });
 });
+
+describe("SkyFiClient notification endpoints", () => {
+  beforeEach(() => {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+  });
+
+  test("createNotification and deleteNotification hit notification endpoints", async () => {
+    const calls: Array<{ method: string; path: string }> = [];
+
+    globalThis.fetch = ((async (url: string | URL | Request, init?: RequestInit) => {
+      const parsed = new URL(String(url));
+      calls.push({ method: String(init?.method ?? "GET"), path: `${parsed.pathname}${parsed.search}` });
+
+      if (String(init?.method ?? "GET") === "DELETE") {
+        return new Response(null, { status: 204 });
+      }
+
+      return new Response(JSON.stringify({ id: "n-1" }), { status: 200 });
+    }) as unknown) as typeof fetch;
+
+    const client = new SkyFiClient({ apiKey: "k", baseUrl: "https://api.example.com" });
+
+    const created = await client.createNotification({
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      webhookUrl: "https://example.com/webhook",
+    } as any);
+    await client.deleteNotification("n-1");
+
+    expect(created.id).toBe("n-1");
+    expect(calls).toEqual([
+      { method: "POST", path: "/notifications" },
+      { method: "DELETE", path: "/notifications/n-1" },
+    ]);
+  });
+});

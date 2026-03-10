@@ -106,4 +106,75 @@ describe("createApp", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ received: true });
   });
+
+  test("stateful mode reuses initialized session transport and closes server on session close", async () => {
+    const createdServers: Array<{ connect: (t: unknown) => Promise<void>; close: () => Promise<void> }> = [];
+    const transportCalls: string[] = [];
+    const sessionCallbacks: { initialized?: (id: string) => void; closed?: (id: string) => void } = {};
+    let closeCalls = 0;
+
+    const app = createApp(
+      () => {
+        const server = {
+          connect: async () => undefined,
+          close: async () => {
+            closeCalls += 1;
+          },
+        };
+        createdServers.push(server);
+        return server as unknown as McpServer;
+      },
+      {
+        sessionMode: "stateful",
+        sessionIdGenerator: () => "session-1",
+        transportFactory: (options) => {
+          sessionCallbacks.initialized = options.onsessioninitialized;
+          sessionCallbacks.closed = options.onsessionclosed;
+          return {
+            handleRequest: async (req: Request) => {
+              transportCalls.push(req.headers.get("mcp-session-id") ?? "none");
+              if (!req.headers.get("mcp-session-id")) {
+                options.onsessioninitialized?.("session-1");
+              }
+              return new Response(JSON.stringify({ ok: true }), { status: 200 });
+            },
+          } as any;
+        },
+      }
+    );
+
+    const initResponse = await app.fetch(
+      new Request("http://localhost/mcp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
+      }),
+      {} as never
+    );
+    expect(initResponse.status).toBe(200);
+
+    const resumedResponse = await app.fetch(
+      new Request("http://localhost/mcp", {
+        method: "GET",
+        headers: { "mcp-session-id": "session-1" },
+      }),
+      {} as never
+    );
+    expect(resumedResponse.status).toBe(200);
+
+    sessionCallbacks.closed?.("session-1");
+
+    expect(createdServers).toHaveLength(1);
+    expect(closeCalls).toBe(1);
+    expect(transportCalls).toEqual(["none", "session-1"]);
+
+    const missingAfterClose = await app.fetch(
+      new Request("http://localhost/mcp", {
+        method: "GET",
+        headers: { "mcp-session-id": "session-1" },
+      }),
+      {} as never
+    );
+    expect(missingAfterClose.status).toBe(404);
+  });
 });
