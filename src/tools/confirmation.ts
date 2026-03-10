@@ -46,15 +46,28 @@ import type { OrderArchiveRequest, OrderTaskingRequest } from "../client/types.j
  * presence of a valid token is sufficient proof that the user reviewed and
  * approved the details stored here.
  */
-export interface PendingOrder {
-  /** Whether this is an archive purchase or a tasking commission. */
-  type: "archive" | "tasking";
-  /** Fully constructed request parameters ready to send to the SkyFi API. */
-  params: OrderArchiveRequest | OrderTaskingRequest;
+/**
+ * A pending order awaiting confirmation. Uses a discriminated union so that
+ * narrowing on `type` also narrows `params` — no `as` casts needed at the
+ * consumption site.
+ */
+export type PendingOrder = PendingArchiveOrder | PendingTaskingOrder;
+
+interface PendingOrderBase {
   /** JSON-stringified pricing data shown to the user during the prepare step. */
   pricingSummary: string;
   /** Unix timestamp (ms) when this pending order was stored; used for TTL checks. */
   createdAt: number;
+}
+
+export interface PendingArchiveOrder extends PendingOrderBase {
+  type: "archive";
+  params: OrderArchiveRequest;
+}
+
+export interface PendingTaskingOrder extends PendingOrderBase {
+  type: "tasking";
+  params: OrderTaskingRequest;
 }
 
 /**

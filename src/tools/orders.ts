@@ -242,9 +242,9 @@ export function registerOrderTools(
 
     let order;
     if (pending.type === "archive") {
-      order = await client.createArchiveOrder(pending.params as OrderArchiveRequest);
+      order = await client.createArchiveOrder(pending.params);
     } else {
-      order = await client.createTaskingOrder(pending.params as OrderTaskingRequest);
+      order = await client.createTaskingOrder(pending.params);
     }
 
     return {
