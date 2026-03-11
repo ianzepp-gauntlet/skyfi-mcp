@@ -45,7 +45,7 @@ describe("registerSearchTools", () => {
         aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
         fromDate: "2026-01-01",
         toDate: "2026-01-02",
-      })
+      }),
     );
 
     expect(calls).toHaveLength(1);
@@ -69,7 +69,9 @@ describe("registerSearchTools", () => {
 
     registerSearchTools(harness.server as any, client as any);
 
-    const result = parseToolJson(await harness.invoke("search_imagery", { page: "cursor-1" }));
+    const result = parseToolJson(
+      await harness.invoke("search_imagery", { page: "cursor-1" }),
+    );
     expect(calls).toEqual(["cursor-1"]);
     expect(result.hasMore).toBe(true);
     expect(result.nextPage).toBe("next-2");

@@ -17,9 +17,12 @@ describe("registerLocationTools", () => {
     const harness = createToolHarness();
     registerLocationTools(harness.server as any);
 
-    globalThis.fetch = ((async () => new Response("[]", { status: 200 })) as unknown) as typeof fetch;
+    globalThis.fetch = (async () =>
+      new Response("[]", { status: 200 })) as unknown as typeof fetch;
 
-    const result: any = await harness.invoke("resolve_location", { query: "unknown place" });
+    const result: any = await harness.invoke("resolve_location", {
+      query: "unknown place",
+    });
     expect(result.content[0].text).toContain("No results found");
   });
 
@@ -27,7 +30,7 @@ describe("registerLocationTools", () => {
     const harness = createToolHarness();
     registerLocationTools(harness.server as any);
 
-    globalThis.fetch = ((async () =>
+    globalThis.fetch = (async () =>
       new Response(
         JSON.stringify([
           {
@@ -39,14 +42,16 @@ describe("registerLocationTools", () => {
             importance: 0.9,
           },
         ]),
-        { status: 200 }
-      )) as unknown) as typeof fetch;
+        { status: 200 },
+      )) as unknown as typeof fetch;
 
-    const result = parseToolJson(await harness.invoke("resolve_location", { query: "Austin" }));
+    const result = parseToolJson(
+      await harness.invoke("resolve_location", { query: "Austin" }),
+    );
     expect(result.query).toBe("Austin");
     expect(result.results[0].name).toContain("Austin");
     expect(result.results[0].wktPolygon).toBe(
-      "POLYGON((-98 30.1, -97.5 30.1, -97.5 30.4, -98 30.4, -98 30.1))"
+      "POLYGON((-98 30.1, -97.5 30.1, -97.5 30.4, -98 30.4, -98 30.1))",
     );
   });
 });

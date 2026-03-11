@@ -20,7 +20,9 @@ describe("loadConfig", () => {
   });
 
   test("falls back to env SKYFI_API_KEY", () => {
-    const config = loadConfig(undefined, undefined, { SKYFI_API_KEY: "env-key" });
+    const config = loadConfig(undefined, undefined, {
+      SKYFI_API_KEY: "env-key",
+    });
     expect(config.apiKey).toBe("env-key");
   });
 
@@ -33,7 +35,7 @@ describe("loadConfig", () => {
     const config = loadConfig(
       "header-key",
       { apiKey: "local-key" },
-      { SKYFI_API_KEY: "env-key" }
+      { SKYFI_API_KEY: "env-key" },
     );
     expect(config.apiKey).toBe("header-key");
   });
@@ -42,13 +44,15 @@ describe("loadConfig", () => {
     const config = loadConfig(
       undefined,
       { apiKey: "local-key" },
-      { SKYFI_API_KEY: "env-key" }
+      { SKYFI_API_KEY: "env-key" },
     );
     expect(config.apiKey).toBe("env-key");
   });
 
   test("throws when no API key is available", () => {
-    expect(() => loadConfig(undefined, {}, {})).toThrow("SkyFi API key not found");
+    expect(() => loadConfig(undefined, {}, {})).toThrow(
+      "SkyFi API key not found",
+    );
   });
 
   test("uses default base URL", () => {
@@ -64,7 +68,11 @@ describe("loadConfig", () => {
   });
 
   test("falls back to localConfig baseUrl", () => {
-    const config = loadConfig("key", { baseUrl: "https://local.example.com/api" }, {});
+    const config = loadConfig(
+      "key",
+      { baseUrl: "https://local.example.com/api" },
+      {},
+    );
     expect(config.baseUrl).toBe("https://local.example.com/api");
   });
 
@@ -72,7 +80,7 @@ describe("loadConfig", () => {
     const config = loadConfig(
       "key",
       { baseUrl: "https://local.example.com" },
-      { SKYFI_BASE_URL: "https://env.example.com" }
+      { SKYFI_BASE_URL: "https://env.example.com" },
     );
     expect(config.baseUrl).toBe("https://env.example.com");
   });

@@ -33,7 +33,7 @@ describe("createApp", () => {
           "x-skyfi-api-key": "header-key",
         },
       }),
-      {} as never
+      {} as never,
     );
 
     expect(seenHeaders).toEqual(["header-key"]);
@@ -43,7 +43,7 @@ describe("createApp", () => {
   test("rejects resumed sessions in stateless mode", async () => {
     const app = createApp(
       () => new McpServer({ name: "test-server", version: "0.1.0" }),
-      { sessionMode: "stateless" }
+      { sessionMode: "stateless" },
     );
 
     const response = await app.fetch(
@@ -55,7 +55,7 @@ describe("createApp", () => {
         },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
       }),
-      {} as never
+      {} as never,
     );
 
     expect(response.status).toBe(501);
@@ -67,7 +67,7 @@ describe("createApp", () => {
   test("returns 404 for unknown session id", async () => {
     const app = createApp(
       () => new McpServer({ name: "test-server", version: "0.1.0" }),
-      { sessionMode: "stateful" }
+      { sessionMode: "stateful" },
     );
 
     const response = await app.fetch(
@@ -77,30 +77,39 @@ describe("createApp", () => {
           "mcp-session-id": "missing-session",
         },
       }),
-      {} as never
+      {} as never,
     );
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: "Session not found" });
+    await expect(response.json()).resolves.toEqual({
+      error: "Session not found",
+    });
   });
 
   test("health endpoint returns ok", async () => {
-    const app = createApp(() => new McpServer({ name: "test-server", version: "0.1.0" }));
-    const response = await app.fetch(new Request("http://localhost/health", { method: "GET" }), {} as never);
+    const app = createApp(
+      () => new McpServer({ name: "test-server", version: "0.1.0" }),
+    );
+    const response = await app.fetch(
+      new Request("http://localhost/health", { method: "GET" }),
+      {} as never,
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ status: "ok" });
   });
 
   test("aoi webhook endpoint acknowledges payload", async () => {
-    const app = createApp(() => new McpServer({ name: "test-server", version: "0.1.0" }));
+    const app = createApp(
+      () => new McpServer({ name: "test-server", version: "0.1.0" }),
+    );
     const response = await app.fetch(
       new Request("http://localhost/webhooks/aoi", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ event: "created", id: "abc" }),
       }),
-      {} as never
+      {} as never,
     );
 
     expect(response.status).toBe(200);
@@ -108,9 +117,15 @@ describe("createApp", () => {
   });
 
   test("stateful mode reuses initialized session transport and closes server on session close", async () => {
-    const createdServers: Array<{ connect: (t: unknown) => Promise<void>; close: () => Promise<void> }> = [];
+    const createdServers: Array<{
+      connect: (t: unknown) => Promise<void>;
+      close: () => Promise<void>;
+    }> = [];
     const transportCalls: string[] = [];
-    const sessionCallbacks: { initialized?: (id: string) => void; closed?: (id: string) => void } = {};
+    const sessionCallbacks: {
+      initialized?: (id: string) => void;
+      closed?: (id: string) => void;
+    } = {};
     let closeCalls = 0;
 
     const app = createApp(
@@ -136,11 +151,13 @@ describe("createApp", () => {
               if (!req.headers.get("mcp-session-id")) {
                 options.onsessioninitialized?.("session-1");
               }
-              return new Response(JSON.stringify({ ok: true }), { status: 200 });
+              return new Response(JSON.stringify({ ok: true }), {
+                status: 200,
+              });
             },
           } as any;
         },
-      }
+      },
     );
 
     const initResponse = await app.fetch(
@@ -149,7 +166,7 @@ describe("createApp", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
       }),
-      {} as never
+      {} as never,
     );
     expect(initResponse.status).toBe(200);
 
@@ -158,7 +175,7 @@ describe("createApp", () => {
         method: "GET",
         headers: { "mcp-session-id": "session-1" },
       }),
-      {} as never
+      {} as never,
     );
     expect(resumedResponse.status).toBe(200);
 
@@ -173,7 +190,7 @@ describe("createApp", () => {
         method: "GET",
         headers: { "mcp-session-id": "session-1" },
       }),
-      {} as never
+      {} as never,
     );
     expect(missingAfterClose.status).toBe(404);
   });

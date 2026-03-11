@@ -90,7 +90,7 @@ export class SkyFiClient {
     method: string,
     path: string,
     body?: unknown,
-    query?: Record<string, string | number | undefined>
+    query?: Record<string, string | number | undefined>,
   ): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}`);
     if (query) {
@@ -114,7 +114,9 @@ export class SkyFiClient {
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`SkyFi API ${method} ${path} failed (${res.status}): ${text}`);
+      throw new Error(
+        `SkyFi API ${method} ${path} failed (${res.status}): ${text}`,
+      );
     }
 
     // EDGE: 204 No Content and 205 Reset Content both indicate success with no
@@ -125,7 +127,9 @@ export class SkyFiClient {
 
     const text = await res.text();
     if (!text) {
-      throw new Error(`SkyFi API ${method} ${path} returned empty body (${res.status})`);
+      throw new Error(
+        `SkyFi API ${method} ${path} returned empty body (${res.status})`,
+      );
     }
 
     return JSON.parse(text) as T;
@@ -154,7 +158,9 @@ export class SkyFiClient {
    *
    * @param params - Spatial AOI, date range, and optional quality/type filters.
    */
-  async searchArchives(params: ArchiveSearchRequest): Promise<ArchiveSearchResponse> {
+  async searchArchives(
+    params: ArchiveSearchRequest,
+  ): Promise<ArchiveSearchResponse> {
     return this.request("POST", "/archives", params);
   }
 
@@ -209,7 +215,9 @@ export class SkyFiClient {
    * @param params - AOI, capture window, product type, and resolution constraints.
    * @returns Initial feasibility record with `status: "PENDING"`.
    */
-  async checkFeasibility(params: FeasibilityRequest): Promise<FeasibilityResponse> {
+  async checkFeasibility(
+    params: FeasibilityRequest,
+  ): Promise<FeasibilityResponse> {
     return this.request("POST", "/feasibility", params);
   }
 
@@ -218,7 +226,9 @@ export class SkyFiClient {
    *
    * @param feasibilityId - ID from a prior `checkFeasibility` response.
    */
-  async getFeasibilityStatus(feasibilityId: string): Promise<FeasibilityResponse> {
+  async getFeasibilityStatus(
+    feasibilityId: string,
+  ): Promise<FeasibilityResponse> {
     return this.request("GET", `/feasibility/${feasibilityId}`);
   }
 
@@ -254,7 +264,7 @@ export class SkyFiClient {
    */
   async pollFeasibility(
     feasibilityId: string,
-    opts?: { intervalMs?: number; timeoutMs?: number }
+    opts?: { intervalMs?: number; timeoutMs?: number },
   ): Promise<FeasibilityResponse> {
     const interval = opts?.intervalMs ?? 3000;
     const timeout = opts?.timeoutMs ?? 30000;
@@ -335,7 +345,9 @@ export class SkyFiClient {
    *
    * @param params - Monitored AOI, webhook URL, and optional quality filters.
    */
-  async createNotification(params: NotificationCreateRequest): Promise<Notification> {
+  async createNotification(
+    params: NotificationCreateRequest,
+  ): Promise<Notification> {
     return this.request("POST", "/notifications", params);
   }
 
@@ -347,9 +359,12 @@ export class SkyFiClient {
    */
   async listNotifications(
     pageNumber?: number,
-    pageSize?: number
+    pageSize?: number,
   ): Promise<NotificationListResponse> {
-    return this.request("GET", "/notifications", undefined, { pageNumber, pageSize });
+    return this.request("GET", "/notifications", undefined, {
+      pageNumber,
+      pageSize,
+    });
   }
 
   /**

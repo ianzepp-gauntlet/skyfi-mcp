@@ -26,16 +26,18 @@ describe("SkyFiClient", () => {
     // WHY: The SkyFi API returns 204 No Content for DELETE operations. The
     // client must not attempt to parse the empty body, which would throw and
     // surface as a misleading error instead of a clean void return.
-    globalThis.fetch = ((async () =>
+    globalThis.fetch = (async () =>
       new Response(null, {
         status: 204,
-      })) as unknown) as typeof fetch;
+      })) as unknown as typeof fetch;
 
     const client = new SkyFiClient({
       apiKey: "test-key",
       baseUrl: "https://example.com",
     });
 
-    await expect(client.deleteNotification("notification-123")).resolves.toBeUndefined();
+    await expect(
+      client.deleteNotification("notification-123"),
+    ).resolves.toBeUndefined();
   });
 });

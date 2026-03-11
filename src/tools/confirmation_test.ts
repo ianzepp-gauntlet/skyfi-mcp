@@ -20,7 +20,12 @@ describe("ConfirmationStore", () => {
     const store = new ConfirmationStore();
     const token = store.store({
       type: "archive",
-      params: { aoi: "POLYGON(...)", archiveId: "abc", deliveryDriver: "S3", deliveryParams: { bucket: "b" } },
+      params: {
+        aoi: "POLYGON(...)",
+        archiveId: "abc",
+        deliveryDriver: "S3",
+        deliveryParams: { bucket: "b" },
+      },
       pricingSummary: "{}",
     });
 
@@ -36,7 +41,12 @@ describe("ConfirmationStore", () => {
     const store = new ConfirmationStore();
     const token = store.store({
       type: "archive",
-      params: { aoi: "POLYGON(...)", archiveId: "abc", deliveryDriver: "S3", deliveryParams: { bucket: "b" } },
+      params: {
+        aoi: "POLYGON(...)",
+        archiveId: "abc",
+        deliveryDriver: "S3",
+        deliveryParams: { bucket: "b" },
+      },
       pricingSummary: "{}",
     });
 
@@ -54,19 +64,22 @@ describe("ConfirmationStore", () => {
     const store = new ConfirmationStore(1000); // 1 second TTL
     const now = Date.now();
 
-    const token = store.store({
-      type: "tasking",
-      params: {
-        aoi: "POLYGON(...)",
-        window_start: "2024-01-01",
-        window_end: "2024-02-01",
-        product_type: "DAY",
-        resolution: "HIGH",
-        deliveryDriver: "S3",
-        deliveryParams: { bucket: "b" },
+    const token = store.store(
+      {
+        type: "tasking",
+        params: {
+          aoi: "POLYGON(...)",
+          window_start: "2024-01-01",
+          window_end: "2024-02-01",
+          product_type: "DAY",
+          resolution: "HIGH",
+          deliveryDriver: "S3",
+          deliveryParams: { bucket: "b" },
+        },
+        pricingSummary: "{}",
       },
-      pricingSummary: "{}",
-    }, now);
+      now,
+    );
 
     expect(store.size).toBe(1);
 
@@ -80,11 +93,19 @@ describe("ConfirmationStore", () => {
     const store = new ConfirmationStore(10_000);
     const now = Date.now();
 
-    const token = store.store({
-      type: "archive",
-      params: { aoi: "POLYGON(...)", archiveId: "abc", deliveryDriver: "S3", deliveryParams: { bucket: "b" } },
-      pricingSummary: "{}",
-    }, now);
+    const token = store.store(
+      {
+        type: "archive",
+        params: {
+          aoi: "POLYGON(...)",
+          archiveId: "abc",
+          deliveryDriver: "S3",
+          deliveryParams: { bucket: "b" },
+        },
+        pricingSummary: "{}",
+      },
+      now,
+    );
 
     const order = store.consume(token, now + 5000);
     expect(order).toBeDefined();

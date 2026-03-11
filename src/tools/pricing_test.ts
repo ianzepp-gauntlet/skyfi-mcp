@@ -36,7 +36,9 @@ describe("registerPricingTools", () => {
 
     registerPricingTools(harness.server as any, client as any);
 
-    await harness.invoke("get_pricing", { aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))" });
+    await harness.invoke("get_pricing", {
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+    });
     expect(calls).toEqual([{ aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))" }]);
   });
 });

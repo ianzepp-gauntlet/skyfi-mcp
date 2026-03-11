@@ -79,7 +79,9 @@ export interface GeocodingResult {
  * @returns Up to 5 geocoding results, or an empty array when nothing matches.
  * @throws {Error} When the Nominatim API returns a non-200 HTTP status.
  */
-export async function resolveLocation(query: string): Promise<GeocodingResult[]> {
+export async function resolveLocation(
+  query: string,
+): Promise<GeocodingResult[]> {
   const url = new URL(`${NOMINATIM_BASE}/search`);
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
@@ -93,7 +95,9 @@ export async function resolveLocation(query: string): Promise<GeocodingResult[]>
   });
 
   if (!res.ok) {
-    throw new Error(`Nominatim search failed (${res.status}): ${await res.text()}`);
+    throw new Error(
+      `Nominatim search failed (${res.status}): ${await res.text()}`,
+    );
   }
 
   // WHY: Nominatim returns lat/lon and boundingbox values as strings, not
@@ -111,7 +115,12 @@ export async function resolveLocation(query: string): Promise<GeocodingResult[]>
     displayName: item.display_name,
     lat: parseFloat(item.lat),
     lon: parseFloat(item.lon),
-    boundingBox: item.boundingbox.map(Number) as [number, number, number, number],
+    boundingBox: item.boundingbox.map(Number) as [
+      number,
+      number,
+      number,
+      number,
+    ],
     type: item.type,
     importance: item.importance,
   }));

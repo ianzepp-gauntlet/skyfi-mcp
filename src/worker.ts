@@ -28,10 +28,13 @@ import { AlertStore } from "./tools/alerts.js";
 
 const alertStore = new AlertStore();
 
-const app = createApp((headerApiKey, env) => {
-  const config = loadConfig(headerApiKey, undefined, env);
-  return createMcpServer(config, { alertStore });
-}, { sessionMode: "stateless", alertStore });
+const app = createApp(
+  (headerApiKey, env) => {
+    const config = loadConfig(headerApiKey, undefined, env);
+    return createMcpServer(config, { alertStore });
+  },
+  { sessionMode: "stateless", alertStore },
+);
 
 export default {
   fetch: app.fetch,

@@ -32,45 +32,62 @@ import type { SkyFiClient } from "../client/skyfi.js";
  * @param server - The MCP server instance to register the tool on.
  * @param client - Authenticated SkyFi API client used to submit and poll the check.
  */
-export function registerFeasibilityTools(server: McpServer, client: SkyFiClient) {
-  server.registerTool("check_feasibility", {
-    title: "Check Tasking Feasibility",
-    description:
-      "Check whether a satellite tasking order is feasible for a given area, time window, product type, and resolution. Submits the request and polls until results are available.",
-    inputSchema: {
-      aoi: z.string().describe("Area of interest as WKT POLYGON string"),
-      window_start: z.string().describe("Start of capture window (ISO 8601)"),
-      window_end: z.string().describe("End of capture window (ISO 8601)"),
-      product_type: z.enum(["DAY", "MULTISPECTRAL", "SAR"]).describe("Product type"),
-      resolution: z.enum(["LOW", "MEDIUM", "HIGH", "VERY_HIGH", "ULTRA_HIGH"]).describe("Desired resolution"),
+export function registerFeasibilityTools(
+  server: McpServer,
+  client: SkyFiClient,
+) {
+  server.registerTool(
+    "check_feasibility",
+    {
+      title: "Check Tasking Feasibility",
+      description:
+        "Check whether a satellite tasking order is feasible for a given area, time window, product type, and resolution. Submits the request and polls until results are available.",
+      inputSchema: {
+        aoi: z.string().describe("Area of interest as WKT POLYGON string"),
+        window_start: z.string().describe("Start of capture window (ISO 8601)"),
+        window_end: z.string().describe("End of capture window (ISO 8601)"),
+        product_type: z
+          .enum(["DAY", "MULTISPECTRAL", "SAR"])
+          .describe("Product type"),
+        resolution: z
+          .enum(["LOW", "MEDIUM", "HIGH", "VERY_HIGH", "ULTRA_HIGH"])
+          .describe("Desired resolution"),
+      },
+      annotations: { readOnlyHint: true },
     },
-    annotations: { readOnlyHint: true },
-  }, async ({ aoi, window_start, window_end, product_type, resolution }) => {
-    // PHASE 1: SUBMIT — enqueue the feasibility check and get the tracking ID.
-    const initial = await client.checkFeasibility({
-      aoi,
-      window_start,
-      window_end,
-      product_type,
-      resolution,
-    });
+    async ({ aoi, window_start, window_end, product_type, resolution }) => {
+      // PHASE 1: SUBMIT — enqueue the feasibility check and get the tracking ID.
+      const initial = await client.checkFeasibility({
+        aoi,
+        window_start,
+        window_end,
+        product_type,
+        resolution,
+      });
 
-    // PHASE 2: POLL — wait for the check to reach a terminal state.
-    // pollFeasibility handles the retry loop with configurable interval/timeout.
-    const result = await client.pollFeasibility(initial.feasibility_id);
+      // PHASE 2: POLL — wait for the check to reach a terminal state.
+      // pollFeasibility handles the retry loop with configurable interval/timeout.
+      const result = await client.pollFeasibility(initial.feasibility_id);
 
-    return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          feasibilityId: result.feasibility_id,
-          status: result.status,
-          // WHY: Default to empty array so the AI can always iterate
-          // opportunities without a null check.
-          opportunities: result.opportunities ?? [],
-          message: result.message,
-        }, null, 2),
-      }],
-    };
-  });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                feasibilityId: result.feasibility_id,
+                status: result.status,
+                // WHY: Default to empty array so the AI can always iterate
+                // opportunities without a null check.
+                opportunities: result.opportunities ?? [],
+                message: result.message,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
 }

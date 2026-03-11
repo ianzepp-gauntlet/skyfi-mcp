@@ -51,7 +51,7 @@ describe("registerAoiTools", () => {
       await harness.invoke("create_aoi_monitor", {
         aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
         webhookUrl: "https://example.com/webhook",
-      })
+      }),
     );
     expect(created.monitorId).toBe("mon-1");
 
@@ -60,7 +60,7 @@ describe("registerAoiTools", () => {
     expect(listed.monitors[0].id).toBe("mon-1");
 
     const deleted = parseToolJson(
-      await harness.invoke("delete_aoi_monitor", { monitor_id: "mon-1" })
+      await harness.invoke("delete_aoi_monitor", { monitor_id: "mon-1" }),
     );
     expect(deleted.monitorId).toBe("mon-1");
   });
@@ -69,7 +69,9 @@ describe("registerAoiTools", () => {
     const harness = createToolHarness();
     const client = {
       ...createMockClient(),
-      listNotifications: async () => ({ notifications: [{ id: "m1" }, { id: "m2" }] }),
+      listNotifications: async () => ({
+        notifications: [{ id: "m1" }, { id: "m2" }],
+      }),
     };
 
     registerAoiTools(harness.server as any, client as any);
@@ -88,7 +90,7 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any, alertStore);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_monitor", { monitor_id: "mon-1" })
+      await harness.invoke("get_aoi_monitor", { monitor_id: "mon-1" }),
     );
     expect(result.monitor.id).toBe("mon-1");
     expect(result.monitor.productType).toBe("DAY");
@@ -103,7 +105,7 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_monitor", { monitor_id: "mon-1" })
+      await harness.invoke("get_aoi_monitor", { monitor_id: "mon-1" }),
     );
     expect(result.monitor.id).toBe("mon-1");
     expect(result.recentAlerts).toBe(0);
@@ -132,7 +134,7 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any, alertStore);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_alerts", { monitor_id: "mon-1" })
+      await harness.invoke("get_aoi_alerts", { monitor_id: "mon-1" }),
     );
     expect(result.total).toBe(1);
     expect(result.alerts[0].monitorId).toBe("mon-1");
@@ -147,9 +149,7 @@ describe("registerAoiTools", () => {
 
     registerAoiTools(harness.server as any, client as any, alertStore);
 
-    const result = parseToolJson(
-      await harness.invoke("get_aoi_alerts", {})
-    );
+    const result = parseToolJson(await harness.invoke("get_aoi_alerts", {}));
     expect(result.total).toBe(2);
   });
 
@@ -164,7 +164,7 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any, alertStore);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_alerts", { monitor_id: "mon-1", limit: 3 })
+      await harness.invoke("get_aoi_alerts", { monitor_id: "mon-1", limit: 3 }),
     );
     expect(result.total).toBe(3);
   });
@@ -175,7 +175,7 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_alerts", { monitor_id: "mon-1" })
+      await harness.invoke("get_aoi_alerts", { monitor_id: "mon-1" }),
     );
     expect(result.total).toBe(0);
     expect(result.alerts).toEqual([]);

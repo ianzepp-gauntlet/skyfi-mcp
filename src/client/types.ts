@@ -36,7 +36,12 @@ export type DeliveryDriver = "S3" | "GS" | "AZURE";
 export type OrderType = "ARCHIVE" | "TASKING";
 
 /** Lifecycle state of an order on the SkyFi platform. */
-export type OrderStatus = "CREATED" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type OrderStatus =
+  | "CREATED"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 

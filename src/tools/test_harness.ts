@@ -1,4 +1,6 @@
-export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown> | unknown;
+export type ToolHandler = (
+  args: Record<string, unknown>,
+) => Promise<unknown> | unknown;
 
 export interface RegisteredTool {
   name: string;

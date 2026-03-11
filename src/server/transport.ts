@@ -65,7 +65,7 @@ interface SessionContext {
  */
 type McpServerFactory = (
   headerApiKey?: string,
-  env?: Record<string, string>
+  env?: Record<string, string>,
 ) => McpServer;
 
 type TransportFactoryOptions = {
@@ -75,7 +75,7 @@ type TransportFactoryOptions = {
 };
 
 type TransportFactory = (
-  options: TransportFactoryOptions
+  options: TransportFactoryOptions,
 ) => WebStandardStreamableHTTPServerTransport;
 
 interface CreateAppOptions {
@@ -119,7 +119,7 @@ const INBOUND_API_KEY_HEADER = "x-skyfi-api-key";
  */
 export function createApp(
   createServer: McpServerFactory,
-  options: CreateAppOptions = {}
+  options: CreateAppOptions = {},
 ): Hono {
   const app = new Hono();
   const sessionMode = options.sessionMode ?? "stateful";
@@ -151,7 +151,7 @@ export function createApp(
         {
           status: 501,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -171,7 +171,8 @@ export function createApp(
     if (c.req.method === "POST" && !sessionId) {
       const server = createServer(headerApiKey, env);
       const transport = transportFactory({
-        sessionIdGenerator: options.sessionIdGenerator ?? (() => crypto.randomUUID()),
+        sessionIdGenerator:
+          options.sessionIdGenerator ?? (() => crypto.randomUUID()),
         onsessioninitialized: (id) => {
           // Store both server and transport so we can close the server
           // when the session ends, not just remove the map entry.
@@ -205,7 +206,7 @@ export function createApp(
     // No session map entry is created. This is also the only mode used for
     // runtimes that cannot reliably guarantee per-session affinity.
     const server = createServer(headerApiKey, env);
-      const transport = transportFactory({});
+    const transport = transportFactory({});
     await server.connect(transport);
     return transport.handleRequest(c.req.raw);
   });
@@ -230,8 +231,13 @@ export function createApp(
       // The SkyFi webhook payload includes a notification_id (the monitor ID).
       // Fall back to "unknown" if the field is absent, so we never lose data.
       // Use String() to ensure we always have a string key regardless of payload shape.
-      const payload = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
-      const monitorId = String(payload.notification_id ?? payload.notificationId ?? "unknown");
+      const payload =
+        typeof body === "object" && body !== null
+          ? (body as Record<string, unknown>)
+          : {};
+      const monitorId = String(
+        payload.notification_id ?? payload.notificationId ?? "unknown",
+      );
       options.alertStore.add(monitorId, body);
     }
 

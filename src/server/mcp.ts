@@ -53,7 +53,10 @@ export interface CreateMcpServerOptions {
  * @param options - Additional options (e.g. shared alert store).
  * @returns A fully registered `McpServer` instance, not yet connected to a transport.
  */
-export function createMcpServer(config: SkyFiConfig, options?: CreateMcpServerOptions): McpServer {
+export function createMcpServer(
+  config: SkyFiConfig,
+  options?: CreateMcpServerOptions,
+): McpServer {
   const server = new McpServer({
     name: "skyfi",
     version: "0.1.0",

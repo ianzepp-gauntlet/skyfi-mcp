@@ -15,7 +15,10 @@ describe("registerOrderTools", () => {
     const client = {
       listOrders: async () => ({ total: 0, orders: [] }),
       getOrder: async () => ({ id: "unused" }),
-      getPricing: async () => ({ currency: "USD", rows: [{ provider: "X", price: 1.2 }] }),
+      getPricing: async () => ({
+        currency: "USD",
+        rows: [{ provider: "X", price: 1.2 }],
+      }),
       createArchiveOrder: async (params: any) => ({
         id: "ord-archive-1",
         orderType: "ARCHIVE",
@@ -61,7 +64,11 @@ describe("registerOrderTools", () => {
       createTaskingOrder: async () => ({ id: "unused" }),
     };
 
-    registerOrderTools(harness.server as any, client as any, new ConfirmationStore());
+    registerOrderTools(
+      harness.server as any,
+      client as any,
+      new ConfirmationStore(),
+    );
 
     const result: any = await harness.invoke("prepare_order", {
       type: "tasking",
@@ -84,14 +91,20 @@ describe("registerOrderTools", () => {
       createTaskingOrder: async () => ({ id: "unused" }),
     };
 
-    registerOrderTools(harness.server as any, client as any, new ConfirmationStore());
+    registerOrderTools(
+      harness.server as any,
+      client as any,
+      new ConfirmationStore(),
+    );
 
     const result: any = await harness.invoke("confirm_order", {
       confirmationToken: "bad-token",
     });
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Invalid or expired confirmation token");
+    expect(result.content[0].text).toContain(
+      "Invalid or expired confirmation token",
+    );
   });
 
   test("list_orders projects order summaries", async () => {
@@ -115,7 +128,11 @@ describe("registerOrderTools", () => {
       createTaskingOrder: async () => ({ id: "unused" }),
     };
 
-    registerOrderTools(harness.server as any, client as any, new ConfirmationStore());
+    registerOrderTools(
+      harness.server as any,
+      client as any,
+      new ConfirmationStore(),
+    );
 
     const resultRaw = await harness.invoke("list_orders", {
       orderType: "TASKING",
@@ -147,7 +164,11 @@ describe("registerOrderTools (additional)", () => {
       createTaskingOrder: async () => ({ id: "unused" }),
     };
 
-    registerOrderTools(harness.server as any, client as any, new ConfirmationStore());
+    registerOrderTools(
+      harness.server as any,
+      client as any,
+      new ConfirmationStore(),
+    );
 
     const result: any = await harness.invoke("prepare_order", {
       type: "archive",
@@ -167,7 +188,10 @@ describe("registerOrderTools (additional)", () => {
     const client = {
       listOrders: async () => ({ total: 0, orders: [] }),
       getOrder: async () => ({ id: "unused" }),
-      getPricing: async () => ({ currency: "USD", tasking: [{ provider: "Y", price: 99 }] }),
+      getPricing: async () => ({
+        currency: "USD",
+        tasking: [{ provider: "Y", price: 99 }],
+      }),
       createArchiveOrder: async () => ({ id: "unused" }),
       createTaskingOrder: async () => ({
         id: "ord-task-1",
@@ -224,9 +248,15 @@ describe("registerOrderTools (additional)", () => {
       createTaskingOrder: async () => ({ id: "unused" }),
     };
 
-    registerOrderTools(harness.server as any, client as any, new ConfirmationStore());
+    registerOrderTools(
+      harness.server as any,
+      client as any,
+      new ConfirmationStore(),
+    );
 
-    const result = parseToolJson(await harness.invoke("get_order", { order_id: "ord-xyz" }));
+    const result = parseToolJson(
+      await harness.invoke("get_order", { order_id: "ord-xyz" }),
+    );
     expect(result).toEqual(fullOrder);
   });
 });

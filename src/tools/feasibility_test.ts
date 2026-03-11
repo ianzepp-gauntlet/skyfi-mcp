@@ -10,7 +10,10 @@ describe("registerFeasibilityTools", () => {
   test("submits and polls feasibility then normalizes opportunities", async () => {
     const harness = createToolHarness();
     const client = {
-      checkFeasibility: async () => ({ feasibility_id: "f-1", status: "PENDING" }),
+      checkFeasibility: async () => ({
+        feasibility_id: "f-1",
+        status: "PENDING",
+      }),
       pollFeasibility: async () => ({
         feasibility_id: "f-1",
         status: "NO_OPPORTUNITY",
@@ -27,7 +30,7 @@ describe("registerFeasibilityTools", () => {
         window_end: "2026-01-02T00:00:00Z",
         product_type: "DAY",
         resolution: "HIGH",
-      })
+      }),
     );
 
     expect(result.feasibilityId).toBe("f-1");

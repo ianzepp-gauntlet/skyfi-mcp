@@ -35,7 +35,10 @@
  *   intentional: a crashed server is a good reason to re-verify pricing.
  */
 
-import type { OrderArchiveRequest, OrderTaskingRequest } from "../client/types.js";
+import type {
+  OrderArchiveRequest,
+  OrderTaskingRequest,
+} from "../client/types.js";
 
 /**
  * A pending order awaiting confirmation, stored between `prepare_order` and

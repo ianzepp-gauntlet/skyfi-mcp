@@ -24,24 +24,35 @@ import type { SkyFiClient } from "../client/skyfi.js";
  * @param client - Authenticated SkyFi API client used to fetch pricing data.
  */
 export function registerPricingTools(server: McpServer, client: SkyFiClient) {
-  server.registerTool("get_pricing", {
-    title: "Get Pricing",
-    description:
-      "Get the SkyFi pricing matrix for satellite imagery. Optionally provide an AOI to get area-specific pricing. Returns pricing by product type, resolution, and provider.",
-    inputSchema: {
-      aoi: z.string().optional().describe("Optional area of interest as WKT POLYGON for area-specific pricing"),
+  server.registerTool(
+    "get_pricing",
+    {
+      title: "Get Pricing",
+      description:
+        "Get the SkyFi pricing matrix for satellite imagery. Optionally provide an AOI to get area-specific pricing. Returns pricing by product type, resolution, and provider.",
+      inputSchema: {
+        aoi: z
+          .string()
+          .optional()
+          .describe(
+            "Optional area of interest as WKT POLYGON for area-specific pricing",
+          ),
+      },
+      annotations: { readOnlyHint: true },
     },
-    annotations: { readOnlyHint: true },
-  }, async ({ aoi }) => {
-    const result = await client.getPricing(aoi ? { aoi } : undefined);
-    return {
-      content: [{
-        type: "text" as const,
-        // WHY: Pass through verbatim rather than projecting. Pricing structure
-        // varies by provider and is subject to change; a fixed projection would
-        // silently drop fields that the AI might need.
-        text: JSON.stringify(result, null, 2),
-      }],
-    };
-  });
+    async ({ aoi }) => {
+      const result = await client.getPricing(aoi ? { aoi } : undefined);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            // WHY: Pass through verbatim rather than projecting. Pricing structure
+            // varies by provider and is subject to change; a fixed projection would
+            // silently drop fields that the AI might need.
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    },
+  );
 }

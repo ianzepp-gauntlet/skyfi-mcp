@@ -24,11 +24,14 @@ import { AlertStore } from "./tools/alerts.js";
 const port = parseInt(process.env.PORT ?? "3000", 10);
 const alertStore = new AlertStore();
 
-const app = createApp((headerApiKey, env) => {
-  const localConfig = loadLocalConfig();
-  const config = loadConfig(headerApiKey, localConfig, env);
-  return createMcpServer(config, { alertStore });
-}, { alertStore });
+const app = createApp(
+  (headerApiKey, env) => {
+    const localConfig = loadLocalConfig();
+    const config = loadConfig(headerApiKey, localConfig, env);
+    return createMcpServer(config, { alertStore });
+  },
+  { alertStore },
+);
 
 console.log(`SkyFi MCP server listening on http://localhost:${port}/mcp`);
 

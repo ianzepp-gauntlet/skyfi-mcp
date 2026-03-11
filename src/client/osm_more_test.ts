@@ -9,7 +9,10 @@ describe("resolveLocation", () => {
   });
 
   test("parses geocoder response into normalized numbers", async () => {
-    globalThis.fetch = ((async (url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       expect(String(url)).toContain("nominatim.openstreetmap.org/search");
       expect(String(url)).toContain("q=Austin");
       expect(String(url)).toContain("limit=5");
@@ -25,9 +28,9 @@ describe("resolveLocation", () => {
             importance: 0.9,
           },
         ]),
-        { status: 200 }
+        { status: 200 },
       );
-    }) as unknown) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     const result = await resolveLocation("Austin");
     const first = result[0];
@@ -38,10 +41,11 @@ describe("resolveLocation", () => {
   });
 
   test("throws enriched error on non-ok responses", async () => {
-    globalThis.fetch = ((async () => new Response("ratelimited", { status: 429 })) as unknown) as typeof fetch;
+    globalThis.fetch = (async () =>
+      new Response("ratelimited", { status: 429 })) as unknown as typeof fetch;
 
     await expect(resolveLocation("Austin")).rejects.toThrow(
-      "Nominatim search failed (429): ratelimited"
+      "Nominatim search failed (429): ratelimited",
     );
   });
 });
