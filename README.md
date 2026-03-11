@@ -222,18 +222,18 @@ bun test --coverage
 
 Latest unit test snapshot:
 
-- **Tests:** 68 passing, 0 failing
+- **Tests:** 85 passing, 0 failing
 - **Overall coverage:** 97%+ lines, 95%+ functions
-- **Scope:** 15 test files covering client, config, transport, and tool modules
+- **Scope:** 16 test files covering client, config, transport, and tool modules
 
 Major covered areas:
 
-- **SkyFi client (`src/client/skyfi.ts`)**: request serialization, error handling, polling behavior, endpoint wrappers, notification create/delete paths
-- **Transport layer (`src/server/transport.ts`)**: stateful/stateless behavior, session rejection/lookup, health and webhook endpoints, deterministic session lifecycle testing
-- **Order safety flow (`src/tools/orders.ts`)**: prepare/confirm human-in-the-loop flow, archive/tasking validation, token error handling, response projection
-- **Tool handlers (`src/tools/*.ts`)**: search, feasibility, pricing, AOI monitoring (with alerts), and location resolution happy/sad/edge paths
+- **SkyFi client (`src/client/skyfi.ts`)**: request serialization, error handling, empty-body throw behavior, polling behavior, endpoint wrappers, notification create/delete paths
+- **Transport layer (`src/server/transport.ts`)**: stateful/stateless behavior, session rejection/lookup, health and webhook endpoints (including alertStore persistence, camelCase/snake_case monitorId, invalid JSON → 400), deterministic session lifecycle testing
+- **Order safety flow (`src/tools/orders.ts`)**: prepare/confirm human-in-the-loop flow, archive/tasking validation, token error handling, response projection, exact param forwarding to API client
+- **Tool handlers (`src/tools/*.ts`)**: search (including schema validation for all valid/invalid input shapes), feasibility, pricing, AOI monitoring (with alerts), and location resolution happy/sad/edge paths
 - **Alert store (`src/tools/alerts.ts`)**: add/get/getAll/clear semantics, per-monitor caps, cross-monitor sorting
-- **Config and utility logic**: config precedence and confirmation-token TTL/single-use semantics
+- **Config and utility logic**: config precedence, confirmation-token TTL/single-use semantics, local config JSON normalization (camelCase/snake_case fields, malformed file fallback)
 
 Known gaps:
 
