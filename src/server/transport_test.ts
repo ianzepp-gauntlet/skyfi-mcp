@@ -14,6 +14,7 @@
 import { describe, expect, test } from "bun:test";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createApp } from "./transport.js";
+import { AlertStore } from "../tools/alerts.js";
 
 describe("createApp", () => {
   test("passes request API key header and env to the server factory", async () => {
@@ -114,6 +115,84 @@ describe("createApp", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ received: true });
+  });
+
+  test("aoi webhook persists alert to alertStore using notification_id", async () => {
+    const alertStore = new AlertStore();
+    const app = createApp(
+      () => new McpServer({ name: "test-server", version: "0.1.0" }),
+      { alertStore },
+    );
+
+    const response = await app.fetch(
+      new Request("http://localhost/webhooks/aoi", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ notification_id: "mon-1", event: "match" }),
+      }),
+      {} as never,
+    );
+
+    expect(response.status).toBe(200);
+    const alerts = alertStore.get("mon-1");
+    expect(alerts).toHaveLength(1);
+    expect((alerts[0].payload as any).event).toBe("match");
+  });
+
+  test("aoi webhook falls back to notificationId (camelCase)", async () => {
+    const alertStore = new AlertStore();
+    const app = createApp(
+      () => new McpServer({ name: "test-server", version: "0.1.0" }),
+      { alertStore },
+    );
+
+    await app.fetch(
+      new Request("http://localhost/webhooks/aoi", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ notificationId: "mon-2", event: "match" }),
+      }),
+      {} as never,
+    );
+
+    expect(alertStore.get("mon-2")).toHaveLength(1);
+  });
+
+  test("aoi webhook falls back to 'unknown' key when no id field is present", async () => {
+    const alertStore = new AlertStore();
+    const app = createApp(
+      () => new McpServer({ name: "test-server", version: "0.1.0" }),
+      { alertStore },
+    );
+
+    await app.fetch(
+      new Request("http://localhost/webhooks/aoi", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ event: "match" }),
+      }),
+      {} as never,
+    );
+
+    expect(alertStore.get("unknown")).toHaveLength(1);
+  });
+
+  test("aoi webhook returns 400 for malformed JSON body", async () => {
+    const app = createApp(
+      () => new McpServer({ name: "test-server", version: "0.1.0" }),
+    );
+
+    const response = await app.fetch(
+      new Request("http://localhost/webhooks/aoi", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "not-json",
+      }),
+      {} as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid JSON" });
   });
 
   test("stateful mode reuses initialized session transport and closes server on session close", async () => {

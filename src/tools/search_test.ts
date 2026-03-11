@@ -32,4 +32,38 @@ describe("searchImagerySchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  test("accepts full initial search with aoi, fromDate, toDate", () => {
+    const result = searchImagerySchema.safeParse({
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      fromDate: "2026-01-01",
+      toDate: "2026-06-01",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects empty object (no page, no aoi+dates)", () => {
+    const result = searchImagerySchema.safeParse({});
+
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects aoi+toDate without fromDate", () => {
+    const result = searchImagerySchema.safeParse({
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      toDate: "2026-06-01",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects fromDate+toDate without aoi", () => {
+    const result = searchImagerySchema.safeParse({
+      fromDate: "2026-01-01",
+      toDate: "2026-06-01",
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

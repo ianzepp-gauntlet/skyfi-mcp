@@ -229,6 +229,87 @@ describe("registerOrderTools (additional)", () => {
     expect(confirmed.type).toBe("TASKING");
   });
 
+  test("confirm_order forwards exact params to createArchiveOrder", async () => {
+    const harness = createToolHarness();
+    const store = new ConfirmationStore();
+    const capturedParams: any[] = [];
+
+    const client = {
+      listOrders: async () => ({ total: 0, orders: [] }),
+      getOrder: async () => ({ id: "unused" }),
+      getPricing: async () => ({ currency: "USD", rows: [] }),
+      createArchiveOrder: async (params: any) => {
+        capturedParams.push(params);
+        return { id: "ord-1", orderType: "ARCHIVE", status: "SUBMITTED", createdAt: "2026-01-01T00:00:00Z" };
+      },
+      createTaskingOrder: async () => ({ id: "unused" }),
+    };
+
+    registerOrderTools(harness.server as any, client as any, store);
+
+    const preparedRaw = await harness.invoke("prepare_order", {
+      type: "archive",
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      archiveId: "arch-xyz",
+      deliveryDriver: "S3",
+      deliveryBucket: "my-bucket",
+      deliveryPath: "data/out",
+    });
+
+    const { confirmationToken } = parseToolJson(preparedRaw);
+    await harness.invoke("confirm_order", { confirmationToken });
+
+    expect(capturedParams).toHaveLength(1);
+    expect(capturedParams[0].aoi).toBe("POLYGON((0 0,1 0,1 1,0 1,0 0))");
+    expect(capturedParams[0].archiveId).toBe("arch-xyz");
+    expect(capturedParams[0].deliveryDriver).toBe("S3");
+    expect(capturedParams[0].deliveryParams.bucket).toBe("my-bucket");
+    expect(capturedParams[0].deliveryParams.path).toBe("data/out");
+  });
+
+  test("confirm_order forwards exact params to createTaskingOrder", async () => {
+    const harness = createToolHarness();
+    const store = new ConfirmationStore();
+    const capturedParams: any[] = [];
+
+    const client = {
+      listOrders: async () => ({ total: 0, orders: [] }),
+      getOrder: async () => ({ id: "unused" }),
+      getPricing: async () => ({ currency: "USD", tasking: [] }),
+      createArchiveOrder: async () => ({ id: "unused" }),
+      createTaskingOrder: async (params: any) => {
+        capturedParams.push(params);
+        return { id: "ord-task-2", orderType: "TASKING", status: "SUBMITTED", createdAt: "2026-01-01T00:00:00Z" };
+      },
+    };
+
+    registerOrderTools(harness.server as any, client as any, store);
+
+    const preparedRaw = await harness.invoke("prepare_order", {
+      type: "tasking",
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      window_start: "2026-02-01T00:00:00Z",
+      window_end: "2026-02-02T00:00:00Z",
+      product_type: "DAY",
+      resolution: "HIGH",
+      deliveryDriver: "S3",
+      deliveryBucket: "task-bucket",
+      deliveryPath: "task/out",
+    });
+
+    const { confirmationToken } = parseToolJson(preparedRaw);
+    await harness.invoke("confirm_order", { confirmationToken });
+
+    expect(capturedParams).toHaveLength(1);
+    expect(capturedParams[0].aoi).toBe("POLYGON((0 0,1 0,1 1,0 1,0 0))");
+    expect(capturedParams[0].window_start).toBe("2026-02-01T00:00:00Z");
+    expect(capturedParams[0].window_end).toBe("2026-02-02T00:00:00Z");
+    expect(capturedParams[0].product_type).toBe("DAY");
+    expect(capturedParams[0].resolution).toBe("HIGH");
+    expect(capturedParams[0].deliveryDriver).toBe("S3");
+    expect(capturedParams[0].deliveryParams.bucket).toBe("task-bucket");
+  });
+
   test("get_order returns full order detail payload", async () => {
     const harness = createToolHarness();
     const fullOrder = {
