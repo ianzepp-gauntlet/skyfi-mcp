@@ -63,11 +63,11 @@ describe("SkyFiClient request and wrappers", () => {
     await expect(client.whoami()).rejects.toThrow("SkyFi API GET /auth/whoami failed (500): boom");
   });
 
-  test("returns undefined for empty 200 body", async () => {
+  test("throws for empty 200 body", async () => {
     globalThis.fetch = ((async () => new Response("", { status: 200 })) as unknown) as typeof fetch;
 
     const client = new SkyFiClient({ apiKey: "k", baseUrl: "https://api.example.com" });
-    await expect(client.whoami()).resolves.toBeUndefined();
+    await expect(client.whoami()).rejects.toThrow("returned empty body (200)");
   });
 
   test("pollFeasibility returns terminal status before timeout", async () => {

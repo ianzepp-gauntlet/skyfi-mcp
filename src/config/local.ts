@@ -39,7 +39,8 @@ export function loadLocalConfig(): Partial<SkyFiConfig> {
       apiKey: parsed.apiKey ?? parsed.api_key,
       baseUrl: parsed.baseUrl ?? parsed.base_url,
     };
-  } catch {
+  } catch (err) {
+    console.warn(`[skyfi] Failed to parse config file at ${CONFIG_PATH}:`, err instanceof Error ? err.message : err);
     return {};
   }
 }

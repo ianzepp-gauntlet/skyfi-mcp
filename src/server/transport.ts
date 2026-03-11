@@ -217,13 +217,21 @@ export function createApp(
   // The SkyFi platform POSTs here when new imagery matches an AOI monitor.
   // Payloads are stored keyed by monitor ID so MCP tool handlers can retrieve them.
   app.post("/webhooks/aoi", async (c) => {
-    const body = await c.req.json();
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON" }, 400);
+    }
+
     console.log("[webhook] AOI notification received:", JSON.stringify(body));
 
     if (options.alertStore) {
       // The SkyFi webhook payload includes a notification_id (the monitor ID).
       // Fall back to "unknown" if the field is absent, so we never lose data.
-      const monitorId = (body.notification_id ?? body.notificationId ?? "unknown") as string;
+      // Use String() to ensure we always have a string key regardless of payload shape.
+      const payload = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+      const monitorId = String(payload.notification_id ?? payload.notificationId ?? "unknown");
       options.alertStore.add(monitorId, body);
     }
 

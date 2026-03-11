@@ -125,7 +125,7 @@ export class SkyFiClient {
 
     const text = await res.text();
     if (!text) {
-      return undefined as T;
+      throw new Error(`SkyFi API ${method} ${path} returned empty body (${res.status})`);
     }
 
     return JSON.parse(text) as T;
