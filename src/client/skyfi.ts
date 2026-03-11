@@ -23,6 +23,9 @@
  * - 204 and 205 "No Content" responses return `undefined as T`. Callers that
  *   care about the response type (e.g. `deleteNotification`) should declare
  *   their return type as `Promise<void>` to make this explicit.
+ * - Any other 2xx response with an empty body throws rather than returning
+ *   `undefined as T`. This makes unexpected empty bodies visible as errors
+ *   instead of propagating as phantom `undefined` values through typed callers.
  */
 
 import type { SkyFiConfig } from "../config";
@@ -85,6 +88,9 @@ export class SkyFiClient {
    * @returns Parsed JSON response body, or `undefined` for 204/205 responses.
    * @throws {Error} When the server returns a non-2xx status, with the status
    *   code and response body in the message for diagnosability.
+   * @throws {Error} When the server returns a 2xx status with an unexpectedly
+   *   empty body (i.e. not 204/205). This surfaces misconfigured endpoints or
+   *   upstream regressions rather than silently returning `undefined as T`.
    */
   private async request<T>(
     method: string,

@@ -25,8 +25,10 @@ const CONFIG_PATH = join(homedir(), ".skyfi", "config.json");
  * Attempt to load partial configuration from the local config file.
  *
  * Returns an empty object rather than throwing if the file is absent or
- * malformed. Accepts both camelCase (`apiKey`) and snake_case (`api_key`)
- * key names to reduce friction for users who hand-write the file.
+ * malformed. When the file exists but cannot be parsed, a `console.warn` is
+ * emitted with the error message so the misconfiguration is visible without
+ * crashing the process. Accepts both camelCase (`apiKey`) and snake_case
+ * (`api_key`) key names to reduce friction for users who hand-write the file.
  *
  * @returns A partial config — callers must fill in any missing fields.
  */

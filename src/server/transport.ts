@@ -29,8 +29,10 @@
  *   callback fires. If a client disconnects without cleanly closing the session,
  *   its entry remains in the map. This is acceptable for the expected low
  *   number of concurrent MCP clients.
- * - The AOI webhook endpoint at `/webhooks/aoi` is a placeholder that logs
- *   and acknowledges all payloads. Real fanout logic is deferred to Phase 4.
+ * - The AOI webhook endpoint at `/webhooks/aoi` validates the JSON body,
+ *   logs the payload, and persists it to the shared `AlertStore` keyed by
+ *   monitor ID. Invalid JSON returns 400; missing monitor ID falls back to
+ *   the key `"unknown"` so no payload is silently discarded.
  */
 
 import { Hono } from "hono";
@@ -214,9 +216,12 @@ export function createApp(
   // Liveness probe for load balancers and orchestrators.
   app.get("/health", (c) => c.json({ status: "ok" }));
 
-  // AOI webhook receiver — persists alerts to the shared AlertStore.
+  // AOI webhook receiver.
   // The SkyFi platform POSTs here when new imagery matches an AOI monitor.
-  // Payloads are stored keyed by monitor ID so MCP tool handlers can retrieve them.
+  // Validates the JSON body (returning 400 on parse failure), then persists
+  // the payload to the shared AlertStore keyed by monitor ID so MCP tool
+  // handlers can retrieve it. monitorId is extracted via String() cast with
+  // an object guard to tolerate any payload shape without throwing.
   app.post("/webhooks/aoi", async (c) => {
     let body: unknown;
     try {
