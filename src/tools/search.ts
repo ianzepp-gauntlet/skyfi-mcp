@@ -1,5 +1,5 @@
 /**
- * MCP tool: `search_imagery`
+ * MCP tool: `archives_search`
  *
  * Exposes the SkyFi archive catalog search capability as an MCP tool. An AI
  * calling this tool can discover available satellite imagery for a geographic
@@ -31,7 +31,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SkyFiClient } from "../client/skyfi.js";
 
 /**
- * Input schema for the `search_imagery` MCP tool.
+ * Input schema for the `archives_search` MCP tool.
  *
  * Two mutually exclusive invocation modes:
  * - **Initial search**: `aoi` + `fromDate` + `toDate` are required; optional
@@ -48,7 +48,7 @@ export const searchImagerySchema = z
     page: z
       .string()
       .optional()
-      .describe("Pagination cursor returned by a previous search_imagery call"),
+      .describe("Pagination cursor returned by a previous archives_search call"),
     aoi: z
       .string()
       .optional()
@@ -93,7 +93,7 @@ export const searchImagerySchema = z
   });
 
 /**
- * Register the `search_imagery` tool on the given MCP server.
+ * Register the `archives_search` tool on the given MCP server.
  *
  * The tool is read-only (`readOnlyHint: true`) — it queries the SkyFi catalog
  * but does not place orders or consume credits.
@@ -103,7 +103,7 @@ export const searchImagerySchema = z
  */
 export function registerSearchTools(server: McpServer, client: SkyFiClient) {
   server.registerTool(
-    "search_imagery",
+    "archives_search",
     {
       title: "Search Satellite Imagery",
       description:

@@ -77,14 +77,14 @@ for event in response:
 
 Once connected, the agent has access to all SkyFi MCP tools:
 
-- `search_imagery` — search the satellite catalog
-- `check_feasibility` — check if a new capture is possible
-- `get_pricing` — view pricing options
-- `list_orders` / `get_order` — browse order history
-- `prepare_order` / `confirm_order` — place orders with human confirmation
-- `create_aoi_monitor` / `list_aoi_monitors` / `get_aoi_monitor` / `delete_aoi_monitor` — manage AOI monitors
-- `get_aoi_alerts` — check for new imagery alerts
-- `resolve_location` — convert place names to coordinates
+- `archives_search` — search the satellite catalog
+- `feasibility_check` — check if a new capture is possible
+- `pricing_get` — view pricing options
+- `orders_list` / `orders_get` — browse order history
+- `orders_prepare` / `orders_confirm` — place orders with human confirmation
+- `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete` — manage AOI monitors
+- `alerts_list` — check for new imagery alerts
+- `location_resolve` — convert place names to coordinates
 
 ## Notes
 

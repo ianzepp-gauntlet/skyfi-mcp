@@ -17,7 +17,7 @@
 
 ## Key Architecture
 - `SkyFiClient` is the sole HTTP boundary; all tools delegate to it
-- Two-step order flow: `prepare_order` -> `confirm_order` via `ConfirmationStore`
+- Two-step order flow: `orders_prepare` -> `orders_confirm` via `ConfirmationStore`
 - `AlertStore` bridges webhook receiver and MCP tool handlers
 - Transport layer handles MCP session lifecycle (stateful/stateless)
 

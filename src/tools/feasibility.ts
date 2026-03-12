@@ -1,5 +1,5 @@
 /**
- * MCP tool: `check_feasibility`
+ * MCP tool: `feasibility_check`
  *
  * Exposes the SkyFi tasking feasibility API as a single synchronous-feeling
  * MCP tool. Feasibility analysis determines whether any satellites have viable
@@ -14,7 +14,7 @@
  *   retry interval and timeout configuration. Tool code stays linear.
  * - `opportunities` defaults to an empty array in the response so the AI can
  *   always iterate the field without checking for undefined.
- * - This tool must be called before `prepare_order` when placing a tasking
+ * - This tool must be called before `orders_prepare` when placing a tasking
  *   order, because the `provider_window_id` from an opportunity can be used
  *   to pin the order to a specific satellite pass.
  */
@@ -24,7 +24,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SkyFiClient } from "../client/skyfi.js";
 
 /**
- * Register the `check_feasibility` tool on the given MCP server.
+ * Register the `feasibility_check` tool on the given MCP server.
  *
  * The tool is read-only — it queries satellite pass schedules but does not
  * commit any order or consume credits.
@@ -37,7 +37,7 @@ export function registerFeasibilityTools(
   client: SkyFiClient,
 ) {
   server.registerTool(
-    "check_feasibility",
+    "feasibility_check",
     {
       title: "Check Tasking Feasibility",
       description:

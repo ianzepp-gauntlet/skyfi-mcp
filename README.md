@@ -6,19 +6,78 @@ An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.co
 
 | Tool | Description |
 |------|-------------|
-| `search_imagery` | Search the SkyFi satellite imagery catalog by area, date range, cloud cover, and resolution |
-| `check_feasibility` | Check whether a new satellite tasking capture is feasible for a given area and time window |
-| `get_pricing` | Get the SkyFi pricing matrix, optionally scoped to a specific area |
-| `list_orders` | List your previous SkyFi orders |
-| `get_order` | Get detailed status and history for a specific order |
-| `prepare_order` | Prepare an order and get pricing — does NOT place the order (returns a confirmation token) |
-| `confirm_order` | Execute a prepared order using a confirmation token from `prepare_order` |
-| `create_aoi_monitor` | Create an Area of Interest monitor with webhook notifications for new imagery |
-| `list_aoi_monitors` | List all active AOI monitors |
-| `get_aoi_monitor` | Get details for a specific AOI monitor, including recent webhook alerts |
-| `delete_aoi_monitor` | Delete an AOI monitor |
-| `get_aoi_alerts` | Retrieve recent webhook alerts for AOI monitors |
-| `resolve_location` | Resolve a place name to coordinates and WKT polygon via OpenStreetMap |
+| `archives_search` | Search the SkyFi satellite imagery catalog by area, date range, cloud cover, and resolution |
+| `feasibility_check` | Check whether a new satellite tasking capture is feasible for a given area and time window |
+| `pricing_get` | Get the SkyFi pricing matrix, optionally scoped to a specific area |
+| `orders_list` | List your previous SkyFi orders |
+| `orders_get` | Get detailed status and history for a specific order |
+| `orders_prepare` | Prepare an order and get pricing — does NOT place the order (returns a confirmation token) |
+| `orders_confirm` | Execute a prepared order using a confirmation token from `orders_prepare` |
+| `notifications_create` | Create an Area of Interest monitor with webhook notifications for new imagery |
+| `notifications_list` | List all active AOI monitors |
+| `notifications_get` | Get details for a specific AOI monitor, including recent webhook alerts |
+| `notifications_delete` | Delete an AOI monitor |
+| `alerts_list` | Retrieve recent webhook alerts for AOI monitors |
+| `location_resolve` | Resolve a place name to coordinates and WKT polygon via OpenStreetMap |
+
+## API Coverage
+
+The SkyFi Platform API (v2.0.0) spec is saved locally at [`docs/openapi.json`](docs/openapi.json). The table below maps every API endpoint to its MCP tool, and calls out gaps.
+
+### Endpoint Mapping
+
+| Method | Path | MCP Tool | Notes |
+|--------|------|----------|-------|
+| `POST` | `/archives` | `archives_search` | Initial search |
+| `GET` | `/archives` | `archives_search` | Pagination via cursor |
+| `GET` | `/archives/{archive_id}` | — | **Not exposed** — no tool to look up a single archive by ID |
+| `GET` | `/auth/whoami` | — | **Not exposed** — account info and budget balance not accessible |
+| `POST` | `/demo-delivery` | — | **Not exposed** — demo-only feature, low priority |
+| `POST` | `/feasibility` | `feasibility_check` | Submit step (polled internally) |
+| `GET` | `/feasibility/{feasibility_id}` | *(internal)* | Only called by the polling loop inside `feasibility_check` |
+| `POST` | `/feasibility/pass-prediction` | — | **Not exposed** — see note below |
+| `GET` | `/health_check` | — | Infrastructure; not useful as an MCP tool |
+| `POST` | `/notifications` | `notifications_create` | |
+| `GET` | `/notifications` | `notifications_list` | |
+| `GET` | `/notifications/{notification_id}` | `notifications_get` | |
+| `DELETE` | `/notifications/{notification_id}` | `notifications_delete` | |
+| `POST` | `/order-archive` | `orders_confirm` | Archive path |
+| `POST` | `/order-tasking` | `orders_confirm` | Tasking path |
+| `GET` | `/orders` | `orders_list` | |
+| `GET` | `/orders/{order_id}` | `orders_get` | |
+| `POST` | `/orders/{order_id}/redelivery` | — | **Not exposed** — no tool to re-trigger delivery |
+| `GET` | `/orders/{order_id}/{deliverable_type}` | — | **Not exposed** — no tool to get download URLs |
+| `POST` | `/pricing` | *(internal)* | Only called inside `orders_prepare`; not exposed standalone |
+| `GET` | `/ping` | — | Infrastructure |
+
+### Known Bugs
+
+**Resolution enum uses underscores instead of spaces.** The SkyFi API spec defines resolution values as `"VERY HIGH"`, `"SUPER HIGH"`, `"ULTRA HIGH"` (with spaces). The `orders_prepare` and `feasibility_check` tools accept `"VERY_HIGH"`, `"ULTRA_HIGH"` (underscores). These will fail API validation.
+
+### Missing Gaps
+
+**`POST /feasibility/pass-prediction` — not exposed.**
+This is the intended first step in the tasking workflow: find upcoming satellite passes over an AOI, then pin a tasking order to a specific pass via `providerWindowId`. Without this tool, agents cannot use pass-level targeting. The full workflow is:
+1. `POST /feasibility/pass-prediction` → get candidate passes with `provider_window_id` values
+2. `POST /feasibility` → verify feasibility for a specific pass
+3. `POST /order-tasking` with `providerWindowId` set → lock the order to that pass
+
+Currently step 1 is not available, and `orders_prepare` does not accept `providerWindowId` even if it were obtained externally.
+
+**`GET /archives/{archive_id}` — not exposed.**
+An agent that has an `archiveId` from a prior session or external source cannot look it up directly; it must re-run a full catalog search.
+
+**`GET /auth/whoami` — not exposed.**
+Exposes account balance (`currentBudgetUsage`, `budgetAmount`), demo account flag, and org membership. Useful for an agent to check remaining budget before preparing a costly order.
+
+**`POST /orders/{order_id}/redelivery` — not exposed.**
+Allows re-triggering delivery of a completed order to a new destination. Useful when a delivery destination was misconfigured.
+
+**`GET /orders/{order_id}/{deliverable_type}` — not exposed.**
+Returns a redirect URL to download the actual imagery file. Without this, an agent can confirm an order was delivered but cannot produce a download link for the user.
+
+**`POST /pricing` — internal only.**
+Currently called only inside `orders_prepare` to show pricing before confirmation. It cannot be called standalone, so an agent cannot get pricing estimates without also constructing a full order payload.
 
 ## Tech Stack
 
@@ -67,7 +126,7 @@ Overall: ~90% complete.
 
 - MCP transport (HTTP + SSE via Hono) with per-session server instances: done
 - Dual-runtime support (Cloudflare Workers + Bun): done
-- Tools implemented: `search_imagery` (with pagination), `check_feasibility` (async polling), `get_pricing`, `list_orders`, `get_order`: done
+- Tools implemented: `archives_search` (with pagination), `feasibility_check` (async polling), `pricing_get`, `orders_list`, `orders_get`: done
 - Unit test suite: 52 tests across 14 files, 97% line coverage (config, clients, transport, all tool handlers): done
 - LangSmith tracing at tool-call boundary: not started
 - Real SkyFi API smoke test: not done
@@ -75,15 +134,15 @@ Overall: ~90% complete.
 
 ### Phase 3 — Conversational Ordering ✅ COMPLETE
 
-- `prepare_order` validates parameters, fetches pricing, returns a summary with a single-use confirmation token (5-minute TTL)
-- `confirm_order` accepts the token and executes the purchase
+- `orders_prepare` validates parameters, fetches pricing, returns a summary with a single-use confirmation token (5-minute TTL)
+- `orders_confirm` accepts the token and executes the purchase
 - Tokens are random UUIDs, single-use, session-isolated
 - `ConfirmationStore` class (`src/tools/confirmation.ts`) implements the token store with lazy TTL expiry and injectable clock for deterministic testing
 
 ### Phase 4 — AOI Monitoring ✅ COMPLETE
 
-- `create_aoi_monitor`, `list_aoi_monitors`, `get_aoi_monitor`, `delete_aoi_monitor`: done
-- `get_aoi_alerts`: done — retrieves alerts per monitor or across all monitors
+- `notifications_create`, `notifications_list`, `notifications_get`, `notifications_delete`: done
+- `alerts_list`: done — retrieves alerts per monitor or across all monitors
 - Inbound webhook receiver at `POST /webhooks/aoi`: done — persists payloads to in-memory `AlertStore`
 - `AlertStore` class (`src/tools/alerts.ts`) implements keyed alert storage with per-monitor caps
 - Alert store is shared between the transport layer (writes) and MCP sessions (reads via tools)
@@ -92,7 +151,7 @@ Overall: ~90% complete.
 ### Phase 5 — OpenStreetMap Integration ✅ COMPLETE
 
 - Nominatim client with `User-Agent` header for polite usage
-- `resolve_location` tool converts place names to bounding boxes and WKT polygons for use with SkyFi
+- `location_resolve` tool converts place names to bounding boxes and WKT polygons for use with SkyFi
 
 ### Phase 6 — CLI Interface ❌ NOT STARTED
 
@@ -124,8 +183,8 @@ Planned: `skyfi search`, `skyfi orders list/get`, `skyfi aoi list/create`, `skyf
 
 Ordering satellite imagery costs real money. The server enforces a hard human-in-the-loop confirmation before any purchase:
 
-1. **`prepare_order`** validates parameters, fetches pricing, and returns a summary with a single-use confirmation token (5-minute TTL).
-2. **`confirm_order`** accepts the token and executes the purchase. Invalid or expired tokens are rejected.
+1. **`orders_prepare`** validates parameters, fetches pricing, and returns a summary with a single-use confirmation token (5-minute TTL).
+2. **`orders_confirm`** accepts the token and executes the purchase. Invalid or expired tokens are rejected.
 
 This two-tool pattern is intentionally safer than a single tool with a `confirmed: true` flag. The agent must make two separate calls, and the human sees the full price between them. Even if an agent tries to chain calls autonomously, the token mechanism ensures the prepare step visibly completed first.
 
@@ -150,7 +209,7 @@ The server uses `WebStandardStreamableHTTPServerTransport` from the MCP TypeScri
 
 ### SkyFi API as WKT
 
-The SkyFi API uses WKT (Well-Known Text) polygons for areas of interest rather than GeoJSON. The `resolve_location` tool bridges this by converting OpenStreetMap bounding boxes to WKT polygons automatically, so users can say "search imagery near downtown Kyiv" without knowing the coordinate format.
+The SkyFi API uses WKT (Well-Known Text) polygons for areas of interest rather than GeoJSON. The `location_resolve` tool bridges this by converting OpenStreetMap bounding boxes to WKT polygons automatically, so users can say "search imagery near downtown Kyiv" without knowing the coordinate format.
 
 ### Config Precedence
 
@@ -352,14 +411,14 @@ src/
 │   └── transport_test.ts # Transport tests (API key propagation, session modes, lifecycle)
 └── tools/
     ├── test_harness.ts        # Shared test helper — creates mock MCP server + client
-    ├── search.ts              # search_imagery
+    ├── search.ts              # archives_search
     ├── search_test.ts         # Schema cross-field validation tests
-    ├── search_handler_test.ts # search_imagery handler tests (projection, pagination)
-    ├── feasibility.ts         # check_feasibility
+    ├── search_handler_test.ts # archives_search handler tests (projection, pagination)
+    ├── feasibility.ts         # feasibility_check
     ├── feasibility_test.ts    # Feasibility handler tests (submit + poll flow)
-    ├── pricing.ts             # get_pricing
+    ├── pricing.ts             # pricing_get
     ├── pricing_test.ts        # Pricing handler tests (with/without AOI)
-    ├── orders.ts              # list_orders, get_order, prepare_order, confirm_order
+    ├── orders.ts              # orders_list, orders_get, orders_prepare, orders_confirm
     ├── orders_test.ts         # Order handler tests (prepare/confirm flow, validation, errors)
     ├── confirmation.ts        # ConfirmationStore — single-use token store for ordering
     ├── confirmation_test.ts   # ConfirmationStore tests (TTL, single-use)
@@ -367,7 +426,7 @@ src/
     ├── alerts_test.ts         # AlertStore tests (add, get, limit, clear)
     ├── aoi.ts                 # create/list/get/delete AOI monitors + get alerts
     ├── aoi_test.ts            # AOI handler tests (CRUD, alerts integration)
-    ├── location.ts            # resolve_location (OSM geocoding)
+    ├── location.ts            # location_resolve (OSM geocoding)
     └── location_test.ts       # Location handler tests (results, no-match)
 docs/
 └── integrations/

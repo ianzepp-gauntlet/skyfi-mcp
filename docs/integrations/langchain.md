@@ -120,5 +120,5 @@ For a Cloudflare Workers deployment, change the URL:
 
 - The adapter converts MCP tools to LangChain `BaseTool` instances automatically
 - Tool schemas (Zod on the server) are translated to JSON Schema for the LLM
-- Orders require two-step confirmation — the agent will call `prepare_order` first, present pricing, and only call `confirm_order` after human approval
+- Orders require two-step confirmation — the agent will call `orders_prepare` first, present pricing, and only call `orders_confirm` after human approval
 - For LangSmith tracing, set `LANGCHAIN_API_KEY` and `LANGCHAIN_TRACING_V2=true` in your environment

@@ -1,6 +1,6 @@
 /**
- * MCP tools: `create_aoi_monitor`, `list_aoi_monitors`, `get_aoi_monitor`,
- * `delete_aoi_monitor`, `get_aoi_alerts`
+ * MCP tools: `notifications_create`, `notifications_list`, `notifications_get`,
+ * `notifications_delete`, `alerts_list`
  *
  * Exposes the SkyFi AOI monitoring (notification) system as MCP tools. AOI
  * monitors are persistent server-side subscriptions: once created, the SkyFi
@@ -28,8 +28,8 @@ import type { AlertStore } from "./alerts.js";
 /**
  * Register AOI monitoring tools on the given MCP server.
  *
- * Registers five tools: `create_aoi_monitor`, `list_aoi_monitors`,
- * `get_aoi_monitor`, `delete_aoi_monitor`, and `get_aoi_alerts`.
+ * Registers five tools: `notifications_create`, `notifications_list`,
+ * `notifications_get`, `notifications_delete`, and `alerts_list`.
  *
  * @param server - The MCP server instance to register the tools on.
  * @param client - Authenticated SkyFi API client used to manage notifications.
@@ -41,7 +41,7 @@ export function registerAoiTools(
   alertStore?: AlertStore,
 ) {
   server.registerTool(
-    "create_aoi_monitor",
+    "notifications_create",
     {
       title: "Create AOI Monitor",
       description:
@@ -94,7 +94,7 @@ export function registerAoiTools(
   );
 
   server.registerTool(
-    "list_aoi_monitors",
+    "notifications_list",
     {
       title: "List AOI Monitors",
       description: "List all active Area of Interest monitors.",
@@ -131,7 +131,7 @@ export function registerAoiTools(
   );
 
   server.registerTool(
-    "get_aoi_monitor",
+    "notifications_get",
     {
       title: "Get AOI Monitor",
       description:
@@ -178,7 +178,7 @@ export function registerAoiTools(
   );
 
   server.registerTool(
-    "delete_aoi_monitor",
+    "notifications_delete",
     {
       title: "Delete AOI Monitor",
       description: "Delete an Area of Interest monitor by ID.",
@@ -207,7 +207,7 @@ export function registerAoiTools(
   );
 
   server.registerTool(
-    "get_aoi_alerts",
+    "alerts_list",
     {
       title: "Get AOI Alerts",
       description:

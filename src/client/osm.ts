@@ -72,7 +72,7 @@ export interface GeocodingResult {
  *
  * Sends a forward-geocoding query and returns up to 5 candidate results
  * sorted by Nominatim's relevance score. The caller (typically an AI via the
- * `resolve_location` MCP tool) is responsible for selecting the best match.
+ * `location_resolve` MCP tool) is responsible for selecting the best match.
  *
  * @param query - Free-text place name or address (e.g. "downtown Kyiv",
  *   "Central Park New York", "Mount Everest").

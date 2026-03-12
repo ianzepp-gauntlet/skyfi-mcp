@@ -33,7 +33,7 @@ import type { AlertStore } from "../tools/alerts.js";
 export interface CreateMcpServerOptions {
   /**
    * Shared alert store for AOI webhook alerts. When provided, the
-   * `get_aoi_monitor` and `get_aoi_alerts` tools can return stored alerts.
+   * `notifications_get` and `alerts_list` tools can return stored alerts.
    */
   alertStore?: AlertStore;
 }

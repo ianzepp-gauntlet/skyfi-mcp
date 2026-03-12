@@ -93,7 +93,7 @@ To expose only specific tools, use the `allowed_tools` parameter:
     "headers": {
         "x-skyfi-api-key": "YOUR_SKYFI_API_KEY",
     },
-    "allowed_tools": ["search_imagery", "get_pricing", "resolve_location"],
+    "allowed_tools": ["archives_search", "pricing_get", "location_resolve"],
 }
 ```
 

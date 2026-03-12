@@ -5,11 +5,11 @@
  * that prevents an AI from accidentally placing paid orders without explicit
  * human approval:
  *
- *  1. `prepare_order` validates parameters, fetches pricing, and calls
+ *  1. `orders_prepare` validates parameters, fetches pricing, and calls
  *     `ConfirmationStore.store()` to persist the order details. It returns a
  *     short-lived token and the pricing to the AI, which presents them to the
  *     user for review.
- *  2. After the user approves, the AI calls `confirm_order` with the token.
+ *  2. After the user approves, the AI calls `orders_confirm` with the token.
  *     `ConfirmationStore.consume()` validates and retrieves the pending order,
  *     and the order is submitted to the SkyFi API.
  *
@@ -41,11 +41,11 @@ import type {
 } from "../client/types.js";
 
 /**
- * A pending order awaiting confirmation, stored between `prepare_order` and
- * `confirm_order` tool calls.
+ * A pending order awaiting confirmation, stored between `orders_prepare` and
+ * `orders_confirm` tool calls.
  *
  * All fields needed to place the actual API call are captured here so that
- * `confirm_order` does not need to re-fetch or reconstruct anything — the
+ * `orders_confirm` does not need to re-fetch or reconstruct anything — the
  * presence of a valid token is sufficient proof that the user reviewed and
  * approved the details stored here.
  */
@@ -87,7 +87,7 @@ export class ConfirmationStore {
   /**
    * @param ttlMs - Token time-to-live in milliseconds (default: 5 minutes).
    *   After this duration, tokens are rejected and the user must re-run
-   *   `prepare_order` to get a fresh token.
+   *   `orders_prepare` to get a fresh token.
    */
   constructor(ttlMs = 5 * 60 * 1000) {
     this.ttlMs = ttlMs;
@@ -132,7 +132,7 @@ export class ConfirmationStore {
    *
    * This is a single-use operation: once consumed, the token is deleted and
    * cannot be reused. This prevents double-submission if an AI calls
-   * `confirm_order` more than once with the same token.
+   * `orders_confirm` more than once with the same token.
    *
    * @param token - The token issued by a prior `store` call.
    * @param now - Current time in ms (injectable for deterministic testing).

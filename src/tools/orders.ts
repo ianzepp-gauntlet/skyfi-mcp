@@ -1,20 +1,20 @@
 /**
- * MCP tools: `list_orders`, `get_order`, `prepare_order`, `confirm_order`
+ * MCP tools: `orders_list`, `orders_get`, `orders_prepare`, `orders_confirm`
  *
  * Exposes the SkyFi order management system as MCP tools, covering two
  * distinct responsibilities:
  *
- *  1. **Read-only order inspection** (`list_orders`, `get_order`) — let an AI
+ *  1. **Read-only order inspection** (`orders_list`, `orders_get`) — let an AI
  *     look up existing orders without any risk of side effects.
  *
- *  2. **Human-in-the-loop ordering** (`prepare_order`, `confirm_order`) — a
+ *  2. **Human-in-the-loop ordering** (`orders_prepare`, `orders_confirm`) — a
  *     two-step flow that prevents the AI from placing paid orders without
  *     explicit human approval:
  *
- *     - `prepare_order` validates parameters, fetches pricing, and returns a
+ *     - `orders_prepare` validates parameters, fetches pricing, and returns a
  *       short-lived confirmation token alongside a pricing summary. No order
  *       is placed at this step.
- *     - `confirm_order` consumes the token and submits the actual API call.
+ *     - `orders_confirm` consumes the token and submits the actual API call.
  *       The token expires after 5 minutes, forcing the user to re-review
  *       pricing if they wait too long.
  *
@@ -22,12 +22,12 @@
  * - `ConfirmationStore` is injected as a parameter (defaulting to a new instance
  *   per registration) so tests can inject a pre-populated store or inspect
  *   stored tokens without needing to invoke the tool handler directly.
- * - Both archive and tasking order types are handled by the same `prepare_order`
- *   and `confirm_order` tools, with a `type` discriminator field. This avoids
+ * - Both archive and tasking order types are handled by the same `orders_prepare`
+ *   and `orders_confirm` tools, with a `type` discriminator field. This avoids
  *   proliferating tool count and keeps the MCP surface small.
  *
  * TRADE-OFFS:
- * - `prepare_order` fetches pricing at preparation time, not at confirmation
+ * - `orders_prepare` fetches pricing at preparation time, not at confirmation
  *   time. Prices could theoretically change in the 5-minute window between
  *   prepare and confirm. This is accepted because SkyFi pricing is stable
  *   over short windows, and re-checking at confirm would require storing less
@@ -46,8 +46,8 @@ import { ConfirmationStore } from "./confirmation.js";
 /**
  * Register order management tools on the given MCP server.
  *
- * Registers four tools: `list_orders`, `get_order`, `prepare_order`, and
- * `confirm_order`.
+ * Registers four tools: `orders_list`, `orders_get`, `orders_prepare`, and
+ * `orders_confirm`.
  *
  * @param server - The MCP server instance to register the tools on.
  * @param client - Authenticated SkyFi API client used for order API calls.
@@ -63,7 +63,7 @@ export function registerOrderTools(
   // ── List Orders ────────────────────────────────────────────────────────────
 
   server.registerTool(
-    "list_orders",
+    "orders_list",
     {
       title: "List Orders",
       description:
@@ -112,7 +112,7 @@ export function registerOrderTools(
   // ── Get Order Detail ───────────────────────────────────────────────────────
 
   server.registerTool(
-    "get_order",
+    "orders_get",
     {
       title: "Get Order Details",
       description: "Get detailed status and history for a specific order.",
@@ -127,7 +127,7 @@ export function registerOrderTools(
         content: [
           {
             type: "text" as const,
-            // WHY: Return the full order object here (unlike list_orders) because
+            // WHY: Return the full order object here (unlike orders_list) because
             // the user explicitly requested detail on a specific order.
             text: JSON.stringify(order, null, 2),
           },
@@ -139,11 +139,11 @@ export function registerOrderTools(
   // ── Prepare Order (step 1 of human-in-the-loop) ───────────────────────────
 
   server.registerTool(
-    "prepare_order",
+    "orders_prepare",
     {
       title: "Prepare Order",
       description:
-        "Prepare a satellite imagery order and get pricing. This does NOT place the order — it returns a confirmation token that must be passed to confirm_order to actually execute the purchase. The user MUST review and approve the price before confirming.",
+        "Prepare a satellite imagery order and get pricing. This does NOT place the order — it returns a confirmation token that must be passed to orders_confirm to actually execute the purchase. The user MUST review and approve the price before confirming.",
       inputSchema: {
         type: z
           .enum(["archive", "tasking"])
@@ -250,7 +250,7 @@ export function registerOrderTools(
 
       // PHASE 3: STORE PENDING ORDER AND RETURN TOKEN
       // Persist the fully-constructed order params and pricing under a short-lived
-      // token. The token is what the user (via the AI) must supply to confirm_order.
+      // token. The token is what the user (via the AI) must supply to orders_confirm.
       const token = confirmationStore.store({
         type: params.type,
         params: orderParams,
@@ -269,7 +269,7 @@ export function registerOrderTools(
                 // WHY: Emphasize in the response text that the order has NOT been placed
                 // to reduce the risk of the AI presenting this as a completed transaction.
                 message:
-                  "ORDER NOT YET PLACED. Review the pricing below and call confirm_order with the confirmation token to execute the purchase.",
+                  "ORDER NOT YET PLACED. Review the pricing below and call orders_confirm with the confirmation token to execute the purchase.",
                 pricing: JSON.parse(pricingSummary),
                 orderDetails: {
                   aoi: params.aoi,
@@ -296,15 +296,15 @@ export function registerOrderTools(
   // ── Confirm Order (step 2 of human-in-the-loop) ───────────────────────────
 
   server.registerTool(
-    "confirm_order",
+    "orders_confirm",
     {
       title: "Confirm and Place Order",
       description:
-        "Execute a previously prepared order. Requires a valid confirmation token from prepare_order. The user must have explicitly approved the order before calling this tool.",
+        "Execute a previously prepared order. Requires a valid confirmation token from orders_prepare. The user must have explicitly approved the order before calling this tool.",
       inputSchema: {
         confirmationToken: z
           .string()
-          .describe("Confirmation token from prepare_order"),
+          .describe("Confirmation token from orders_prepare"),
       },
     },
     async ({ confirmationToken }) => {
@@ -317,7 +317,7 @@ export function registerOrderTools(
           content: [
             {
               type: "text" as const,
-              text: "Error: Invalid or expired confirmation token. Please call prepare_order again to get a new token.",
+              text: "Error: Invalid or expired confirmation token. Please call orders_prepare again to get a new token.",
             },
           ],
           isError: true,

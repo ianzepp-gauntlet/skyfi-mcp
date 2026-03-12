@@ -19,7 +19,7 @@ describe("registerPricingTools", () => {
 
     registerPricingTools(harness.server as any, client as any);
 
-    const result = parseToolJson(await harness.invoke("get_pricing", {}));
+    const result = parseToolJson(await harness.invoke("pricing_get", {}));
     expect(result.currency).toBe("USD");
     expect(calls).toEqual([undefined]);
   });
@@ -36,7 +36,7 @@ describe("registerPricingTools", () => {
 
     registerPricingTools(harness.server as any, client as any);
 
-    await harness.invoke("get_pricing", {
+    await harness.invoke("pricing_get", {
       aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
     });
     expect(calls).toEqual([{ aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))" }]);

@@ -2,7 +2,7 @@
  * In-memory AOI alert store.
  *
  * Receives webhook payloads from the SkyFi platform (via `POST /webhooks/aoi`)
- * and makes them available to MCP tool handlers (`get_aoi_alerts`). This is the
+ * and makes them available to MCP tool handlers (`alerts_list`). This is the
  * bridge between the HTTP transport layer (which receives webhooks) and the MCP
  * session layer (which serves tool calls).
  *

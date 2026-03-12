@@ -48,24 +48,24 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any);
 
     const created = parseToolJson(
-      await harness.invoke("create_aoi_monitor", {
+      await harness.invoke("notifications_create", {
         aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
         webhookUrl: "https://example.com/webhook",
       }),
     );
     expect(created.monitorId).toBe("mon-1");
 
-    const listed = parseToolJson(await harness.invoke("list_aoi_monitors", {}));
+    const listed = parseToolJson(await harness.invoke("notifications_list", {}));
     expect(listed.total).toBe(1);
     expect(listed.monitors[0].id).toBe("mon-1");
 
     const deleted = parseToolJson(
-      await harness.invoke("delete_aoi_monitor", { monitor_id: "mon-1" }),
+      await harness.invoke("notifications_delete", { monitor_id: "mon-1" }),
     );
     expect(deleted.monitorId).toBe("mon-1");
   });
 
-  test("list_aoi_monitors falls back to notifications length when total is absent", async () => {
+  test("notifications_list falls back to notifications length when total is absent", async () => {
     const harness = createToolHarness();
     const client = {
       ...createMockClient(),
@@ -76,11 +76,11 @@ describe("registerAoiTools", () => {
 
     registerAoiTools(harness.server as any, client as any);
 
-    const listed = parseToolJson(await harness.invoke("list_aoi_monitors", {}));
+    const listed = parseToolJson(await harness.invoke("notifications_list", {}));
     expect(listed.total).toBe(2);
   });
 
-  test("get_aoi_monitor returns monitor details with alerts", async () => {
+  test("notifications_get returns monitor details with alerts", async () => {
     const harness = createToolHarness();
     const client = createMockClient();
     const alertStore = new AlertStore();
@@ -90,7 +90,7 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any, alertStore);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_monitor", { monitor_id: "mon-1" }),
+      await harness.invoke("notifications_get", { monitor_id: "mon-1" }),
     );
     expect(result.monitor.id).toBe("mon-1");
     expect(result.monitor.productType).toBe("DAY");
@@ -99,20 +99,20 @@ describe("registerAoiTools", () => {
     expect(result.alerts[0].payload.imagery).toBe("scene-b");
   });
 
-  test("get_aoi_monitor works without alert store", async () => {
+  test("notifications_get works without alert store", async () => {
     const harness = createToolHarness();
     const client = createMockClient();
     registerAoiTools(harness.server as any, client as any);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_monitor", { monitor_id: "mon-1" }),
+      await harness.invoke("notifications_get", { monitor_id: "mon-1" }),
     );
     expect(result.monitor.id).toBe("mon-1");
     expect(result.recentAlerts).toBe(0);
     expect(result.alerts).toEqual([]);
   });
 
-  test("delete_aoi_monitor clears alerts from store", async () => {
+  test("notifications_delete clears alerts from store", async () => {
     const harness = createToolHarness();
     const client = createMockClient();
     const alertStore = new AlertStore();
@@ -120,11 +120,11 @@ describe("registerAoiTools", () => {
 
     registerAoiTools(harness.server as any, client as any, alertStore);
 
-    await harness.invoke("delete_aoi_monitor", { monitor_id: "mon-1" });
+    await harness.invoke("notifications_delete", { monitor_id: "mon-1" });
     expect(alertStore.get("mon-1")).toEqual([]);
   });
 
-  test("get_aoi_alerts returns alerts for specific monitor", async () => {
+  test("alerts_list returns alerts for specific monitor", async () => {
     const harness = createToolHarness();
     const client = createMockClient();
     const alertStore = new AlertStore();
@@ -134,13 +134,13 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any, alertStore);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_alerts", { monitor_id: "mon-1" }),
+      await harness.invoke("alerts_list", { monitor_id: "mon-1" }),
     );
     expect(result.total).toBe(1);
     expect(result.alerts[0].monitorId).toBe("mon-1");
   });
 
-  test("get_aoi_alerts returns all alerts when no monitor_id given", async () => {
+  test("alerts_list returns all alerts when no monitor_id given", async () => {
     const harness = createToolHarness();
     const client = createMockClient();
     const alertStore = new AlertStore();
@@ -149,11 +149,11 @@ describe("registerAoiTools", () => {
 
     registerAoiTools(harness.server as any, client as any, alertStore);
 
-    const result = parseToolJson(await harness.invoke("get_aoi_alerts", {}));
+    const result = parseToolJson(await harness.invoke("alerts_list", {}));
     expect(result.total).toBe(2);
   });
 
-  test("get_aoi_alerts respects limit parameter", async () => {
+  test("alerts_list respects limit parameter", async () => {
     const harness = createToolHarness();
     const client = createMockClient();
     const alertStore = new AlertStore();
@@ -164,18 +164,18 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any, alertStore);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_alerts", { monitor_id: "mon-1", limit: 3 }),
+      await harness.invoke("alerts_list", { monitor_id: "mon-1", limit: 3 }),
     );
     expect(result.total).toBe(3);
   });
 
-  test("get_aoi_alerts returns empty when no alert store", async () => {
+  test("alerts_list returns empty when no alert store", async () => {
     const harness = createToolHarness();
     const client = createMockClient();
     registerAoiTools(harness.server as any, client as any);
 
     const result = parseToolJson(
-      await harness.invoke("get_aoi_alerts", { monitor_id: "mon-1" }),
+      await harness.invoke("alerts_list", { monitor_id: "mon-1" }),
     );
     expect(result.total).toBe(0);
     expect(result.alerts).toEqual([]);
@@ -187,10 +187,10 @@ describe("registerAoiTools", () => {
     registerAoiTools(harness.server as any, client as any);
 
     const names = harness.names();
-    expect(names).toContain("create_aoi_monitor");
-    expect(names).toContain("list_aoi_monitors");
-    expect(names).toContain("get_aoi_monitor");
-    expect(names).toContain("delete_aoi_monitor");
-    expect(names).toContain("get_aoi_alerts");
+    expect(names).toContain("notifications_create");
+    expect(names).toContain("notifications_list");
+    expect(names).toContain("notifications_get");
+    expect(names).toContain("notifications_delete");
+    expect(names).toContain("alerts_list");
   });
 });

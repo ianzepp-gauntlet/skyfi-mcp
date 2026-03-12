@@ -318,7 +318,7 @@ export class SkyFiClient {
    * Purchase an existing archived scene.
    *
    * Immediately charges the account and initiates delivery. Callers should
-   * go through the `prepare_order` / `confirm_order` tool pair rather than
+   * go through the `orders_prepare` / `orders_confirm` tool pair rather than
    * calling this method directly from MCP tools, to enforce human-in-the-loop
    * approval before funds are committed.
    *

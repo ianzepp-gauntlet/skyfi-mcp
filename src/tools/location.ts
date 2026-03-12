@@ -1,15 +1,15 @@
 /**
- * MCP tool: `resolve_location`
+ * MCP tool: `location_resolve`
  *
  * Bridges the gap between human-readable place names and the WKT polygon
  * strings that the SkyFi API requires as area-of-interest (AOI) parameters.
  *
  * Without this tool, an AI would need to either ask the user for a WKT
  * polygon (unfriendly) or attempt to construct one from coordinates it may
- * hallucinate (unreliable). Instead, the AI calls `resolve_location` first
+ * hallucinate (unreliable). Instead, the AI calls `location_resolve` first
  * with a natural-language place description, receives a `wktPolygon` for each
  * candidate match, and passes the appropriate WKT directly to tools like
- * `search_imagery` or `check_feasibility`.
+ * `archives_search` or `feasibility_check`.
  *
  * Architecture:
  * - Geocoding is delegated entirely to `src/client/osm.ts` (Nominatim).
@@ -25,7 +25,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { resolveLocation, bboxToWkt } from "../client/osm.js";
 
 /**
- * Register the `resolve_location` tool on the given MCP server.
+ * Register the `location_resolve` tool on the given MCP server.
  *
  * The tool is read-only — it queries OpenStreetMap but modifies no state.
  *
@@ -33,11 +33,11 @@ import { resolveLocation, bboxToWkt } from "../client/osm.js";
  */
 export function registerLocationTools(server: McpServer) {
   server.registerTool(
-    "resolve_location",
+    "location_resolve",
     {
       title: "Resolve Location",
       description:
-        "Resolve a place name to geographic coordinates and bounding box using OpenStreetMap. Returns a WKT POLYGON that can be used directly as the 'aoi' parameter in other tools like search_imagery.",
+        "Resolve a place name to geographic coordinates and bounding box using OpenStreetMap. Returns a WKT POLYGON that can be used directly as the 'aoi' parameter in other tools like archives_search.",
       inputSchema: {
         query: z
           .string()

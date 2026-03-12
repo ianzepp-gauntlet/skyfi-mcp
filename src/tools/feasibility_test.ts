@@ -24,7 +24,7 @@ describe("registerFeasibilityTools", () => {
     registerFeasibilityTools(harness.server as any, client as any);
 
     const result = parseToolJson(
-      await harness.invoke("check_feasibility", {
+      await harness.invoke("feasibility_check", {
         aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
         window_start: "2026-01-01T00:00:00Z",
         window_end: "2026-01-02T00:00:00Z",

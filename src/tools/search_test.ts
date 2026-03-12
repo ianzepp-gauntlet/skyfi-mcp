@@ -2,7 +2,7 @@
  * Unit tests for `searchImagerySchema`.
  *
  * Tests focus on the cross-field `superRefine` validation rule that enforces
- * the two calling modes of `search_imagery`:
+ * the two calling modes of `archives_search`:
  * - Pagination mode (only `page` required): must pass validation.
  * - Initial search mode (aoi + fromDate + toDate required): must fail when any
  *   of those fields is missing, even if other optional fields are present.

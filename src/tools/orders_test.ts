@@ -8,7 +8,7 @@ function parseToolJson(result: any) {
 }
 
 describe("registerOrderTools", () => {
-  test("prepare_order archive path stores token and confirm_order submits archive order", async () => {
+  test("orders_prepare archive path stores token and orders_confirm submits archive order", async () => {
     const harness = createToolHarness();
     const store = new ConfirmationStore();
 
@@ -31,7 +31,7 @@ describe("registerOrderTools", () => {
 
     registerOrderTools(harness.server as any, client as any, store);
 
-    const preparedRaw = await harness.invoke("prepare_order", {
+    const preparedRaw = await harness.invoke("orders_prepare", {
       type: "archive",
       aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
       archiveId: "arch-123",
@@ -45,7 +45,7 @@ describe("registerOrderTools", () => {
     expect(prepared.message).toContain("ORDER NOT YET PLACED");
     expect(typeof prepared.confirmationToken).toBe("string");
 
-    const confirmedRaw = await harness.invoke("confirm_order", {
+    const confirmedRaw = await harness.invoke("orders_confirm", {
       confirmationToken: prepared.confirmationToken,
     });
     const confirmed = parseToolJson(confirmedRaw);
@@ -54,7 +54,7 @@ describe("registerOrderTools", () => {
     expect(confirmed.type).toBe("ARCHIVE");
   });
 
-  test("prepare_order returns isError when tasking fields are missing", async () => {
+  test("orders_prepare returns isError when tasking fields are missing", async () => {
     const harness = createToolHarness();
     const client = {
       listOrders: async () => ({ total: 0, orders: [] }),
@@ -70,7 +70,7 @@ describe("registerOrderTools", () => {
       new ConfirmationStore(),
     );
 
-    const result: any = await harness.invoke("prepare_order", {
+    const result: any = await harness.invoke("orders_prepare", {
       type: "tasking",
       aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
       deliveryDriver: "S3",
@@ -81,7 +81,7 @@ describe("registerOrderTools", () => {
     expect(result.content[0].text).toContain("window_start, window_end");
   });
 
-  test("confirm_order returns isError for invalid token", async () => {
+  test("orders_confirm returns isError for invalid token", async () => {
     const harness = createToolHarness();
     const client = {
       listOrders: async () => ({ total: 0, orders: [] }),
@@ -97,7 +97,7 @@ describe("registerOrderTools", () => {
       new ConfirmationStore(),
     );
 
-    const result: any = await harness.invoke("confirm_order", {
+    const result: any = await harness.invoke("orders_confirm", {
       confirmationToken: "bad-token",
     });
 
@@ -107,7 +107,7 @@ describe("registerOrderTools", () => {
     );
   });
 
-  test("list_orders projects order summaries", async () => {
+  test("orders_list projects order summaries", async () => {
     const harness = createToolHarness();
     const client = {
       listOrders: async () => ({
@@ -134,7 +134,7 @@ describe("registerOrderTools", () => {
       new ConfirmationStore(),
     );
 
-    const resultRaw = await harness.invoke("list_orders", {
+    const resultRaw = await harness.invoke("orders_list", {
       orderType: "TASKING",
       pageNumber: 0,
       pageSize: 5,
@@ -154,7 +154,7 @@ describe("registerOrderTools", () => {
 });
 
 describe("registerOrderTools (additional)", () => {
-  test("prepare_order returns isError when archiveId is missing", async () => {
+  test("orders_prepare returns isError when archiveId is missing", async () => {
     const harness = createToolHarness();
     const client = {
       listOrders: async () => ({ total: 0, orders: [] }),
@@ -170,7 +170,7 @@ describe("registerOrderTools (additional)", () => {
       new ConfirmationStore(),
     );
 
-    const result: any = await harness.invoke("prepare_order", {
+    const result: any = await harness.invoke("orders_prepare", {
       type: "archive",
       aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
       deliveryDriver: "S3",
@@ -181,7 +181,7 @@ describe("registerOrderTools (additional)", () => {
     expect(result.content[0].text).toContain("archiveId is required");
   });
 
-  test("prepare_order tasking path stores details and confirm_order submits tasking order", async () => {
+  test("orders_prepare tasking path stores details and orders_confirm submits tasking order", async () => {
     const harness = createToolHarness();
     const store = new ConfirmationStore();
 
@@ -203,7 +203,7 @@ describe("registerOrderTools (additional)", () => {
 
     registerOrderTools(harness.server as any, client as any, store);
 
-    const preparedRaw = await harness.invoke("prepare_order", {
+    const preparedRaw = await harness.invoke("orders_prepare", {
       type: "tasking",
       aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
       window_start: "2026-01-01T00:00:00Z",
@@ -220,7 +220,7 @@ describe("registerOrderTools (additional)", () => {
     expect(prepared.orderDetails.productType).toBe("DAY");
     expect(prepared.orderDetails.resolution).toBe("HIGH");
 
-    const confirmedRaw = await harness.invoke("confirm_order", {
+    const confirmedRaw = await harness.invoke("orders_confirm", {
       confirmationToken: prepared.confirmationToken,
     });
     const confirmed = parseToolJson(confirmedRaw);
@@ -229,7 +229,7 @@ describe("registerOrderTools (additional)", () => {
     expect(confirmed.type).toBe("TASKING");
   });
 
-  test("confirm_order forwards exact params to createArchiveOrder", async () => {
+  test("orders_confirm forwards exact params to createArchiveOrder", async () => {
     const harness = createToolHarness();
     const store = new ConfirmationStore();
     const capturedParams: any[] = [];
@@ -247,7 +247,7 @@ describe("registerOrderTools (additional)", () => {
 
     registerOrderTools(harness.server as any, client as any, store);
 
-    const preparedRaw = await harness.invoke("prepare_order", {
+    const preparedRaw = await harness.invoke("orders_prepare", {
       type: "archive",
       aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
       archiveId: "arch-xyz",
@@ -257,7 +257,7 @@ describe("registerOrderTools (additional)", () => {
     });
 
     const { confirmationToken } = parseToolJson(preparedRaw);
-    await harness.invoke("confirm_order", { confirmationToken });
+    await harness.invoke("orders_confirm", { confirmationToken });
 
     expect(capturedParams).toHaveLength(1);
     expect(capturedParams[0].aoi).toBe("POLYGON((0 0,1 0,1 1,0 1,0 0))");
@@ -267,7 +267,7 @@ describe("registerOrderTools (additional)", () => {
     expect(capturedParams[0].deliveryParams.path).toBe("data/out");
   });
 
-  test("confirm_order forwards exact params to createTaskingOrder", async () => {
+  test("orders_confirm forwards exact params to createTaskingOrder", async () => {
     const harness = createToolHarness();
     const store = new ConfirmationStore();
     const capturedParams: any[] = [];
@@ -285,7 +285,7 @@ describe("registerOrderTools (additional)", () => {
 
     registerOrderTools(harness.server as any, client as any, store);
 
-    const preparedRaw = await harness.invoke("prepare_order", {
+    const preparedRaw = await harness.invoke("orders_prepare", {
       type: "tasking",
       aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
       window_start: "2026-02-01T00:00:00Z",
@@ -298,7 +298,7 @@ describe("registerOrderTools (additional)", () => {
     });
 
     const { confirmationToken } = parseToolJson(preparedRaw);
-    await harness.invoke("confirm_order", { confirmationToken });
+    await harness.invoke("orders_confirm", { confirmationToken });
 
     expect(capturedParams).toHaveLength(1);
     expect(capturedParams[0].aoi).toBe("POLYGON((0 0,1 0,1 1,0 1,0 0))");
@@ -310,7 +310,7 @@ describe("registerOrderTools (additional)", () => {
     expect(capturedParams[0].deliveryParams.bucket).toBe("task-bucket");
   });
 
-  test("get_order returns full order detail payload", async () => {
+  test("orders_get returns full order detail payload", async () => {
     const harness = createToolHarness();
     const fullOrder = {
       id: "ord-xyz",
@@ -336,7 +336,7 @@ describe("registerOrderTools (additional)", () => {
     );
 
     const result = parseToolJson(
-      await harness.invoke("get_order", { order_id: "ord-xyz" }),
+      await harness.invoke("orders_get", { order_id: "ord-xyz" }),
     );
     expect(result).toEqual(fullOrder);
   });

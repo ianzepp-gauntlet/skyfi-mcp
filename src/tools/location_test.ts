@@ -20,7 +20,7 @@ describe("registerLocationTools", () => {
     globalThis.fetch = (async () =>
       new Response("[]", { status: 200 })) as unknown as typeof fetch;
 
-    const result: any = await harness.invoke("resolve_location", {
+    const result: any = await harness.invoke("location_resolve", {
       query: "unknown place",
     });
     expect(result.content[0].text).toContain("No results found");
@@ -46,7 +46,7 @@ describe("registerLocationTools", () => {
       )) as unknown as typeof fetch;
 
     const result = parseToolJson(
-      await harness.invoke("resolve_location", { query: "Austin" }),
+      await harness.invoke("location_resolve", { query: "Austin" }),
     );
     expect(result.query).toBe("Austin");
     expect(result.results[0].name).toContain("Austin");

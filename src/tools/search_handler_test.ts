@@ -41,7 +41,7 @@ describe("registerSearchTools", () => {
     registerSearchTools(harness.server as any, client as any);
 
     const result = parseToolJson(
-      await harness.invoke("search_imagery", {
+      await harness.invoke("archives_search", {
         aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
         fromDate: "2026-01-01",
         toDate: "2026-01-02",
@@ -70,7 +70,7 @@ describe("registerSearchTools", () => {
     registerSearchTools(harness.server as any, client as any);
 
     const result = parseToolJson(
-      await harness.invoke("search_imagery", { page: "cursor-1" }),
+      await harness.invoke("archives_search", { page: "cursor-1" }),
     );
     expect(calls).toEqual(["cursor-1"]);
     expect(result.hasMore).toBe(true);

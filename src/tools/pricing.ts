@@ -1,5 +1,5 @@
 /**
- * MCP tool: `get_pricing`
+ * MCP tool: `pricing_get`
  *
  * Exposes the SkyFi pricing matrix as an MCP tool. An AI can use this tool
  * to retrieve cost information before recommending or placing an order, helping
@@ -15,7 +15,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SkyFiClient } from "../client/skyfi.js";
 
 /**
- * Register the `get_pricing` tool on the given MCP server.
+ * Register the `pricing_get` tool on the given MCP server.
  *
  * The tool is read-only — it retrieves pricing data without modifying any state
  * or consuming credits.
@@ -25,7 +25,7 @@ import type { SkyFiClient } from "../client/skyfi.js";
  */
 export function registerPricingTools(server: McpServer, client: SkyFiClient) {
   server.registerTool(
-    "get_pricing",
+    "pricing_get",
     {
       title: "Get Pricing",
       description:

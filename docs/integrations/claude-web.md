@@ -39,9 +39,9 @@ Once connected, you can use SkyFi tools directly in Claude conversations:
 
 When placing orders, Claude will:
 
-1. Call `prepare_order` to validate parameters and fetch pricing
+1. Call `orders_prepare` to validate parameters and fetch pricing
 2. Present the price summary for your review
-3. Only call `confirm_order` after you explicitly approve
+3. Only call `orders_confirm` after you explicitly approve
 
 This two-step flow ensures you always see the price before any purchase is made.
 
@@ -51,14 +51,14 @@ All SkyFi MCP tools are available in the conversation:
 
 | Tool | What it does |
 |------|-------------|
-| `search_imagery` | Search the satellite catalog |
-| `check_feasibility` | Check if a new capture is possible |
-| `get_pricing` | View pricing matrix |
-| `list_orders` / `get_order` | Browse order history |
-| `prepare_order` / `confirm_order` | Place orders (with confirmation) |
-| `create_aoi_monitor` / `list_aoi_monitors` / `get_aoi_monitor` / `delete_aoi_monitor` | Manage area monitors |
-| `get_aoi_alerts` | Check for new imagery notifications |
-| `resolve_location` | Convert place names to coordinates |
+| `archives_search` | Search the satellite catalog |
+| `feasibility_check` | Check if a new capture is possible |
+| `pricing_get` | View pricing matrix |
+| `orders_list` / `orders_get` | Browse order history |
+| `orders_prepare` / `orders_confirm` | Place orders (with confirmation) |
+| `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete` | Manage area monitors |
+| `alerts_list` | Check for new imagery notifications |
+| `location_resolve` | Convert place names to coordinates |
 
 ## Notes
 
