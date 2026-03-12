@@ -96,9 +96,15 @@ The codebase is designed for **dual-runtime deployment** — all tools, clients,
 ├─────────────────────────────────────┤
 │  MCP Server wiring (mcp.ts)         │  ← 100% shared
 ├─────────────────────────────────────┤
-│  Hono transport (transport.ts)      │  ← Shared, with sessionMode option
-│    ├─ stateful (Bun)                │
-│    └─ stateless (Workers)           │
+│  Hono transport (transport.ts)      │  ← Bun / local self-hosting
+│    └─ stateful                      │
+├─────────────────────────────────────┤
+│  Agents transport                   │  ← Cloudflare Workers
+│    ├─ agent_transport.ts            │
+│    ├─ worker_routes.ts              │
+│    └─ Durable Objects               │
+│       ├─ SkyFiMcpAgent              │
+│       └─ SkyFiAlertStore            │
 ├─────────────────────────────────────┤
 │  Entry point                        │
 │    ├─ src/worker.ts (Workers)       │
@@ -106,7 +112,7 @@ The codebase is designed for **dual-runtime deployment** — all tools, clients,
 └─────────────────────────────────────┘
 ```
 
-The Workers entry point runs in **stateless** session mode — each request creates a fresh MCP server and transport. The Bun entry point runs in **stateful** mode with in-memory session tracking, which also supports the optional `~/.skyfi/config.json` file for local developer convenience.
+The Workers entry point now runs on **Cloudflare Agents** with stateful Durable Object-backed MCP sessions. Per-request `x-skyfi-api-key` credentials are bound to the MCP session during initialization so multi-user remote access still works, while AOI webhook alerts are stored in a separate shared Durable Object. The Bun entry point remains **stateful** with in-memory session tracking and optional `~/.skyfi/config.json` support for local developer convenience.
 
 ## Implementation Status
 
@@ -120,10 +126,10 @@ Overall: ~90% complete.
 
 ### Phase 2 — MCP Server + Core Read-Only Tools 🚧 PARTIAL
 
-- MCP transport (HTTP + SSE via Hono) with per-session server instances: done
+- MCP transport (Bun via Hono, Workers via Cloudflare Agents Durable Objects): done
 - Dual-runtime support (Cloudflare Workers + Bun): done
 - Tools implemented: `archives_search` (with pagination), `feasibility_check` (async polling), `pricing_get`, `orders_list`, `orders_get`: done
-- Unit test suite: 52 tests across 14 files, 97% line coverage (config, clients, transport, all tool handlers): done
+- Unit and contract test suite: done
 - LangSmith tracing at tool-call boundary: not started
 - Real SkyFi API smoke test: not done
 - End-to-end validation with a live MCP client: not done
@@ -139,10 +145,10 @@ Overall: ~90% complete.
 
 - `notifications_create`, `notifications_list`, `notifications_get`, `notifications_delete`: done
 - `alerts_list`: done — retrieves alerts per monitor or across all monitors
-- Inbound webhook receiver at `POST /webhooks/aoi`: done — persists payloads to in-memory `AlertStore`
-- `AlertStore` class (`src/tools/alerts.ts`) implements keyed alert storage with per-monitor caps
-- Alert store is shared between the transport layer (writes) and MCP sessions (reads via tools)
-- SQLite persistence deferred — in-memory store is sufficient for the PoC; upgrade path documented
+- Inbound webhook receiver at `POST /webhooks/aoi`: done — persists payloads to a shared Durable Object alert store on Workers and to an in-memory store on Bun
+- `AlertStore` class (`src/tools/alerts.ts`) implements the in-memory keyed alert store used by Bun and tests
+- `SkyFiAlertStore` Durable Object (`src/alerts_object.ts`) provides shared cross-session alert persistence for Cloudflare Workers
+- AOI alerts are readable from any MCP session on Workers because they are no longer tied to per-session in-memory state
 
 ### Phase 5 — OpenStreetMap Integration ✅ COMPLETE
 
@@ -186,10 +192,9 @@ This two-tool pattern is intentionally safer than a single tool with a `confirme
 
 ### Dual-Runtime Session Management
 
-The transport layer supports two session modes via `CreateAppOptions`:
-
-- **Stateful** (Bun, default): Each MCP client connection gets its own transport and session, tracked via the `mcp-session-id` header in an in-memory `Map`. This allows concurrent agent connections without cross-talk while keeping each session's pending order tokens isolated.
-- **Stateless** (Workers): Each request creates a fresh MCP server and transport. Requests with `mcp-session-id` are rejected with HTTP 501. This avoids relying on Worker isolate affinity, which is not guaranteed.
+- **Stateful Bun transport**: The Bun/self-hosted path uses `createApp()` and tracks each MCP client session in an in-memory `Map`, keyed by `mcp-session-id`. This keeps pending order tokens isolated per client while still allowing local config-file auth.
+- **Stateful Cloudflare Agents transport**: The Workers path uses `SkyFiMcpAgent`, a Durable Object-backed `McpAgent`. MCP session state survives across HTTP requests, and the initial `x-skyfi-api-key` header is persisted into session props so multi-user remote auth still works after the initialization handshake.
+- **Shared webhook storage on Workers**: AOI webhook alerts are stored in a separate `SkyFiAlertStore` Durable Object so they are visible across MCP sessions instead of being trapped inside one agent instance.
 
 ### No Muninn Framework (PoC)
 
@@ -275,7 +280,7 @@ bun test --coverage     # Run with line/function coverage report
 Unit tests mock `fetch` or inject fake client objects so they run fast and offline. They verify:
 
 - **SkyFi client** (`src/client/skyfi_test.ts`, `skyfi_more_test.ts`): HTTP method/path routing for every endpoint, auth header injection, Content-Type conditional on body presence, error throw on non-2xx, empty-body throw on unexpected 2xx, feasibility poll/timeout behavior, query param serialization, 204/205 handling.
-- **Transport layer** (`src/server/transport_test.ts`): stateful session creation/lookup/deletion, stateless session rejection (501), API key propagation from request headers, health endpoint, webhook receiver (JSON parsing, monitorId extraction from camelCase/snake_case/missing fields, invalid JSON → 400, alertStore persistence).
+- **Transport layer** (`src/server/transport_test.ts`, `agent_transport_test.ts`, `worker_test.ts`): Bun session creation/lookup/deletion, API key propagation from request headers, worker route behavior, Agents session prop binding, health endpoint, webhook receiver, and alert persistence.
 - **Tool handlers** (`src/tools/*_test.ts`): each tool's happy path, error paths, and edge cases:
   - `archives_search`: Zod cross-field validation (aoi+dates required unless page cursor provided), response projection (curated fields, human-readable units), pagination cursor passthrough.
   - `feasibility_check`: submit-then-poll flow, response shape.
@@ -342,10 +347,10 @@ All files                  |   97.69 |   97.99 |
  src/tools/test_harness.ts |  100.00 |   94.12 |
 ```
 
-- **108 tests** across 18 unit test files, plus **17 contract tests** (run separately)
-- **99.55% line coverage**, **99.23% function coverage**
+- **114 tests** across 20 test files, including **17 contract tests**
+- **89.31% line coverage**, **90.17% function coverage** on the full suite
 - `src/server/transport.ts` shows 90% function coverage because the default `transportFactory` lambda (a one-liner that constructs the SDK's `WebStandardStreamableHTTPServerTransport`) is never invoked — tests inject a custom factory. Bun's coverage reporter counts lines as covered but the function as uncovered.
-- Entry points (`src/index.ts`, `src/worker.ts`) are not unit-tested directly — they are thin bootstrap files covered indirectly through the shared modules they compose.
+- New Cloudflare Agents-specific files (`src/server/agent_transport.ts`, `src/worker_routes.ts`, `src/alerts_object.ts`) lower aggregate coverage because they include Worker runtime branches that are hard to execute under Bun while still being validated by focused unit tests and type-checking.
 
 ### Connect from Claude Code
 
@@ -379,7 +384,7 @@ Add to your Claude Desktop MCP config:
 
 ### Cloudflare Workers (recommended)
 
-Cloudflare Workers is the primary deployment target. The server runs in stateless session mode on Workers.
+Cloudflare Workers is the primary deployment target. The server runs on Cloudflare Agents with stateful Durable Object-backed MCP sessions on Workers.
 
 **Prerequisites:**
 
@@ -396,6 +401,11 @@ Optional environment variables (set in `wrangler.jsonc` or via `wrangler secret 
 
 - `SKYFI_BASE_URL` — override the SkyFi API base URL (defaults to `https://app.skyfi.com/platform-api`)
 - `LANGCHAIN_API_KEY` — LangSmith API key (when tracing is enabled)
+
+Workers also declare two Durable Object bindings:
+
+- `MCP_OBJECT` — per-session MCP agent instances
+- `ALERT_STORE` — shared AOI webhook alert persistence across sessions
 
 **Deploy:**
 
@@ -440,7 +450,9 @@ The inbound webhook endpoint (`POST /webhooks/aoi`) requires a stable public URL
 ```
 src/
 ├── index.ts              # Bun entry point — stateful sessions, local config file
-├── worker.ts             # Cloudflare Workers entry point — stateless sessions
+├── worker.ts             # Cloudflare Workers entry point — Agents wrapper + routes
+├── worker_routes.ts      # Worker route handler for /mcp, /health, /webhooks/aoi
+├── alerts_object.ts      # Durable Object alert persistence + client wrapper
 ├── config/
 │   ├── index.ts          # Portable config loader (env, headers) — no Node.js imports
 │   ├── local.ts          # Local config file loader (~/.skyfi/config.json) — Bun only
@@ -456,7 +468,9 @@ src/
 ├── server/
 │   ├── mcp.ts            # MCP server factory — registers all tools
 │   ├── transport.ts      # Hono app with HTTP+SSE transport (stateful/stateless)
-│   └── transport_test.ts # Transport tests (API key propagation, session modes, lifecycle)
+│   ├── agent_transport.ts      # Custom Agents streamable HTTP handler with session props
+│   ├── agent_transport_test.ts # Agents transport tests (header-derived session props)
+│   └── transport_test.ts       # Bun transport tests (API key propagation, session modes, lifecycle)
 └── tools/
     ├── test_harness.ts        # Shared test helper — creates mock MCP server + client
     ├── search.ts              # archives_search
