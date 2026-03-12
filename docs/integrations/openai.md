@@ -59,6 +59,10 @@ curl https://api.openai.com/v1/responses \
 
 ## Python SDK
 
+This snippet is sourced from [`examples/openai/python/basic.py`](../../examples/openai/python/basic.py) and checked by `bun run docs:verify`.
+
+<!-- example: examples/openai/python/basic.py -->
+
 ```python
 from openai import OpenAI
 
@@ -82,7 +86,13 @@ response = client.responses.create(
 print(response.output_text)
 ```
 
+<!-- /example -->
+
 ## Node.js SDK
+
+This snippet is sourced from [`examples/openai/node/basic.ts`](../../examples/openai/node/basic.ts).
+
+<!-- example: examples/openai/node/basic.ts -->
 
 ```typescript
 import OpenAI from "openai";
@@ -95,7 +105,9 @@ const response = await client.responses.create({
     {
       type: "mcp",
       server_label: "skyfi",
-      server_url: "https://skyfi-mcp.your-account.workers.dev/mcp",
+      server_url:
+        process.env.SKYFI_MCP_URL ??
+        "https://skyfi-mcp.your-account.workers.dev/mcp",
       headers: {
         "x-skyfi-api-key": process.env.SKYFI_API_KEY!,
       },
@@ -107,29 +119,44 @@ const response = await client.responses.create({
 console.log(response.output_text);
 ```
 
+<!-- /example -->
+
 ## Place Name Resolution
 
 The `location_resolve` tool converts place names to WKT coordinates via OpenStreetMap — no manual polygon construction required:
 
+<!-- example: examples/openai/python/place_name_resolution.py -->
+
 ```python
+from openai import OpenAI
+
+client = OpenAI()
+
 response = client.responses.create(
     model="gpt-4o",
-    tools=[{
-        "type": "mcp",
-        "server_label": "skyfi",
-        "server_url": "https://skyfi-mcp.your-account.workers.dev/mcp",
-        "headers": {"x-skyfi-api-key": "YOUR_SKYFI_API_KEY"},
-    }],
+    tools=[
+        {
+            "type": "mcp",
+            "server_label": "skyfi",
+            "server_url": "https://skyfi-mcp.your-account.workers.dev/mcp",
+            "headers": {"x-skyfi-api-key": "YOUR_SKYFI_API_KEY"},
+        }
+    ],
     input="Find recent satellite imagery near the Pyramids of Giza",
 )
-# The model calls location_resolve("Pyramids of Giza") → WKT polygon,
+
+# The model calls location_resolve("Pyramids of Giza") -> WKT polygon,
 # then passes coordinates to archives_search automatically.
 print(response.output_text)
 ```
 
+<!-- /example -->
+
 ## Conversational Ordering
 
 Use a multi-turn thread to walk through the full feasibility → prepare → confirm flow:
+
+<!-- example: examples/openai/python/ordering_workflow.py -->
 
 ```python
 from openai import OpenAI
@@ -150,9 +177,9 @@ r1 = client.responses.create(
     input="Check if it's feasible to task a new SAR capture of the Port of Rotterdam next week.",
 )
 print(r1.output_text)
-# → Reports available pass windows
+# -> Reports available pass windows
 
-# Step 2: prepare — model presents price, waits for human approval
+# Step 2: prepare - model presents price, waits for human approval
 r2 = client.responses.create(
     model="gpt-4o",
     tools=[mcp_tool],
@@ -160,7 +187,7 @@ r2 = client.responses.create(
     input="Prepare an order for next Monday through Friday. Show me the price first.",
 )
 print(r2.output_text)
-# → "This order would cost $X. Confirm?"
+# -> "This order would cost $X. Confirm?"
 
 # Step 3: human approves, model confirms
 r3 = client.responses.create(
@@ -170,12 +197,20 @@ r3 = client.responses.create(
     input="Yes, confirm the order.",
 )
 print(r3.output_text)
-# → Order placed
+# -> Order placed
 ```
+
+<!-- /example -->
 
 ## AOI Monitoring
 
+<!-- example: examples/openai/python/aoi_monitoring.py -->
+
 ```python
+from openai import OpenAI
+
+client = OpenAI()
+
 mcp_tool = {
     "type": "mcp",
     "server_label": "skyfi",
@@ -193,7 +228,7 @@ r = client.responses.create(
     ),
 )
 print(r.output_text)
-# Agent calls: location_resolve → notifications_create
+# Agent calls: location_resolve -> notifications_create
 
 # Check for pending alerts
 r = client.responses.create(
@@ -202,8 +237,10 @@ r = client.responses.create(
     input="Any new imagery alerts for my monitors?",
 )
 print(r.output_text)
-# Agent calls: alerts_list → reports pending notifications
+# Agent calls: alerts_list -> reports pending notifications
 ```
+
+<!-- /example -->
 
 Webhook payloads are delivered to your endpoint when new imagery appears over a monitored AOI.
 
@@ -211,8 +248,10 @@ Webhook payloads are delivered to your endpoint when new imagery appears over a 
 
 To expose only specific tools, use the `allowed_tools` parameter:
 
+<!-- example: examples/openai/python/tool_filtering.py -->
+
 ```python
-{
+mcp_tool = {
     "type": "mcp",
     "server_label": "skyfi",
     "server_url": "https://skyfi-mcp.your-account.workers.dev/mcp",
@@ -222,6 +261,17 @@ To expose only specific tools, use the `allowed_tools` parameter:
     "allowed_tools": ["archives_search", "pricing_get", "location_resolve"],
 }
 ```
+
+<!-- /example -->
+
+## Keeping Examples Honest
+
+Run `bun run docs:verify` to:
+
+- ensure these marked snippets still match the checked-in files under `examples/`
+- syntax-check the Python and TypeScript example files
+
+Run `bun run docs:sync-examples` after editing example files to refresh the Markdown.
 
 ## Local Development
 
