@@ -2,6 +2,7 @@
   "compilerOptions": {
     // Environment setup & latest features
     "lib": ["ESNext"],
+    "types": ["bun-types", "@cloudflare/workers-types/experimental"],
     "target": "ESNext",
     "module": "Preserve",
     "moduleDetection": "force",

@@ -2,13 +2,30 @@
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.jsonc",
   "name": "skyfi-mcp",
   "main": "src/worker.ts",
-  "compatibility_date": "2024-12-01",
+  "compatibility_date": "2025-03-12",
   "compatibility_flags": ["nodejs_compat"],
 
   // Secrets (set via `wrangler secret put`):
   //   SKYFI_API_KEY    — SkyFi Platform API key
   //   SKYFI_BASE_URL   — (optional) override the SkyFi API base URL
-  //   LANGCHAIN_API_KEY — (optional) LangSmith tracing key
+
+  // Durable Object binding for the MCP agent
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MCP_OBJECT",
+        "class_name": "SkyFiMcpAgent"
+      }
+    ]
+  },
+
+  // Durable Object migration — required on first deploy
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["SkyFiMcpAgent"]
+    }
+  ],
 
   // Observability: enable Worker-level logging
   "observability": {
