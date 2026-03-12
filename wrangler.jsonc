@@ -15,6 +15,10 @@
       {
         "name": "MCP_OBJECT",
         "class_name": "SkyFiMcpAgent"
+      },
+      {
+        "name": "ALERT_STORE",
+        "class_name": "SkyFiAlertStore"
       }
     ]
   },
@@ -24,6 +28,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["SkyFiMcpAgent"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["SkyFiAlertStore"]
     }
   ],
 

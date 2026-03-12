@@ -27,7 +27,7 @@ import { registerPricingTools } from "../tools/pricing.js";
 import { registerOrderTools } from "../tools/orders.js";
 import { registerAoiTools } from "../tools/aoi.js";
 import { registerLocationTools } from "../tools/location.js";
-import type { AlertStore } from "../tools/alerts.js";
+import type { AlertStoreLike } from "../tools/alerts.js";
 
 /** Options for MCP server creation beyond the base SkyFi config. */
 export interface CreateMcpServerOptions {
@@ -35,7 +35,7 @@ export interface CreateMcpServerOptions {
    * Shared alert store for AOI webhook alerts. When provided, the
    * `notifications_get` and `alerts_list` tools can return stored alerts.
    */
-  alertStore?: AlertStore;
+  alertStore?: AlertStoreLike;
 }
 
 /**

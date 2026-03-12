@@ -33,13 +33,30 @@ export interface AoiAlert {
 }
 
 /**
+ * Storage contract for AOI alerts.
+ *
+ * Implementations may be in-memory (tests, Bun) or durable (Cloudflare
+ * Durable Objects). Methods may resolve synchronously or asynchronously.
+ */
+export interface AlertStoreLike {
+  add(
+    monitorId: string,
+    payload: Record<string, unknown>,
+    now?: string,
+  ): void | Promise<void>;
+  get(monitorId: string, limit?: number): AoiAlert[] | Promise<AoiAlert[]>;
+  getAll(limit?: number): AoiAlert[] | Promise<AoiAlert[]>;
+  clear(monitorId: string): void | Promise<void>;
+}
+
+/**
  * In-memory store for AOI webhook alerts.
  *
  * Thread-safe in single-threaded JS runtimes (Bun, Workers, Node). The store
  * is designed to be instantiated once and passed to both the transport layer
  * (for writes) and the MCP server factory (for reads via tool handlers).
  */
-export class AlertStore {
+export class AlertStore implements AlertStoreLike {
   private alerts = new Map<string, AoiAlert[]>();
   private maxPerMonitor: number;
 

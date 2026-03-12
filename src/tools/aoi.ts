@@ -23,7 +23,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SkyFiClient } from "../client/skyfi.js";
-import type { AlertStore } from "./alerts.js";
+import type { AlertStoreLike } from "./alerts.js";
 
 /**
  * Register AOI monitoring tools on the given MCP server.
@@ -38,7 +38,7 @@ import type { AlertStore } from "./alerts.js";
 export function registerAoiTools(
   server: McpServer,
   client: SkyFiClient,
-  alertStore?: AlertStore,
+  alertStore?: AlertStoreLike,
 ) {
   server.registerTool(
     "notifications_create",
@@ -145,7 +145,7 @@ export function registerAoiTools(
     },
     async ({ monitor_id }) => {
       const notification = await client.getNotification(monitor_id);
-      const alerts = alertStore?.get(monitor_id) ?? [];
+      const alerts = (await alertStore?.get(monitor_id)) ?? [];
 
       return {
         content: [
@@ -189,7 +189,7 @@ export function registerAoiTools(
     async ({ monitor_id }) => {
       await client.deleteNotification(monitor_id);
       // Clean up stored alerts for the deleted monitor.
-      alertStore?.clear(monitor_id);
+      await alertStore?.clear(monitor_id);
 
       return {
         content: [
@@ -227,8 +227,8 @@ export function registerAoiTools(
     async ({ monitor_id, limit }) => {
       const maxResults = limit ?? 25;
       const alerts = monitor_id
-        ? (alertStore?.get(monitor_id, maxResults) ?? [])
-        : (alertStore?.getAll(maxResults) ?? []);
+        ? ((await alertStore?.get(monitor_id, maxResults)) ?? [])
+        : ((await alertStore?.getAll(maxResults)) ?? []);
 
       return {
         content: [
