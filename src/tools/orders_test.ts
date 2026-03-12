@@ -174,6 +174,94 @@ describe("registerOrderTools", () => {
       },
     ]);
   });
+
+  test("orders_redeliver forwards new delivery settings", async () => {
+    const harness = createToolHarness();
+    const calls: any[] = [];
+    const client = {
+      listOrders: async () => ({ total: 0, orders: [] }),
+      getOrder: async () => ({ id: "unused" }),
+      redeliverOrder: async (orderId: string, params: any) => {
+        calls.push({ orderId, params });
+        return {
+          id: orderId,
+          status: "DELIVERY_PENDING",
+          deliveryDriver: params.deliveryDriver,
+        };
+      },
+      getOrderDeliverableUrl: async () => "unused",
+      getPricing: async () => ({}),
+      createArchiveOrder: async () => ({ id: "unused" }),
+      createTaskingOrder: async () => ({ id: "unused" }),
+    };
+
+    registerOrderTools(
+      harness.server as any,
+      client as any,
+      new ConfirmationStore(),
+    );
+
+    const result = parseToolJson(
+      await harness.invoke("orders_redeliver", {
+        order_id: "ord-redeliver-1",
+        deliveryDriver: "S3",
+        deliveryParams: {
+          s3_bucket_id: "bucket-a",
+          aws_region: "us-east-1",
+        },
+      }),
+    );
+
+    expect(result.orderId).toBe("ord-redeliver-1");
+    expect(result.status).toBe("DELIVERY_PENDING");
+    expect(calls).toEqual([
+      {
+        orderId: "ord-redeliver-1",
+        params: {
+          deliveryDriver: "S3",
+          deliveryParams: {
+            s3_bucket_id: "bucket-a",
+            aws_region: "us-east-1",
+          },
+        },
+      },
+    ]);
+  });
+
+  test("orders_deliverable_get returns the signed download URL", async () => {
+    const harness = createToolHarness();
+    const calls: any[] = [];
+    const client = {
+      listOrders: async () => ({ total: 0, orders: [] }),
+      getOrder: async () => ({ id: "unused" }),
+      redeliverOrder: async () => ({ id: "unused" }),
+      getOrderDeliverableUrl: async (orderId: string, deliverableType: any) => {
+        calls.push({ orderId, deliverableType });
+        return "https://signed.example.com/download.tif";
+      },
+      getPricing: async () => ({}),
+      createArchiveOrder: async () => ({ id: "unused" }),
+      createTaskingOrder: async () => ({ id: "unused" }),
+    };
+
+    registerOrderTools(
+      harness.server as any,
+      client as any,
+      new ConfirmationStore(),
+    );
+
+    const result = parseToolJson(
+      await harness.invoke("orders_deliverable_get", {
+        order_id: "ord-1",
+        deliverable_type: "image",
+      }),
+    );
+
+    expect(result.downloadUrl).toBe("https://signed.example.com/download.tif");
+    expect(calls).toEqual([
+      { orderId: "ord-1", deliverableType: "image" },
+    ]);
+  });
 });
 
 describe("registerOrderTools (additional)", () => {

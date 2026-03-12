@@ -135,6 +135,14 @@ describe("contract: orders", () => {
     expect(order).toBeDefined();
   });
 
+  test("POST /orders/{order_id}/redelivery", async () => {
+    const order = await client.redeliverOrder(UUID, {
+      deliveryDriver: "S3",
+      deliveryParams: { bucket: "my-bucket", path: "imagery/" },
+    });
+    expect(order).toBeDefined();
+  });
+
   test("POST /order-archive", async () => {
     const order = await client.createArchiveOrder({
       aoi: AOI,

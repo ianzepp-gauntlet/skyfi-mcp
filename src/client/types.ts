@@ -36,10 +36,21 @@ export type Resolution =
   | "ULTRA HIGH";
 
 /** Cloud storage provider for imagery delivery. */
-export type DeliveryDriver = "S3" | "GS" | "AZURE";
+export type DeliveryDriver =
+  | "S3"
+  | "GS"
+  | "AZURE"
+  | "DELIVERY_CONFIG"
+  | "S3_SERVICE_ACCOUNT"
+  | "GS_SERVICE_ACCOUNT"
+  | "AZURE_SERVICE_ACCOUNT"
+  | "NONE";
 
 /** Whether an order requested existing imagery or a new satellite capture. */
 export type OrderType = "ARCHIVE" | "TASKING";
+
+/** Deliverable artifact type returned by an order download lookup. */
+export type DeliverableType = "image" | "payload" | "cog";
 
 /** Lifecycle state of an order on the SkyFi platform. */
 export type OrderStatus =
@@ -324,6 +335,12 @@ export interface OrderTaskingRequest {
   requiredProvider?: string;
   /** Pin the collection to a specific satellite pass from a feasibility result. */
   providerWindowId?: string;
+}
+
+/** Parameters for re-delivering an existing order to a new destination. */
+export interface OrderRedeliveryRequest {
+  deliveryDriver: DeliveryDriver;
+  deliveryParams: Record<string, unknown>;
 }
 
 /**

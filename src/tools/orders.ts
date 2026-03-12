@@ -38,7 +38,9 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SkyFiClient } from "../client/skyfi.js";
 import type {
+  DeliverableType,
   OrderArchiveRequest,
+  OrderRedeliveryRequest,
   OrderTaskingRequest,
 } from "../client/types.js";
 import { ConfirmationStore } from "./confirmation.js";
@@ -104,6 +106,8 @@ export function registerOrderTools(
   client: SkyFiClient,
   confirmationStore = new ConfirmationStore(),
 ) {
+  const deliverableTypeSchema = z.enum(["image", "payload", "cog"]);
+
   // ── List Orders ────────────────────────────────────────────────────────────
 
   server.registerTool(
@@ -175,6 +179,96 @@ export function registerOrderTools(
             // WHY: Return the full order object here (unlike orders_list) because
             // the user explicitly requested detail on a specific order.
             text: JSON.stringify(order, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "orders_redeliver",
+    {
+      title: "Redeliver Order",
+      description:
+        "Re-trigger delivery for an existing order using new delivery settings.",
+      inputSchema: {
+        order_id: z.string().describe("Order UUID"),
+        deliveryDriver: z
+          .enum([
+            "S3",
+            "GS",
+            "AZURE",
+            "DELIVERY_CONFIG",
+            "S3_SERVICE_ACCOUNT",
+            "GS_SERVICE_ACCOUNT",
+            "AZURE_SERVICE_ACCOUNT",
+            "NONE",
+          ])
+          .describe("New delivery driver"),
+        deliveryParams: z
+          .record(z.string(), z.unknown())
+          .describe("Driver-specific delivery parameters object"),
+      },
+    },
+    async ({ order_id, deliveryDriver, deliveryParams }) => {
+      const result = await client.redeliverOrder(order_id, {
+        deliveryDriver,
+        deliveryParams,
+      } satisfies OrderRedeliveryRequest);
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                message: "Order redelivery scheduled.",
+                orderId: result.id,
+                status: result.status,
+                deliveryDriver: result.deliveryDriver,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "orders_deliverable_get",
+    {
+      title: "Get Deliverable URL",
+      description:
+        "Get the signed download URL for an order deliverable such as the image, payload, or COG.",
+      inputSchema: {
+        order_id: z.string().describe("Order UUID"),
+        deliverable_type: deliverableTypeSchema.describe(
+          "Deliverable type to download: image, payload, or cog",
+        ),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ order_id, deliverable_type }) => {
+      const url = await client.getOrderDeliverableUrl(
+        order_id,
+        deliverable_type as DeliverableType,
+      );
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                orderId: order_id,
+                deliverableType: deliverable_type,
+                downloadUrl: url,
+              },
+              null,
+              2,
+            ),
           },
         ],
       };

@@ -42,11 +42,13 @@ import type {
   OrderArchiveRequest,
   OrderListRequest,
   OrderListResponse,
+  OrderRedeliveryRequest,
   OrderTaskingRequest,
   PassPredictionRequest,
   PricingRequest,
   PricingResponse,
   WhoAmI,
+  DeliverableType,
 } from "./types";
 
 /**
@@ -338,6 +340,65 @@ export class SkyFiClient {
    */
   async createTaskingOrder(params: OrderTaskingRequest): Promise<Order> {
     return this.request("POST", "/order-tasking", params);
+  }
+
+  /**
+   * Re-trigger delivery for an existing order using new destination settings.
+   *
+   * @param orderId - UUID of the order to redeliver.
+   * @param params - New delivery target and driver-specific parameters.
+   */
+  async redeliverOrder(
+    orderId: string,
+    params: OrderRedeliveryRequest,
+  ): Promise<Order> {
+    return this.request("POST", `/orders/${orderId}/redelivery`, params);
+  }
+
+  /**
+   * Resolve the signed download URL for a specific order deliverable.
+   *
+   * The upstream endpoint responds with an HTTP redirect. We disable automatic
+   * redirect-following so the signed target URL can be surfaced to the caller
+   * instead of downloading the file body inside the MCP server.
+   *
+   * @param orderId - UUID of the order.
+   * @param deliverableType - One of image, payload, or cog.
+   * @returns The signed download URL from the redirect target.
+   */
+  async getOrderDeliverableUrl(
+    orderId: string,
+    deliverableType: DeliverableType,
+  ): Promise<string> {
+    const path = `/orders/${orderId}/${deliverableType}`;
+    const url = new URL(`${this.baseUrl}${path}`);
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "X-Skyfi-Api-Key": this.apiKey,
+      },
+      redirect: "manual",
+    });
+
+    if (!res.ok && (res.status < 300 || res.status >= 400)) {
+      const text = await res.text();
+      throw new Error(
+        `SkyFi API GET ${path} failed (${res.status}): ${text}`,
+      );
+    }
+
+    const redirectUrl = res.headers.get("location");
+    if (redirectUrl) {
+      return redirectUrl;
+    }
+
+    if (res.redirected && res.url) {
+      return res.url;
+    }
+
+    throw new Error(
+      `SkyFi API GET ${path} did not return a redirect location (${res.status})`,
+    );
   }
 
   // ── Notifications (AOI Monitoring) ────────────────────────────────────────

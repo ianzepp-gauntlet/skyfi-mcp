@@ -14,6 +14,8 @@ An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.co
 | `account_whoami`       | Get account identity, budget usage, and payment readiness                                   |
 | `orders_list`          | List your previous SkyFi orders                                                             |
 | `orders_get`           | Get detailed status and history for a specific order                                        |
+| `orders_redeliver`     | Re-trigger delivery for an order with new delivery settings                                 |
+| `orders_deliverable_get` | Get the signed download URL for an order deliverable                                      |
 | `orders_prepare`       | Prepare an order and get pricing — does NOT place the order (returns a confirmation token)  |
 | `orders_confirm`       | Execute a prepared order using a confirmation token from `orders_prepare`                   |
 | `notifications_create` | Create an Area of Interest monitor with webhook notifications for new imagery               |
@@ -44,22 +46,14 @@ The SkyFi Platform API (v2.0.0) spec is saved locally at [`docs/openapi.json`](d
 | `GET`    | `/notifications`                        | `notifications_list`   |                                                                  |
 | `GET`    | `/notifications/{notification_id}`      | `notifications_get`    |                                                                  |
 | `DELETE` | `/notifications/{notification_id}`      | `notifications_delete` |                                                                  |
-| `POST`   | `/order-archive`                        | `orders_confirm`       | Archive path                                                     |
-| `POST`   | `/order-tasking`                        | `orders_confirm`       | Tasking path                                                     |
+| `POST`   | `/order-archive`                        | `orders_confirm`       | Executed only after `orders_prepare`                             |
+| `POST`   | `/order-tasking`                        | `orders_confirm`       | Executed only after `orders_prepare`                             |
 | `GET`    | `/orders`                               | `orders_list`          |                                                                  |
 | `GET`    | `/orders/{order_id}`                    | `orders_get`           |                                                                  |
-| `POST`   | `/orders/{order_id}/redelivery`         | —                      | **Not exposed** — no tool to re-trigger delivery                 |
-| `GET`    | `/orders/{order_id}/{deliverable_type}` | —                      | **Not exposed** — no tool to get download URLs                   |
+| `POST`   | `/orders/{order_id}/redelivery`         | `orders_redeliver`     |                                                                  |
+| `GET`    | `/orders/{order_id}/{deliverable_type}` | `orders_deliverable_get` | Returns a signed URL for `image`, `payload`, or `cog`         |
 | `POST`   | `/pricing`                              | `pricing_get`          | Also called internally by `orders_prepare`                       |
 | `GET`    | `/ping`                                 | —                      | Infrastructure                                                   |
-
-### Missing Gaps
-
-**`POST /orders/{order_id}/redelivery` — not exposed.**
-Allows re-triggering delivery of a completed order to a new destination. Useful when a delivery destination was misconfigured.
-
-**`GET /orders/{order_id}/{deliverable_type}` — not exposed.**
-Returns a redirect URL to download the actual imagery file. Without this, an agent can confirm an order was delivered but cannot produce a download link for the user.
 
 ### Pass-Targeted Tasking
 
@@ -111,7 +105,7 @@ The Workers entry point now runs on **Cloudflare Agents** with stateful Durable 
 
 ## Implementation Status
 
-Overall: ~95% complete.
+Core MCP surface is implemented for the supported SkyFi account, archive, pricing, feasibility, ordering, notification, and location workflows. The only Platform API endpoints intentionally not exposed are infrastructure-only (`/ping`, `/health_check`), demo-only (`/demo-delivery`), and the internal feasibility polling endpoint (`GET /feasibility/{feasibility_id}`), which is wrapped by `feasibility_check`.
 
 ### Phase 1 — Scaffold & SkyFi Client ✅ COMPLETE
 
@@ -123,7 +117,7 @@ Overall: ~95% complete.
 
 - MCP transport (Bun via Hono, Workers via Cloudflare Agents Durable Objects): done
 - Dual-runtime support (Cloudflare Workers + Bun): done
-- Tools implemented: `archives_search` (with pagination), `feasibility_check` (async polling), `pricing_get`, `orders_list`, `orders_get`: done
+- Read-only tools implemented: `archives_search` (with pagination), `archive_get`, `passes_predict`, `feasibility_check` (async polling), `pricing_get`, `account_whoami`, `orders_list`, `orders_get`, `orders_deliverable_get`: done
 - Unit and contract test suite: done
 - Real SkyFi API smoke test: done
 - End-to-end validation with a live MCP client: done (deployed on Cloudflare Workers)
@@ -133,6 +127,8 @@ Overall: ~95% complete.
 
 - `orders_prepare` validates parameters, fetches pricing, returns a summary with a single-use confirmation token (5-minute TTL)
 - `orders_confirm` accepts the token and executes the purchase
+- `orders_redeliver` re-triggers delivery for an existing order using new delivery settings
+- Tasking orders can be pinned to a specific pass by supplying `providerWindowId` to `orders_prepare`
 - Tokens are random UUIDs, single-use, session-isolated
 - `ConfirmationStore` class (`src/tools/confirmation.ts`) implements the token store with lazy TTL expiry and injectable clock for deterministic testing
 
@@ -308,7 +304,7 @@ bun test src/client/contract_test.ts
 
 The `--errors` flag is required — it enables strict request validation. Without it, Prism accepts any request body and returns mock data regardless.
 
-Contract test coverage (17 tests):
+Contract test coverage:
 
 | Group         | Endpoints tested                                                                                     |
 | ------------- | ---------------------------------------------------------------------------------------------------- |
@@ -316,36 +312,20 @@ Contract test coverage (17 tests):
 | Archives      | `POST /archives` (search), `GET /archives` (pagination), `GET /archives/{id}`                        |
 | Pricing       | `POST /pricing` (with and without AOI)                                                               |
 | Feasibility   | `POST /feasibility`, `GET /feasibility/{id}`, `POST /feasibility/pass-prediction`                    |
-| Orders        | `GET /orders`, `GET /orders/{id}`, `POST /order-archive`, `POST /order-tasking`                      |
+| Orders        | `GET /orders`, `GET /orders/{id}`, `POST /orders/{order_id}/redelivery`, `POST /order-archive`, `POST /order-tasking` |
 | Notifications | `POST /notifications`, `GET /notifications`, `GET /notifications/{id}`, `DELETE /notifications/{id}` |
 
 Contract tests require Prism to be running. If Prism is not reachable, the test file fails immediately with a startup error message. They are excluded from `bun test` by default (no `contract` in the grep pattern) — run them explicitly.
 
 #### Coverage
 
-```
-File                       | % Funcs | % Lines | Uncovered
----------------------------|---------|---------|----------
-All files                  |   97.69 |   97.99 |
- src/client/osm.ts         |  100.00 |  100.00 |
- src/client/skyfi.ts       |  100.00 |  100.00 |
- src/config/index.ts       |  100.00 |  100.00 |
- src/server/transport.ts   |   90.00 |  100.00 |
- src/tools/alerts.ts       |  100.00 |  100.00 |
- src/tools/aoi.ts          |  100.00 |  100.00 |
- src/tools/confirmation.ts |  100.00 |  100.00 |
- src/tools/feasibility.ts  |  100.00 |  100.00 |
- src/tools/location.ts     |  100.00 |  100.00 |
- src/tools/orders.ts       |  100.00 |  100.00 |
- src/tools/pricing.ts      |  100.00 |  100.00 |
- src/tools/search.ts       |  100.00 |  100.00 |
- src/tools/test_harness.ts |  100.00 |   94.12 |
+Use Bun's built-in coverage reporter for the current numbers:
+
+```bash
+bun test --coverage
 ```
 
-- **114 tests** across 20 test files, including **17 contract tests**
-- **89.31% line coverage**, **90.17% function coverage** on the full suite
-- `src/server/transport.ts` shows 90% function coverage because the default `transportFactory` lambda (a one-liner that constructs the SDK's `WebStandardStreamableHTTPServerTransport`) is never invoked — tests inject a custom factory. Bun's coverage reporter counts lines as covered but the function as uncovered.
-- New Cloudflare Agents-specific files (`src/server/agent_transport.ts`, `src/worker_routes.ts`, `src/alerts_object.ts`) lower aggregate coverage because they include Worker runtime branches that are hard to execute under Bun while still being validated by focused unit tests and type-checking.
+Coverage changes as the suite evolves, so the README does not pin exact percentages or test counts.
 
 ### Connect from Claude Code
 

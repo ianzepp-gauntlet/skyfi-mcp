@@ -194,6 +194,10 @@ describe("SkyFiClient request and wrappers (additional)", () => {
       deliveryDriver: "S3",
       deliveryParams: { bucket: "b" },
     } as any);
+    await client.redeliverOrder("ord-1", {
+      deliveryDriver: "S3",
+      deliveryParams: { bucket: "b" },
+    });
     await client.listNotifications(0, 10);
     await client.getNotification("n-1");
 
@@ -207,6 +211,7 @@ describe("SkyFiClient request and wrappers (additional)", () => {
       { method: "POST", path: "/feasibility/pass-prediction" },
       { method: "POST", path: "/order-archive" },
       { method: "POST", path: "/order-tasking" },
+      { method: "POST", path: "/orders/ord-1/redelivery" },
       { method: "GET", path: "/notifications?pageNumber=0&pageSize=10" },
       { method: "GET", path: "/notifications/n-1" },
     ]);
@@ -285,5 +290,49 @@ describe("SkyFiClient notification endpoints", () => {
       { method: "POST", path: "/notifications" },
       { method: "DELETE", path: "/notifications/n-1" },
     ]);
+  });
+});
+
+describe("SkyFiClient deliverable download endpoint", () => {
+  beforeEach(() => {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+  });
+
+  test("getOrderDeliverableUrl returns redirect location header", async () => {
+    globalThis.fetch = (async () =>
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: "https://signed.example.com/file.tif",
+        },
+      })) as unknown as typeof fetch;
+
+    const client = new SkyFiClient({
+      apiKey: "k",
+      baseUrl: "https://api.example.com",
+    });
+
+    const url = await client.getOrderDeliverableUrl("ord-1", "image");
+    expect(url).toBe("https://signed.example.com/file.tif");
+  });
+
+  test("getOrderDeliverableUrl throws when redirect location is missing", async () => {
+    globalThis.fetch = (async () =>
+      new Response(null, { status: 200 })) as unknown as typeof fetch;
+
+    const client = new SkyFiClient({
+      apiKey: "k",
+      baseUrl: "https://api.example.com",
+    });
+
+    await expect(
+      client.getOrderDeliverableUrl("ord-1", "image"),
+    ).rejects.toThrow("did not return a redirect location");
   });
 });
