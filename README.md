@@ -265,39 +265,91 @@ bun run deploy   # Deploy to Cloudflare Workers
 
 ### Testing
 
-The project includes unit tests co-located with each module (files ending in `_test.ts`). Tests use Bun's built-in test runner and do not require a real SkyFi API key.
+The project has two test layers: **unit tests** that mock the SkyFi API and test internal logic, and **contract tests** that validate request/response shapes against the published OpenAPI spec via a Prism mock server.
+
+#### Unit Tests
+
+Co-located with each module (files ending in `_test.ts`). Use Bun's built-in test runner. No API key or network access required.
 
 ```bash
-bun test
+bun test                # Run all unit tests
+bun test --coverage     # Run with line/function coverage report
 ```
 
-Run coverage:
+Unit tests mock `fetch` or inject fake client objects so they run fast and offline. They verify:
+
+- **SkyFi client** (`src/client/skyfi_test.ts`, `skyfi_more_test.ts`): HTTP method/path routing for every endpoint, auth header injection, Content-Type conditional on body presence, error throw on non-2xx, empty-body throw on unexpected 2xx, feasibility poll/timeout behavior, query param serialization, 204/205 handling.
+- **Transport layer** (`src/server/transport_test.ts`): stateful session creation/lookup/deletion, stateless session rejection (501), API key propagation from request headers, health endpoint, webhook receiver (JSON parsing, monitorId extraction from camelCase/snake_case/missing fields, invalid JSON → 400, alertStore persistence).
+- **Tool handlers** (`src/tools/*_test.ts`): each tool's happy path, error paths, and edge cases:
+  - `archives_search`: Zod cross-field validation (aoi+dates required unless page cursor provided), response projection (curated fields, human-readable units), pagination cursor passthrough.
+  - `feasibility_check`: submit-then-poll flow, response shape.
+  - `pricing_get`: with and without AOI, verbatim passthrough.
+  - `orders_list` / `orders_get`: response projection (summary vs. full detail), pagination params.
+  - `orders_prepare` / `orders_confirm`: two-step confirmation gate — token generation, pricing fetch, archive vs. tasking param validation, token consumption, expired/invalid token rejection, exact param forwarding to API client (camelCase field names verified).
+  - `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete`: CRUD operations, alert inclusion on get, alertStore cleanup on delete.
+  - `alerts_list`: per-monitor and cross-monitor retrieval, limit parameter.
+  - `location_resolve`: successful geocode with WKT polygon, no-results handling.
+- **AlertStore** (`src/tools/alerts_test.ts`): add/get/getAll/clear semantics, per-monitor cap enforcement, cross-monitor chronological sorting.
+- **ConfirmationStore** (`src/tools/confirmation_test.ts`): token generation, single-use consumption, TTL expiry with injectable clock, size tracking.
+- **Config** (`src/config/config_test.ts`, `local_test.ts`): precedence order (header > env > file), camelCase/snake_case field normalization, malformed JSON fallback, missing file warning.
+- **OSM client** (`src/client/osm_test.ts`, `osm_more_test.ts`): bboxToWkt coordinate conversion, resolveLocation integration, error handling for not-found.
+
+#### Contract Tests (Prism)
+
+Validate that `SkyFiClient` sends requests the real API would accept and can parse the responses it would return. A [Prism](https://stoplight.io/open-source/prism) mock server reads the OpenAPI spec (`docs/openapi.json`) and validates every request (field names, types, required fields, path param formats) against the published schemas. Any mismatch returns a 422 → test failure.
+
+**Start Prism** (in a separate terminal):
 
 ```bash
-bun test --coverage
+bunx prism mock docs/openapi.json --port 4010 --host 127.0.0.1 --errors
 ```
 
-#### Testing Stats
+**Run contract tests:**
 
-Latest unit test snapshot:
+```bash
+bun test src/client/contract_test.ts
+```
 
-- **Tests:** 85 passing, 0 failing
-- **Overall coverage:** 97%+ lines, 95%+ functions
-- **Scope:** 16 test files covering client, config, transport, and tool modules
+The `--errors` flag is required — it enables strict request validation. Without it, Prism accepts any request body and returns mock data regardless.
 
-Major covered areas:
+Contract test coverage (17 tests):
 
-- **SkyFi client (`src/client/skyfi.ts`)**: request serialization, error handling, empty-body throw behavior, polling behavior, endpoint wrappers, notification create/delete paths
-- **Transport layer (`src/server/transport.ts`)**: stateful/stateless behavior, session rejection/lookup, health and webhook endpoints (including alertStore persistence, camelCase/snake_case monitorId, invalid JSON → 400), deterministic session lifecycle testing
-- **Order safety flow (`src/tools/orders.ts`)**: prepare/confirm human-in-the-loop flow, archive/tasking validation, token error handling, response projection, exact param forwarding to API client
-- **Tool handlers (`src/tools/*.ts`)**: search (including schema validation for all valid/invalid input shapes), feasibility, pricing, AOI monitoring (with alerts), and location resolution happy/sad/edge paths
-- **Alert store (`src/tools/alerts.ts`)**: add/get/getAll/clear semantics, per-monitor caps, cross-monitor sorting
-- **Config and utility logic**: config precedence, confirmation-token TTL/single-use semantics, local config JSON normalization (camelCase/snake_case fields, malformed file fallback)
+| Group | Endpoints tested |
+|-------|-----------------|
+| Auth | `GET /auth/whoami` |
+| Archives | `POST /archives` (search), `GET /archives` (pagination), `GET /archives/{id}` |
+| Pricing | `POST /pricing` (with and without AOI) |
+| Feasibility | `POST /feasibility`, `GET /feasibility/{id}`, `POST /feasibility/pass-prediction` |
+| Orders | `GET /orders`, `GET /orders/{id}`, `POST /order-archive`, `POST /order-tasking` |
+| Notifications | `POST /notifications`, `GET /notifications`, `GET /notifications/{id}`, `DELETE /notifications/{id}` |
 
-Known gaps:
+Contract tests require Prism to be running. If Prism is not reachable, the test file fails immediately with a startup error message. They are excluded from `bun test` by default (no `contract` in the grep pattern) — run them explicitly.
 
-- **Entry-point modules are not unit-tested directly**: `src/index.ts` and `src/worker.ts` are thin bootstrap files and are covered indirectly through tested shared modules.
-- **Test harness helper is intentionally not fully covered**: `src/tools/test_harness.ts` is a small testing utility with non-critical uncovered lines.
+#### Coverage
+
+```
+File                       | % Funcs | % Lines | Uncovered
+---------------------------|---------|---------|----------
+All files                  |   97.69 |   97.99 |
+ src/client/osm.ts         |  100.00 |  100.00 |
+ src/client/skyfi.ts       |  100.00 |  100.00 |
+ src/config/index.ts       |  100.00 |  100.00 |
+ src/server/transport.ts   |   90.00 |  100.00 |
+ src/tools/alerts.ts       |  100.00 |  100.00 |
+ src/tools/aoi.ts          |  100.00 |  100.00 |
+ src/tools/confirmation.ts |  100.00 |  100.00 |
+ src/tools/feasibility.ts  |  100.00 |  100.00 |
+ src/tools/location.ts     |  100.00 |  100.00 |
+ src/tools/orders.ts       |  100.00 |  100.00 |
+ src/tools/pricing.ts      |  100.00 |  100.00 |
+ src/tools/search.ts       |  100.00 |  100.00 |
+ src/tools/test_harness.ts |  100.00 |   94.12 |
+```
+
+- **108 tests** across 18 unit test files, plus **17 contract tests** (run separately)
+- **99.55% line coverage**, **99.23% function coverage**
+- `src/server/transport.ts` shows 90% function coverage because the default `transportFactory` lambda (a one-liner that constructs the SDK's `WebStandardStreamableHTTPServerTransport`) is never invoked — tests inject a custom factory. Bun's coverage reporter counts lines as covered but the function as uncovered.
+- Entry points (`src/index.ts`, `src/worker.ts`) are not unit-tested directly — they are thin bootstrap files covered indirectly through the shared modules they compose.
 
 ### Connect from Claude Code
 

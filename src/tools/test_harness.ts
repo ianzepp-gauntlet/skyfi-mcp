@@ -19,13 +19,6 @@ export function createToolHarness() {
 
   return {
     server,
-    getTool(name: string): RegisteredTool {
-      const tool = tools.get(name);
-      if (!tool) {
-        throw new Error(`Tool not registered: ${name}`);
-      }
-      return tool;
-    },
     async invoke(name: string, args: Record<string, unknown>) {
       const tool = tools.get(name);
       if (!tool) {
