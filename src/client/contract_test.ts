@@ -98,9 +98,9 @@ describe("contract: feasibility", () => {
   test("POST /feasibility", async () => {
     const result = await client.checkFeasibility({
       aoi: AOI,
-      window_start: "2024-01-01T00:00:00Z",
-      window_end: "2024-02-01T00:00:00Z",
-      product_type: "DAY",
+      startDate: "2024-01-01T00:00:00Z",
+      endDate: "2024-02-01T00:00:00Z",
+      productType: "DAY",
       resolution: "HIGH",
     });
     // Response field name is `id` in the spec, our type calls it `feasibility_id`
@@ -115,8 +115,8 @@ describe("contract: feasibility", () => {
   test("POST /feasibility/pass-prediction", async () => {
     const result = await client.getPassPrediction({
       aoi: AOI,
-      window_start: "2024-01-01T00:00:00Z",
-      window_end: "2024-02-01T00:00:00Z",
+      fromDate: "2024-01-01T00:00:00Z",
+      toDate: "2024-02-01T00:00:00Z",
     });
     expect(result).toBeDefined();
   });
@@ -148,9 +148,9 @@ describe("contract: orders", () => {
   test("POST /order-tasking", async () => {
     const order = await client.createTaskingOrder({
       aoi: AOI,
-      window_start: "2024-01-01T00:00:00Z",
-      window_end: "2024-02-01T00:00:00Z",
-      product_type: "DAY",
+      windowStart: "2024-01-01T00:00:00Z",
+      windowEnd: "2024-02-01T00:00:00Z",
+      productType: "DAY",
       resolution: "HIGH",
       deliveryDriver: "S3",
       deliveryParams: { bucket: "my-bucket", path: "imagery/" },

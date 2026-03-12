@@ -69,9 +69,9 @@ describe("ConfirmationStore", () => {
         type: "tasking",
         params: {
           aoi: "POLYGON(...)",
-          window_start: "2024-01-01",
-          window_end: "2024-02-01",
-          product_type: "DAY",
+          windowStart: "2024-01-01",
+          windowEnd: "2024-02-01",
+          productType: "DAY",
           resolution: "HIGH",
           deliveryDriver: "S3",
           deliveryParams: { bucket: "b" },

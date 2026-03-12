@@ -199,12 +199,12 @@ export type PricingResponse = Record<string, unknown>;
 export interface FeasibilityRequest {
   /** Target area as WKT POLYGON. */
   aoi: string;
-  /** Start of the desired capture window (ISO 8601). */
-  window_start: string;
-  /** End of the desired capture window (ISO 8601). */
-  window_end: string;
+  /** Start of the desired capture window (ISO 8601 datetime). */
+  startDate: string;
+  /** End of the desired capture window (ISO 8601 datetime). */
+  endDate: string;
   /** Required product type for the capture. */
-  product_type: ProductType;
+  productType: ProductType;
   /** Required resolution tier for the capture. */
   resolution: Resolution;
 }
@@ -217,7 +217,7 @@ export interface FeasibilityRequest {
  */
 export interface FeasibilityOpportunity {
   /** Opaque identifier for this specific satellite pass. */
-  provider_window_id: string;
+  providerWindowId: string;
   [key: string]: unknown;
 }
 
@@ -249,10 +249,10 @@ export interface FeasibilityResponse {
 export interface PassPredictionRequest {
   /** Target area as WKT POLYGON. */
   aoi: string;
-  /** Start of the prediction window (ISO 8601). */
-  window_start: string;
-  /** End of the prediction window (ISO 8601). */
-  window_end: string;
+  /** Start of the prediction window (ISO 8601 datetime). */
+  fromDate: string;
+  /** End of the prediction window (ISO 8601 datetime). */
+  toDate: string;
 }
 
 // ── Orders ────────────────────────────────────────────────────────────────────
@@ -276,7 +276,7 @@ export interface OrderArchiveRequest {
   /** Arbitrary key-value metadata attached to the order for caller's use. */
   metadata?: Record<string, string>;
   /** URL to receive a webhook notification when the order status changes. */
-  webhook_url?: string;
+  webhookUrl?: string;
 }
 
 /**
@@ -284,18 +284,18 @@ export interface OrderArchiveRequest {
  *
  * Unlike archive orders, tasking schedules a future collect. The platform
  * selects a satellite pass from those available within the requested window,
- * unless `provider_window_id` is specified to target a particular opportunity
+ * unless `providerWindowId` is specified to target a particular opportunity
  * returned by a prior feasibility check.
  */
 export interface OrderTaskingRequest {
   /** Target area to capture, as WKT POLYGON. */
   aoi: string;
-  /** Earliest acceptable collection time (ISO 8601). */
-  window_start: string;
-  /** Latest acceptable collection time (ISO 8601). */
-  window_end: string;
+  /** Earliest acceptable collection time (ISO 8601 datetime). */
+  windowStart: string;
+  /** Latest acceptable collection time (ISO 8601 datetime). */
+  windowEnd: string;
   /** Required product type for the new capture. */
-  product_type: ProductType;
+  productType: ProductType;
   /** Required resolution tier for the new capture. */
   resolution: Resolution;
   /** If true, expedites scheduling at a potential premium cost. */
@@ -311,11 +311,11 @@ export interface OrderTaskingRequest {
   /** Arbitrary key-value metadata attached to the order. */
   metadata?: Record<string, string>;
   /** URL to receive a webhook notification when the order status changes. */
-  webhook_url?: string;
+  webhookUrl?: string;
   /** Pin the collection to a specific provider (e.g. "Maxar"). */
   requiredProvider?: string;
   /** Pin the collection to a specific satellite pass from a feasibility result. */
-  provider_window_id?: string;
+  providerWindowId?: string;
 }
 
 /**

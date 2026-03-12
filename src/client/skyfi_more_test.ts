@@ -56,9 +56,9 @@ describe("SkyFiClient request and wrappers", () => {
     await client.getOrder("ord-1");
     await client.createTaskingOrder({
       aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
-      window_start: "2026-01-01T00:00:00Z",
-      window_end: "2026-01-02T00:00:00Z",
-      product_type: "DAY",
+      windowStart: "2026-01-01T00:00:00Z",
+      windowEnd: "2026-01-02T00:00:00Z",
+      productType: "DAY",
       resolution: "HIGH",
       deliveryDriver: "S3",
       deliveryParams: { bucket: "b" },
@@ -168,16 +168,16 @@ describe("SkyFiClient request and wrappers (additional)", () => {
     await client.getPricing({ aoi: "A" });
     await client.checkFeasibility({
       aoi: "A",
-      window_start: "w1",
-      window_end: "w2",
-      product_type: "DAY",
+      startDate: "w1",
+      endDate: "w2",
+      productType: "DAY",
       resolution: "HIGH",
     } as any);
     await client.getFeasibilityStatus("f-1");
     await client.getPassPrediction({
       aoi: "A",
-      window_start: "w1",
-      window_end: "w2",
+      fromDate: "w1",
+      toDate: "w2",
     } as any);
     await client.createArchiveOrder({
       aoi: "A",
@@ -187,9 +187,9 @@ describe("SkyFiClient request and wrappers (additional)", () => {
     } as any);
     await client.createTaskingOrder({
       aoi: "A",
-      window_start: "w1",
-      window_end: "w2",
-      product_type: "DAY",
+      windowStart: "w1",
+      windowEnd: "w2",
+      productType: "DAY",
       resolution: "HIGH",
       deliveryDriver: "S3",
       deliveryParams: { bucket: "b" },

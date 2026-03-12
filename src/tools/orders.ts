@@ -231,9 +231,9 @@ export function registerOrderTools(
         }
         orderParams = {
           aoi: params.aoi,
-          window_start: params.window_start,
-          window_end: params.window_end,
-          product_type: params.product_type,
+          windowStart: params.window_start,
+          windowEnd: params.window_end,
+          productType: params.product_type,
           resolution: params.resolution,
           deliveryDriver: params.deliveryDriver,
           deliveryParams,

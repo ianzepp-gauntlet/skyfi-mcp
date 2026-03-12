@@ -57,11 +57,12 @@ export function registerFeasibilityTools(
     },
     async ({ aoi, window_start, window_end, product_type, resolution }) => {
       // PHASE 1: SUBMIT — enqueue the feasibility check and get the tracking ID.
+      // Map MCP tool field names (snake_case) to API field names (camelCase).
       const initial = await client.checkFeasibility({
         aoi,
-        window_start,
-        window_end,
-        product_type,
+        startDate: window_start,
+        endDate: window_end,
+        productType: product_type,
         resolution,
       });
 

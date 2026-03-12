@@ -302,9 +302,9 @@ describe("registerOrderTools (additional)", () => {
 
     expect(capturedParams).toHaveLength(1);
     expect(capturedParams[0].aoi).toBe("POLYGON((0 0,1 0,1 1,0 1,0 0))");
-    expect(capturedParams[0].window_start).toBe("2026-02-01T00:00:00Z");
-    expect(capturedParams[0].window_end).toBe("2026-02-02T00:00:00Z");
-    expect(capturedParams[0].product_type).toBe("DAY");
+    expect(capturedParams[0].windowStart).toBe("2026-02-01T00:00:00Z");
+    expect(capturedParams[0].windowEnd).toBe("2026-02-02T00:00:00Z");
+    expect(capturedParams[0].productType).toBe("DAY");
     expect(capturedParams[0].resolution).toBe("HIGH");
     expect(capturedParams[0].deliveryDriver).toBe("S3");
     expect(capturedParams[0].deliveryParams.bucket).toBe("task-bucket");
