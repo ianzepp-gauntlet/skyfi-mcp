@@ -50,10 +50,6 @@ The SkyFi Platform API (v2.0.0) spec is saved locally at [`docs/openapi.json`](d
 | `POST` | `/pricing` | *(internal)* | Only called inside `orders_prepare`; not exposed standalone |
 | `GET` | `/ping` | — | Infrastructure |
 
-### Known Bugs
-
-**Resolution enum uses underscores instead of spaces.** The SkyFi API spec defines resolution values as `"VERY HIGH"`, `"SUPER HIGH"`, `"ULTRA HIGH"` (with spaces). The `orders_prepare` and `feasibility_check` tools accept `"VERY_HIGH"`, `"ULTRA_HIGH"` (underscores). These will fail API validation.
-
 ### Missing Gaps
 
 **`POST /feasibility/pass-prediction` — not exposed.**

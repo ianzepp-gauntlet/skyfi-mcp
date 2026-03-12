@@ -22,6 +22,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SkyFiClient } from "../client/skyfi.js";
+import {
+  normalizeTaskingResolution,
+  taskingResolutionInputSchema,
+} from "./resolution.js";
 
 /**
  * Register the `feasibility_check` tool on the given MCP server.
@@ -49,9 +53,7 @@ export function registerFeasibilityTools(
         product_type: z
           .enum(["DAY", "MULTISPECTRAL", "SAR"])
           .describe("Product type"),
-        resolution: z
-          .enum(["LOW", "MEDIUM", "HIGH", "VERY_HIGH", "ULTRA_HIGH"])
-          .describe("Desired resolution"),
+        resolution: taskingResolutionInputSchema,
       },
       annotations: { readOnlyHint: true },
     },
@@ -63,7 +65,7 @@ export function registerFeasibilityTools(
         startDate: window_start,
         endDate: window_end,
         productType: product_type,
-        resolution,
+        resolution: normalizeTaskingResolution(resolution),
       });
 
       // PHASE 2: POLL — wait for the check to reach a terminal state.

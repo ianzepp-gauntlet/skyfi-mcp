@@ -42,6 +42,10 @@ import type {
   OrderTaskingRequest,
 } from "../client/types.js";
 import { ConfirmationStore } from "./confirmation.js";
+import {
+  normalizeTaskingResolution,
+  taskingResolutionInputSchema,
+} from "./resolution.js";
 
 /**
  * Register order management tools on the given MCP server.
@@ -167,10 +171,7 @@ export function registerOrderTools(
           .enum(["DAY", "MULTISPECTRAL", "SAR"])
           .optional()
           .describe("Product type (required for tasking)"),
-        resolution: z
-          .enum(["LOW", "MEDIUM", "HIGH", "VERY_HIGH", "ULTRA_HIGH"])
-          .optional()
-          .describe("Resolution (required for tasking)"),
+        resolution: taskingResolutionInputSchema.optional(),
         deliveryDriver: z
           .enum(["S3", "GS", "AZURE"])
           .describe("Cloud storage delivery target"),
@@ -234,7 +235,7 @@ export function registerOrderTools(
           windowStart: params.window_start,
           windowEnd: params.window_end,
           productType: params.product_type,
-          resolution: params.resolution,
+          resolution: normalizeTaskingResolution(params.resolution),
           deliveryDriver: params.deliveryDriver,
           deliveryParams,
         } satisfies OrderTaskingRequest;
@@ -247,6 +248,10 @@ export function registerOrderTools(
       // the user is shown exactly the same pricing they will be charged.
       const pricing = await client.getPricing({ aoi: params.aoi });
       const pricingSummary = JSON.stringify(pricing, null, 2);
+      const normalizedResolution =
+        params.type === "tasking" && params.resolution
+          ? normalizeTaskingResolution(params.resolution)
+          : undefined;
 
       // PHASE 3: STORE PENDING ORDER AND RETURN TOKEN
       // Persist the fully-constructed order params and pricing under a short-lived
@@ -280,7 +285,7 @@ export function registerOrderTools(
                     : {
                         window: `${params.window_start} → ${params.window_end}`,
                         productType: params.product_type,
-                        resolution: params.resolution,
+                        resolution: normalizedResolution,
                       }),
                 },
               },

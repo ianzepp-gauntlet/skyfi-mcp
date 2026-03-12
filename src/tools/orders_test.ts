@@ -229,6 +229,54 @@ describe("registerOrderTools (additional)", () => {
     expect(confirmed.type).toBe("TASKING");
   });
 
+  test("orders_prepare normalizes underscore tasking resolution aliases to API values", async () => {
+    const harness = createToolHarness();
+    const store = new ConfirmationStore();
+    const capturedParams: any[] = [];
+
+    const client = {
+      listOrders: async () => ({ total: 0, orders: [] }),
+      getOrder: async () => ({ id: "unused" }),
+      getPricing: async () => ({
+        currency: "USD",
+        tasking: [{ provider: "Y", price: 99 }],
+      }),
+      createArchiveOrder: async () => ({ id: "unused" }),
+      createTaskingOrder: async (params: any) => {
+        capturedParams.push(params);
+        return {
+          id: "ord-task-2",
+          orderType: "TASKING",
+          status: "SUBMITTED",
+          createdAt: "2026-01-04T00:00:00Z",
+        };
+      },
+    };
+
+    registerOrderTools(harness.server as any, client as any, store);
+
+    const preparedRaw = await harness.invoke("orders_prepare", {
+      type: "tasking",
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      window_start: "2026-01-01T00:00:00Z",
+      window_end: "2026-01-02T00:00:00Z",
+      product_type: "DAY",
+      resolution: "VERY_HIGH",
+      deliveryDriver: "S3",
+      deliveryBucket: "bucket-a",
+    });
+
+    const prepared = parseToolJson(preparedRaw);
+    expect(prepared.orderDetails.resolution).toBe("VERY HIGH");
+
+    await harness.invoke("orders_confirm", {
+      confirmationToken: prepared.confirmationToken,
+    });
+
+    expect(capturedParams).toHaveLength(1);
+    expect(capturedParams[0].resolution).toBe("VERY HIGH");
+  });
+
   test("orders_confirm forwards exact params to createArchiveOrder", async () => {
     const harness = createToolHarness();
     const store = new ConfirmationStore();

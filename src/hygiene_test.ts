@@ -65,8 +65,9 @@ function matchingLines(files: SourceFile[], pattern: string): string[] {
   const hits: string[] = [];
   for (const file of files) {
     for (let i = 0; i < file.lines.length; i++) {
-      if (file.lines[i].includes(pattern)) {
-        hits.push(`  ${file.filePath}:${i + 1}: ${file.lines[i].trim()}`);
+      const line = file.lines[i];
+      if (line?.includes(pattern)) {
+        hits.push(`  ${file.filePath}:${i + 1}: ${line.trim()}`);
       }
     }
   }
@@ -92,10 +93,12 @@ describe("hygiene", () => {
   test("ts-suppress budget", () => {
     const count = countMatches(files, "@ts-");
     const hits = matchingLines(files, "@ts-");
-    expect(count).toBeLessThanOrEqual(
-      MAX_TS_SUPPRESS,
-      `"@ts-" suppress budget exceeded (${count}/${MAX_TS_SUPPRESS}):\n${hits.join("\n")}`,
-    );
+    expect(count).toBeLessThanOrEqual(MAX_TS_SUPPRESS);
+    if (count > MAX_TS_SUPPRESS) {
+      throw new Error(
+        `"@ts-" suppress budget exceeded (${count}/${MAX_TS_SUPPRESS}):\n${hits.join("\n")}`,
+      );
+    }
   });
 
   // ── Silent promise loss ───────────────────────────────────────────────────
@@ -105,18 +108,23 @@ describe("hygiene", () => {
     const hits: string[] = [];
     for (const file of files) {
       for (let i = 0; i < file.lines.length; i++) {
-        const trimmed = file.lines[i].trimStart();
+        const trimmed = file.lines[i]?.trimStart();
         // Count "void expr" statements, not return type annotations
-        if (trimmed.startsWith("void ") && !trimmed.startsWith("void 0")) {
+        if (
+          trimmed?.startsWith("void ") &&
+          !trimmed.startsWith("void 0")
+        ) {
           fireAndForget++;
           hits.push(`  ${file.filePath}:${i + 1}: ${trimmed}`);
         }
       }
     }
-    expect(fireAndForget).toBeLessThanOrEqual(
-      MAX_VOID_DISPATCH,
-      `fire-and-forget "void <expr>" budget exceeded (${fireAndForget}/${MAX_VOID_DISPATCH}):\n${hits.join("\n")}`,
-    );
+    expect(fireAndForget).toBeLessThanOrEqual(MAX_VOID_DISPATCH);
+    if (fireAndForget > MAX_VOID_DISPATCH) {
+      throw new Error(
+        `fire-and-forget "void <expr>" budget exceeded (${fireAndForget}/${MAX_VOID_DISPATCH}):\n${hits.join("\n")}`,
+      );
+    }
   });
 
   // ── Serialization / parsing ───────────────────────────────────────────────
@@ -124,10 +132,12 @@ describe("hygiene", () => {
   test("JSON.parse budget", () => {
     const count = countMatches(files, "JSON.parse");
     const hits = matchingLines(files, "JSON.parse");
-    expect(count).toBeLessThanOrEqual(
-      MAX_JSON_PARSE,
-      `JSON.parse budget exceeded (${count}/${MAX_JSON_PARSE}):\n${hits.join("\n")}`,
-    );
+    expect(count).toBeLessThanOrEqual(MAX_JSON_PARSE);
+    if (count > MAX_JSON_PARSE) {
+      throw new Error(
+        `JSON.parse budget exceeded (${count}/${MAX_JSON_PARSE}):\n${hits.join("\n")}`,
+      );
+    }
   });
 
   // ── Debug leaks ───────────────────────────────────────────────────────────
@@ -135,9 +145,11 @@ describe("hygiene", () => {
   test("console budget", () => {
     const count = countMatches(files, "console.");
     const hits = matchingLines(files, "console.");
-    expect(count).toBeLessThanOrEqual(
-      MAX_CONSOLE,
-      `console.* budget exceeded (${count}/${MAX_CONSOLE}):\n${hits.join("\n")}`,
-    );
+    expect(count).toBeLessThanOrEqual(MAX_CONSOLE);
+    if (count > MAX_CONSOLE) {
+      throw new Error(
+        `console.* budget exceeded (${count}/${MAX_CONSOLE}):\n${hits.join("\n")}`,
+      );
+    }
   });
 });

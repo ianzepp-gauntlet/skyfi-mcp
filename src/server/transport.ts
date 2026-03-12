@@ -243,7 +243,7 @@ export function createApp(
       const monitorId = String(
         payload.notification_id ?? payload.notificationId ?? "unknown",
       );
-      options.alertStore.add(monitorId, body);
+      options.alertStore.add(monitorId, payload);
     }
 
     return c.json({ received: true });

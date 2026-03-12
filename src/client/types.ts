@@ -25,9 +25,15 @@ export type ProductType = "DAY" | "MULTISPECTRAL" | "SAR";
 
 /**
  * Spatial resolution tier. Maps loosely to ground sample distance (GSD):
- * LOW ≥ 10 m, MEDIUM ~3–10 m, HIGH ~1–3 m, VERY_HIGH ~0.5–1 m, ULTRA_HIGH < 0.5 m.
+ * LOW ≥ 10 m, MEDIUM ~3–10 m, HIGH ~1–3 m, VERY HIGH ~0.5–1 m, ULTRA HIGH < 0.5 m.
  */
-export type Resolution = "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH" | "ULTRA_HIGH";
+export type Resolution =
+  | "LOW"
+  | "MEDIUM"
+  | "HIGH"
+  | "VERY HIGH"
+  | "SUPER HIGH"
+  | "ULTRA HIGH";
 
 /** Cloud storage provider for imagery delivery. */
 export type DeliveryDriver = "S3" | "GS" | "AZURE";

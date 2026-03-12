@@ -36,4 +36,36 @@ describe("registerFeasibilityTools", () => {
     expect(result.feasibilityId).toBe("f-1");
     expect(result.opportunities).toEqual([]);
   });
+
+  test("normalizes underscore resolution aliases before calling the client", async () => {
+    const harness = createToolHarness();
+    const seen: Array<Record<string, unknown>> = [];
+    const client = {
+      checkFeasibility: async (params: Record<string, unknown>) => {
+        seen.push(params);
+        return {
+          feasibility_id: "f-2",
+          status: "PENDING",
+        };
+      },
+      pollFeasibility: async () => ({
+        feasibility_id: "f-2",
+        status: "COMPLETED",
+        opportunities: [],
+      }),
+    };
+
+    registerFeasibilityTools(harness.server as any, client as any);
+
+    await harness.invoke("feasibility_check", {
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      window_start: "2026-01-01T00:00:00Z",
+      window_end: "2026-01-02T00:00:00Z",
+      product_type: "DAY",
+      resolution: "ULTRA_HIGH",
+    });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ resolution: "ULTRA HIGH" });
+  });
 });

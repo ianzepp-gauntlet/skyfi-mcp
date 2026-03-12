@@ -136,7 +136,9 @@ describe("createApp", () => {
     expect(response.status).toBe(200);
     const alerts = alertStore.get("mon-1");
     expect(alerts).toHaveLength(1);
-    expect((alerts[0].payload as any).event).toBe("match");
+    const firstAlert = alerts[0];
+    expect(firstAlert).toBeDefined();
+    expect(firstAlert?.payload).toMatchObject({ event: "match" });
   });
 
   test("aoi webhook falls back to notificationId (camelCase)", async () => {
