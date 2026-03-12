@@ -6,8 +6,32 @@ Connect the SkyFi MCP server to [Claude](https://claude.ai) as a custom integrat
 
 - A Claude Pro, Team, or Enterprise subscription
 - A deployed SkyFi MCP server with a public URL (e.g. on Cloudflare Workers)
+- [`skyfi-cli`](https://github.com/ianzepp/skyfi-cli) installed (optional, for testing)
 
-> **Note:** Claude Web requires a publicly accessible HTTPS URL. The local development server (`http://localhost:3000`) will not work unless exposed via a tunnel (e.g. ngrok).
+> **Note:** Claude Web requires a publicly accessible HTTPS URL. The local development server (`http://localhost:3000`) will not work unless exposed via a tunnel (see [Local Development](#local-development) below).
+
+## Testing & Verification
+
+Before connecting Claude Web, use `skyfi-cli` to confirm your credentials and explore real data:
+
+```bash
+# Verify auth
+skyfi-cli whoami
+
+# Search for imagery
+skyfi-cli archives search --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))'
+
+# Check pricing
+skyfi-cli pricing get
+
+# List existing orders
+skyfi-cli orders list
+
+# Set up an AOI monitor
+skyfi-cli notifications create \
+  --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))' \
+  --webhook-url https://your-webhook.example.com/hook
+```
 
 ## Setup
 
@@ -35,6 +59,14 @@ Once connected, you can use SkyFi tools directly in Claude conversations:
 
 > "Set up an AOI monitor for the Port of Rotterdam"
 
+## Place Name Resolution
+
+You never need to supply coordinates manually. Claude will call `location_resolve` (powered by OpenStreetMap) to convert place names to WKT polygons automatically:
+
+> "Find recent satellite imagery near the Pyramids of Giza"
+
+Claude resolves the location, then searches the archive — no WKT required.
+
 ## Ordering Flow
 
 When placing orders, Claude will:
@@ -45,28 +77,62 @@ When placing orders, Claude will:
 
 This two-step flow ensures you always see the price before any purchase is made.
 
+Example conversation:
+
+> "I'd like to order imagery of the Panama Canal. Check feasibility first."
+> [Claude reports available pass windows]
+>
+> "What would a tasking order cost for next week?"
+> [Claude presents price: "This order would cost $X. Confirm?"]
+>
+> "Yes, confirm."
+> [Claude places the order]
+
+## AOI Monitoring
+
+Claude can set up Area of Interest monitors and report on alerts:
+
+> "Monitor the Strait of Hormuz for new imagery. Send alerts to https://my-webhook.example.com/alerts."
+> [Claude calls location_resolve → notifications_create]
+
+> "Any new imagery alerts for my monitors?"
+> [Claude calls alerts_list → reports pending notifications]
+
+Webhook payloads are delivered to your endpoint automatically when new imagery appears over a monitored AOI.
+
 ## Available Tools
 
 All SkyFi MCP tools are available in the conversation:
 
-| Tool                                                                                         | What it does                        |
-| -------------------------------------------------------------------------------------------- | ----------------------------------- |
-| `archives_search`                                                                            | Search the satellite catalog        |
-| `feasibility_check`                                                                          | Check if a new capture is possible  |
-| `pricing_get`                                                                                | View pricing matrix                 |
-| `orders_list` / `orders_get`                                                                 | Browse order history                |
-| `orders_prepare` / `orders_confirm`                                                          | Place orders (with confirmation)    |
-| `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete` | Manage area monitors                |
-| `alerts_list`                                                                                | Check for new imagery notifications |
-| `location_resolve`                                                                           | Convert place names to coordinates  |
+| Tool | What it does |
+| --- | --- |
+| `archives_search` | Search the satellite catalog |
+| `feasibility_check` | Check if a new capture is possible |
+| `pricing_get` | View pricing matrix |
+| `orders_list` / `orders_get` | Browse order history |
+| `orders_prepare` / `orders_confirm` | Place orders (with confirmation) |
+| `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete` | Manage area monitors |
+| `alerts_list` | Check for new imagery notifications |
+| `location_resolve` | Convert place names to coordinates (via OpenStreetMap) |
+
+## Local Development
+
+Claude Web requires a public HTTPS URL. To test with a local server, expose it via a tunnel:
+
+```bash
+# Start the MCP server
+export SKYFI_API_KEY=your-key-here
+bun run dev
+
+# In a separate terminal, expose it publicly
+ngrok http 3000
+```
+
+Use the ngrok HTTPS URL (e.g. `https://abc123.ngrok-free.app/mcp`) as the integration endpoint in Claude Web settings.
 
 ## Notes
 
 - Claude manages the MCP session automatically
 - The server runs in stateless mode on Cloudflare Workers — each request is independent
 - API key is sent via the `x-skyfi-api-key` header on every request
-- For local development, use a tunnel service to expose your server:
-  ```bash
-  ngrok http 3000
-  ```
-  Then use the ngrok HTTPS URL as the integration endpoint
+- `location_resolve` uses the OpenStreetMap Nominatim API to convert place names to WKT polygons

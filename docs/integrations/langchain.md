@@ -7,9 +7,33 @@ Connect the SkyFi MCP server to [LangChain](https://python.langchain.com/) or [L
 - A running SkyFi MCP server (local or deployed)
 - Python 3.10+
 - `langchain-mcp-adapters` installed
+- [`skyfi-cli`](https://github.com/ianzepp/skyfi-cli) installed (optional, for testing)
 
 ```bash
 pip install langchain-mcp-adapters langchain-openai langgraph
+```
+
+## Testing & Verification
+
+Before writing agent code, use `skyfi-cli` to verify credentials and grab real IDs:
+
+```bash
+# Verify auth
+skyfi-cli whoami
+
+# Search for imagery (note an archive ID from the results)
+skyfi-cli archives search --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))'
+
+# Check pricing
+skyfi-cli pricing get
+
+# List existing orders
+skyfi-cli orders list --json | jq '.orders[].orderId'
+
+# Set up an AOI monitor
+skyfi-cli notifications create \
+  --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))' \
+  --webhook-url https://your-webhook.example.com/hook
 ```
 
 ## Setup
@@ -66,6 +90,127 @@ async with MultiServerMCPClient(
         print(msg.content)
 ```
 
+## Place Name Resolution
+
+The `location_resolve` tool converts place names to WKT coordinates via OpenStreetMap — users don't need to supply polygons manually:
+
+```python
+async with MultiServerMCPClient(...) as client:
+    agent = create_react_agent(model, client.get_tools())
+
+    result = await agent.ainvoke({
+        "messages": [
+            {"role": "user", "content": "Find recent imagery near the Golden Gate Bridge"}
+        ]
+    })
+    # Agent calls location_resolve("Golden Gate Bridge") → WKT polygon,
+    # then passes coordinates to archives_search.
+```
+
+## Conversational Ordering
+
+Walk through the full feasibility → prepare → confirm flow with a multi-message thread:
+
+```python
+import asyncio
+from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import create_react_agent
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+model = ChatOpenAI(model="gpt-4o")
+
+async def ordering_workflow():
+    async with MultiServerMCPClient(
+        {
+            "skyfi": {
+                "url": "http://localhost:3000/mcp",
+                "transport": "streamable_http",
+                "headers": {"x-skyfi-api-key": "YOUR_SKYFI_API_KEY"},
+            }
+        }
+    ) as client:
+        agent = create_react_agent(model, client.get_tools())
+
+        # Step 1: feasibility
+        result = await agent.ainvoke({
+            "messages": [
+                {
+                    "role": "user",
+                    "content": (
+                        "Check if it's feasible to task a new SAR capture of the Port of "
+                        "Los Angeles next week. Report the available pass windows."
+                    ),
+                }
+            ]
+        })
+        print(result["messages"][-1].content)
+
+        # Step 2: prepare — agent presents price, waits for human approval
+        result = await agent.ainvoke({
+            "messages": result["messages"] + [
+                {
+                    "role": "user",
+                    "content": "Prepare an order for next Monday–Friday. Show me the price before doing anything else.",
+                }
+            ]
+        })
+        print(result["messages"][-1].content)
+        # → "This order would cost $X. Confirm?"
+
+        # Step 3: human approves, agent confirms
+        result = await agent.ainvoke({
+            "messages": result["messages"] + [
+                {"role": "user", "content": "Yes, confirm the order."}
+            ]
+        })
+        print(result["messages"][-1].content)
+
+asyncio.run(ordering_workflow())
+```
+
+## AOI Monitoring
+
+Set up an Area of Interest monitor and check for alerts:
+
+```python
+async with MultiServerMCPClient(
+    {
+        "skyfi": {
+            "url": "http://localhost:3000/mcp",
+            "transport": "streamable_http",
+            "headers": {"x-skyfi-api-key": "YOUR_SKYFI_API_KEY"},
+        }
+    }
+) as client:
+    agent = create_react_agent(model, client.get_tools())
+
+    # Create a monitor
+    result = await agent.ainvoke({
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    "Set up a monitor for the Panama Canal. "
+                    "Send alerts to https://my-webhook.example.com/alerts."
+                ),
+            }
+        ]
+    })
+    print(result["messages"][-1].content)
+    # Agent calls: location_resolve → notifications_create
+
+    # Check for pending alerts
+    result = await agent.ainvoke({
+        "messages": [
+            {"role": "user", "content": "Any new imagery alerts for my monitors?"}
+        ]
+    })
+    print(result["messages"][-1].content)
+    # Agent calls: alerts_list → reports pending notifications
+```
+
+Webhook payloads are delivered to your endpoint when new imagery appears over a monitored AOI.
+
 ## LangChain (without LangGraph)
 
 If you prefer plain LangChain without the graph framework:
@@ -121,4 +266,5 @@ For a Cloudflare Workers deployment, change the URL:
 - The adapter converts MCP tools to LangChain `BaseTool` instances automatically
 - Tool schemas (Zod on the server) are translated to JSON Schema for the LLM
 - Orders require two-step confirmation — the agent will call `orders_prepare` first, present pricing, and only call `orders_confirm` after human approval
+- `location_resolve` uses the OpenStreetMap Nominatim API to convert place names to WKT polygons
 - For LangSmith tracing, set `LANGCHAIN_API_KEY` and `LANGCHAIN_TRACING_V2=true` in your environment
