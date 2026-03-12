@@ -382,9 +382,7 @@ export class SkyFiClient {
 
     if (!res.ok && (res.status < 300 || res.status >= 400)) {
       const text = await res.text();
-      throw new Error(
-        `SkyFi API GET ${path} failed (${res.status}): ${text}`,
-      );
+      throw new Error(`SkyFi API GET ${path} failed (${res.status}): ${text}`);
     }
 
     const redirectUrl = res.headers.get("location");

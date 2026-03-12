@@ -48,9 +48,7 @@ export function registerFeasibilityTools(
         "Predict upcoming satellite passes over an AOI within a time window. Use this to find candidate providerWindowId values before preparing a tasking order.",
       inputSchema: {
         aoi: z.string().describe("Area of interest as WKT POLYGON string"),
-        from_date: z
-          .string()
-          .describe("Start of prediction window (ISO 8601)"),
+        from_date: z.string().describe("Start of prediction window (ISO 8601)"),
         to_date: z.string().describe("End of prediction window (ISO 8601)"),
       },
       annotations: { readOnlyHint: true },

@@ -4,26 +4,26 @@ An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.co
 
 ## Tools
 
-| Tool                   | Description                                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------- |
-| `archives_search`      | Search the SkyFi satellite imagery catalog by area, date range, cloud cover, and resolution |
-| `archive_get`          | Get full metadata for a single archive scene by archive ID                                  |
-| `passes_predict`       | Predict upcoming satellite passes over an AOI and time window                               |
-| `feasibility_check`    | Check whether a new satellite tasking capture is feasible for a given area and time window  |
-| `pricing_get`          | Get the SkyFi pricing matrix, optionally scoped to a specific area                          |
-| `account_whoami`       | Get account identity, budget usage, and payment readiness                                   |
-| `orders_list`          | List your previous SkyFi orders                                                             |
-| `orders_get`           | Get detailed status and history for a specific order                                        |
-| `orders_redeliver`     | Re-trigger delivery for an order with new delivery settings                                 |
-| `orders_deliverable_get` | Get the signed download URL for an order deliverable                                      |
-| `orders_prepare`       | Prepare an order and get pricing — does NOT place the order (returns a confirmation token)  |
-| `orders_confirm`       | Execute a prepared order using a confirmation token from `orders_prepare`                   |
-| `notifications_create` | Create an Area of Interest monitor with webhook notifications for new imagery               |
-| `notifications_list`   | List all active AOI monitors                                                                |
-| `notifications_get`    | Get details for a specific AOI monitor, including recent webhook alerts                     |
-| `notifications_delete` | Delete an AOI monitor                                                                       |
-| `alerts_list`          | Retrieve recent webhook alerts for AOI monitors                                             |
-| `location_resolve`     | Resolve a place name to coordinates and WKT polygon via OpenStreetMap                       |
+| Tool                     | Description                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
+| `archives_search`        | Search the SkyFi satellite imagery catalog by area, date range, cloud cover, and resolution |
+| `archive_get`            | Get full metadata for a single archive scene by archive ID                                  |
+| `passes_predict`         | Predict upcoming satellite passes over an AOI and time window                               |
+| `feasibility_check`      | Check whether a new satellite tasking capture is feasible for a given area and time window  |
+| `pricing_get`            | Get the SkyFi pricing matrix, optionally scoped to a specific area                          |
+| `account_whoami`         | Get account identity, budget usage, and payment readiness                                   |
+| `orders_list`            | List your previous SkyFi orders                                                             |
+| `orders_get`             | Get detailed status and history for a specific order                                        |
+| `orders_redeliver`       | Re-trigger delivery for an order with new delivery settings                                 |
+| `orders_deliverable_get` | Get the signed download URL for an order deliverable                                        |
+| `orders_prepare`         | Prepare an order and get pricing — does NOT place the order (returns a confirmation token)  |
+| `orders_confirm`         | Execute a prepared order using a confirmation token from `orders_prepare`                   |
+| `notifications_create`   | Create an Area of Interest monitor with webhook notifications for new imagery               |
+| `notifications_list`     | List all active AOI monitors                                                                |
+| `notifications_get`      | Get details for a specific AOI monitor, including recent webhook alerts                     |
+| `notifications_delete`   | Delete an AOI monitor                                                                       |
+| `alerts_list`            | Retrieve recent webhook alerts for AOI monitors                                             |
+| `location_resolve`       | Resolve a place name to coordinates and WKT polygon via OpenStreetMap                       |
 
 ## API Coverage
 
@@ -31,29 +31,29 @@ The SkyFi Platform API (v2.0.0) spec is saved locally at [`docs/openapi.json`](d
 
 ### Endpoint Mapping
 
-| Method   | Path                                    | MCP Tool               | Notes                                                            |
-| -------- | --------------------------------------- | ---------------------- | ---------------------------------------------------------------- |
-| `POST`   | `/archives`                             | `archives_search`      | Initial search                                                   |
-| `GET`    | `/archives`                             | `archives_search`      | Pagination via cursor                                            |
-| `GET`    | `/archives/{archive_id}`                | `archive_get`          |                                                                  |
-| `GET`    | `/auth/whoami`                          | `account_whoami`       |                                                                  |
-| `POST`   | `/demo-delivery`                        | —                      | **Not exposed** — demo-only feature, low priority                |
-| `POST`   | `/feasibility`                          | `feasibility_check`    | Submit step (polled internally)                                  |
-| `GET`    | `/feasibility/{feasibility_id}`         | _(internal)_           | Only called by the polling loop inside `feasibility_check`       |
-| `POST`   | `/feasibility/pass-prediction`          | `passes_predict`       | Use with `orders_prepare.providerWindowId` for pass targeting    |
-| `GET`    | `/health_check`                         | —                      | Infrastructure; not useful as an MCP tool                        |
-| `POST`   | `/notifications`                        | `notifications_create` |                                                                  |
-| `GET`    | `/notifications`                        | `notifications_list`   |                                                                  |
-| `GET`    | `/notifications/{notification_id}`      | `notifications_get`    |                                                                  |
-| `DELETE` | `/notifications/{notification_id}`      | `notifications_delete` |                                                                  |
-| `POST`   | `/order-archive`                        | `orders_confirm`       | Executed only after `orders_prepare`                             |
-| `POST`   | `/order-tasking`                        | `orders_confirm`       | Executed only after `orders_prepare`                             |
-| `GET`    | `/orders`                               | `orders_list`          |                                                                  |
-| `GET`    | `/orders/{order_id}`                    | `orders_get`           |                                                                  |
-| `POST`   | `/orders/{order_id}/redelivery`         | `orders_redeliver`     |                                                                  |
+| Method   | Path                                    | MCP Tool                 | Notes                                                         |
+| -------- | --------------------------------------- | ------------------------ | ------------------------------------------------------------- |
+| `POST`   | `/archives`                             | `archives_search`        | Initial search                                                |
+| `GET`    | `/archives`                             | `archives_search`        | Pagination via cursor                                         |
+| `GET`    | `/archives/{archive_id}`                | `archive_get`            |                                                               |
+| `GET`    | `/auth/whoami`                          | `account_whoami`         |                                                               |
+| `POST`   | `/demo-delivery`                        | —                        | **Not exposed** — demo-only feature, low priority             |
+| `POST`   | `/feasibility`                          | `feasibility_check`      | Submit step (polled internally)                               |
+| `GET`    | `/feasibility/{feasibility_id}`         | _(internal)_             | Only called by the polling loop inside `feasibility_check`    |
+| `POST`   | `/feasibility/pass-prediction`          | `passes_predict`         | Use with `orders_prepare.providerWindowId` for pass targeting |
+| `GET`    | `/health_check`                         | —                        | Infrastructure; not useful as an MCP tool                     |
+| `POST`   | `/notifications`                        | `notifications_create`   |                                                               |
+| `GET`    | `/notifications`                        | `notifications_list`     |                                                               |
+| `GET`    | `/notifications/{notification_id}`      | `notifications_get`      |                                                               |
+| `DELETE` | `/notifications/{notification_id}`      | `notifications_delete`   |                                                               |
+| `POST`   | `/order-archive`                        | `orders_confirm`         | Executed only after `orders_prepare`                          |
+| `POST`   | `/order-tasking`                        | `orders_confirm`         | Executed only after `orders_prepare`                          |
+| `GET`    | `/orders`                               | `orders_list`            |                                                               |
+| `GET`    | `/orders/{order_id}`                    | `orders_get`             |                                                               |
+| `POST`   | `/orders/{order_id}/redelivery`         | `orders_redeliver`       |                                                               |
 | `GET`    | `/orders/{order_id}/{deliverable_type}` | `orders_deliverable_get` | Returns a signed URL for `image`, `payload`, or `cog`         |
-| `POST`   | `/pricing`                              | `pricing_get`          | Also called internally by `orders_prepare`                       |
-| `GET`    | `/ping`                                 | —                      | Infrastructure                                                   |
+| `POST`   | `/pricing`                              | `pricing_get`            | Also called internally by `orders_prepare`                    |
+| `GET`    | `/ping`                                 | —                        | Infrastructure                                                |
 
 ### Pass-Targeted Tasking
 
@@ -342,14 +342,14 @@ The `--errors` flag is required — it enables strict request validation. Withou
 
 Contract test coverage:
 
-| Group         | Endpoints tested                                                                                     |
-| ------------- | ---------------------------------------------------------------------------------------------------- |
-| Auth          | `GET /auth/whoami`                                                                                   |
-| Archives      | `POST /archives` (search), `GET /archives` (pagination), `GET /archives/{id}`                        |
-| Pricing       | `POST /pricing` (with and without AOI)                                                               |
-| Feasibility   | `POST /feasibility`, `GET /feasibility/{id}`, `POST /feasibility/pass-prediction`                    |
+| Group         | Endpoints tested                                                                                                      |
+| ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Auth          | `GET /auth/whoami`                                                                                                    |
+| Archives      | `POST /archives` (search), `GET /archives` (pagination), `GET /archives/{id}`                                         |
+| Pricing       | `POST /pricing` (with and without AOI)                                                                                |
+| Feasibility   | `POST /feasibility`, `GET /feasibility/{id}`, `POST /feasibility/pass-prediction`                                     |
 | Orders        | `GET /orders`, `GET /orders/{id}`, `POST /orders/{order_id}/redelivery`, `POST /order-archive`, `POST /order-tasking` |
-| Notifications | `POST /notifications`, `GET /notifications`, `GET /notifications/{id}`, `DELETE /notifications/{id}` |
+| Notifications | `POST /notifications`, `GET /notifications`, `GET /notifications/{id}`, `DELETE /notifications/{id}`                  |
 
 Contract tests require Prism to be running. If Prism is not reachable, the test file fails immediately with a startup error message. They are excluded from `bun test` by default (no `contract` in the grep pattern) — run them explicitly.
 
