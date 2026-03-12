@@ -150,6 +150,42 @@ Core MCP surface is implemented for the supported SkyFi account, archive, pricin
 
 Implemented in a standalone repository: [skyfi-cli](https://github.com/ianzepp/skyfi-cli).
 
+### Related Project: `skyfi-cli`
+
+If you want a terminal-first interface to the same SkyFi Platform API workflows, see the companion Rust CLI at [`~/github/ianzepp/skyfi-cli`](/Users/ianzepp/github/ianzepp/skyfi-cli).
+
+Install options:
+
+```bash
+brew install ianzepp/tap/skyfi-cli
+curl -fsSL https://raw.githubusercontent.com/ianzepp/skyfi-cli/master/install.sh | bash
+```
+
+Current command groups include:
+
+- `config` — store and inspect API key and base URL settings
+- `ping` / `whoami` — verify connectivity, auth, org, and remaining budget
+- `archives` — search the archive catalog and retrieve archive metadata
+- `orders` — create, list, inspect, and download orders
+- `notifications` — manage AOI webhook monitors
+- `feasibility` — check capture feasibility and predict satellite passes
+- `pricing` — inspect provider pricing tiers
+
+Example CLI flows:
+
+```bash
+skyfi-cli whoami
+skyfi-cli archives search --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))'
+skyfi-cli orders order-archive --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))' --archive-id <ARCHIVE_ID>
+skyfi-cli feasibility check --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))' --product-type day --resolution HIGH --start-date 2025-04-01 --end-date 2025-04-15
+```
+
+The CLI also supports `--json` on commands for machine-readable output:
+
+```bash
+skyfi-cli --json orders list
+```
+
 ### Phase 7 — Documentation ✅ COMPLETE
 
 - General README and quick start: done
