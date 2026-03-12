@@ -148,6 +148,18 @@ export class ConfirmationStore {
   }
 
   /**
+   * Restore a token that was previously consumed when downstream work fails.
+   *
+   * This keeps the happy path single-use while allowing the caller to retry a
+   * transient upstream failure without forcing a new prepare step.
+   */
+  restore(token: string, order: PendingOrder, now = Date.now()): void {
+    this.cleanExpired(now);
+    if (now - order.createdAt > this.ttlMs) return;
+    this.pending.set(token, order);
+  }
+
+  /**
    * Number of non-expired pending orders currently in the store.
    *
    * NOTE: This count may include orders that are technically expired but have

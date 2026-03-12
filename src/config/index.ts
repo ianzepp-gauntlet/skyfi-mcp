@@ -41,6 +41,11 @@ export interface SkyFiConfig {
 /** Production SkyFi Platform API endpoint. */
 const DEFAULT_BASE_URL = "https://app.skyfi.com/platform-api";
 
+function nonEmpty(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 /**
  * Resolve a complete `SkyFiConfig` from the available configuration sources.
  *
@@ -64,7 +69,10 @@ export function loadConfig(
   const local = localConfig ?? {};
   const envVars = env ?? process.env;
 
-  const apiKey = headerApiKey ?? envVars.SKYFI_API_KEY ?? local.apiKey;
+  const apiKey =
+    nonEmpty(headerApiKey) ??
+    nonEmpty(envVars.SKYFI_API_KEY) ??
+    nonEmpty(local.apiKey);
   if (!apiKey) {
     throw new Error(
       "SkyFi API key not found. Set SKYFI_API_KEY env var or create ~/.skyfi/config.json",
@@ -73,6 +81,9 @@ export function loadConfig(
 
   return {
     apiKey,
-    baseUrl: envVars.SKYFI_BASE_URL ?? local.baseUrl ?? DEFAULT_BASE_URL,
+    baseUrl:
+      nonEmpty(envVars.SKYFI_BASE_URL) ??
+      nonEmpty(local.baseUrl) ??
+      DEFAULT_BASE_URL,
   };
 }

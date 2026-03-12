@@ -55,6 +55,26 @@ describe("loadConfig", () => {
     );
   });
 
+  test("blank header API key falls back to env and localConfig", () => {
+    const config = loadConfig(
+      "   ",
+      { apiKey: "local-key" },
+      { SKYFI_API_KEY: "env-key" },
+    );
+    expect(config.apiKey).toBe("env-key");
+  });
+
+  test("blank env API key falls back to localConfig", () => {
+    const config = loadConfig(
+      undefined,
+      { apiKey: "local-key" },
+      {
+        SKYFI_API_KEY: " ",
+      },
+    );
+    expect(config.apiKey).toBe("local-key");
+  });
+
   test("uses default base URL", () => {
     const config = loadConfig("key", undefined, {});
     expect(config.baseUrl).toBe("https://app.skyfi.com/platform-api");
@@ -83,5 +103,14 @@ describe("loadConfig", () => {
       { SKYFI_BASE_URL: "https://env.example.com" },
     );
     expect(config.baseUrl).toBe("https://env.example.com");
+  });
+
+  test("blank env baseUrl falls back to localConfig", () => {
+    const config = loadConfig(
+      "key",
+      { baseUrl: "https://local.example.com" },
+      { SKYFI_BASE_URL: " " },
+    );
+    expect(config.baseUrl).toBe("https://local.example.com");
   });
 });

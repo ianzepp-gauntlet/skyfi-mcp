@@ -75,8 +75,7 @@ export function registerAccountTools(server: McpServer, client: SkyFiClient) {
                 isDemoAccount: user.isDemoAccount,
                 currentBudgetUsage: user.currentBudgetUsage,
                 budgetAmount: user.budgetAmount,
-                remainingBudget:
-                  user.budgetAmount - user.currentBudgetUsage,
+                remainingBudget: user.budgetAmount - user.currentBudgetUsage,
                 hasValidSharedCard: user.hasValidSharedCard,
               },
               null,
@@ -473,10 +472,15 @@ export function registerOrderTools(
       }
 
       let order;
-      if (pending.type === "archive") {
-        order = await client.createArchiveOrder(pending.params);
-      } else {
-        order = await client.createTaskingOrder(pending.params);
+      try {
+        if (pending.type === "archive") {
+          order = await client.createArchiveOrder(pending.params);
+        } else {
+          order = await client.createTaskingOrder(pending.params);
+        }
+      } catch (error) {
+        confirmationStore.restore(confirmationToken, pending);
+        throw error;
       }
 
       return {

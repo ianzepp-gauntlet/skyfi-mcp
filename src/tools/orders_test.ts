@@ -130,6 +130,61 @@ describe("registerOrderTools", () => {
     );
   });
 
+  test("orders_confirm restores the token when the upstream order call fails", async () => {
+    const harness = createToolHarness();
+    const store = new ConfirmationStore();
+    let attempts = 0;
+    const client = {
+      listOrders: async () => ({ total: 0, orders: [] }),
+      getOrder: async () => ({ id: "unused" }),
+      getPricing: async () => ({
+        currency: "USD",
+        rows: [{ provider: "X", price: 1.2 }],
+      }),
+      createArchiveOrder: async () => {
+        attempts++;
+        if (attempts === 1) {
+          throw new Error("upstream temporary failure");
+        }
+        return {
+          id: "ord-archive-retry",
+          orderType: "ARCHIVE",
+          status: "SUBMITTED",
+          createdAt: "2026-01-01T00:00:00Z",
+        };
+      },
+      createTaskingOrder: async () => ({ id: "unused" }),
+    };
+
+    registerOrderTools(harness.server as any, client as any, store);
+
+    const prepared = parseToolJson(
+      await harness.invoke("orders_prepare", {
+        type: "archive",
+        aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+        archiveId: "arch-123",
+        deliveryDriver: "S3",
+        deliveryBucket: "bucket-a",
+      }),
+    );
+
+    await expect(
+      harness.invoke("orders_confirm", {
+        confirmationToken: prepared.confirmationToken,
+      }),
+    ).rejects.toThrow("upstream temporary failure");
+
+    const retried = parseToolJson(
+      await harness.invoke("orders_confirm", {
+        confirmationToken: prepared.confirmationToken,
+      }),
+    );
+
+    expect(attempts).toBe(2);
+    expect(retried.orderId).toBe("ord-archive-retry");
+    expect(store.size).toBe(0);
+  });
+
   test("orders_list projects order summaries", async () => {
     const harness = createToolHarness();
     const client = {
@@ -258,9 +313,7 @@ describe("registerOrderTools", () => {
     );
 
     expect(result.downloadUrl).toBe("https://signed.example.com/download.tif");
-    expect(calls).toEqual([
-      { orderId: "ord-1", deliverableType: "image" },
-    ]);
+    expect(calls).toEqual([{ orderId: "ord-1", deliverableType: "image" }]);
   });
 });
 
