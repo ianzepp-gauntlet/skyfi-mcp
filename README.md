@@ -197,6 +197,7 @@ skyfi-cli --json orders list
   - [Claude Code](docs/integrations/claude-code.md)
   - [OpenAI](docs/integrations/openai.md)
   - [Gemini](docs/integrations/gemini.md)
+- Integration guide code examples for OpenAI and LangChain are backed by checked-in files under `examples/` and can be verified locally with `bun run docs:verify`
 - Cloudflare Workers deployment instructions: done
 
 ## Stretch Goals
@@ -286,10 +287,30 @@ The server starts at `http://localhost:3000/mcp`.
 bun run dev      # Start Bun dev server with hot reload
 bun run start    # Start Bun production server
 bun run check    # TypeScript type check
+bun run docs:verify        # Verify synced integration doc examples
+bun run docs:sync-examples # Refresh doc snippets from examples/
 bun test         # Run unit tests
 bun run dev:cf   # Start Cloudflare Workers local dev server (wrangler)
 bun run deploy   # Deploy to Cloudflare Workers
 ```
+
+### Docs Verification
+
+The integration guides in [`docs/integrations/`](docs/integrations/) remain the human-facing documentation source, but the primary OpenAI and LangChain code snippets are mirrored from runnable files in [`examples/`](examples/).
+
+Use:
+
+```bash
+bun run docs:verify
+```
+
+This checks that the marked snippets in [`docs/integrations/openai.md`](docs/integrations/openai.md) and [`docs/integrations/langchain.md`](docs/integrations/langchain.md) still match the checked-in example files, and syntax-checks those example files. After editing example files, run:
+
+```bash
+bun run docs:sync-examples
+```
+
+to refresh the embedded Markdown snippets.
 
 ### Testing
 
