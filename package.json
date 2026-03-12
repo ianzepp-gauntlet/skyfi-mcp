@@ -11,8 +11,9 @@
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "@cloudflare/workers-types": "^4",
+    "@stoplight/prism-cli": "^5.14.2",
+    "@types/bun": "latest",
     "wrangler": "^4"
   },
   "peerDependencies": {
