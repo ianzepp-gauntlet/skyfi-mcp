@@ -24,7 +24,7 @@ import type { SkyFiConfig } from "../config/index.js";
 import { registerSearchTools } from "../tools/search.js";
 import { registerFeasibilityTools } from "../tools/feasibility.js";
 import { registerPricingTools } from "../tools/pricing.js";
-import { registerOrderTools } from "../tools/orders.js";
+import { registerAccountTools, registerOrderTools } from "../tools/orders.js";
 import { registerAoiTools } from "../tools/aoi.js";
 import { registerLocationTools } from "../tools/location.js";
 import type { AlertStoreLike } from "../tools/alerts.js";
@@ -69,6 +69,7 @@ export function createMcpServer(
   registerSearchTools(server, client);
   registerFeasibilityTools(server, client);
   registerPricingTools(server, client);
+  registerAccountTools(server, client);
   registerOrderTools(server, client);
   registerAoiTools(server, client, options?.alertStore);
   // Location tools use OpenStreetMap, not the SkyFi API, so they don't

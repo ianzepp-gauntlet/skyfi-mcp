@@ -13,7 +13,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { searchImagerySchema } from "./search.js";
+import { registerSearchTools, searchImagerySchema } from "./search.js";
+import { createToolHarness } from "./test_harness.js";
 
 describe("searchImagerySchema", () => {
   test("allows page-only pagination requests", () => {
@@ -65,5 +66,28 @@ describe("searchImagerySchema", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe("registerSearchTools", () => {
+  test("archive_get looks up a single archive by id", async () => {
+    const harness = createToolHarness();
+    const calls: string[] = [];
+    const client = {
+      getArchive: async (archiveId: string) => {
+        calls.push(archiveId);
+        return { archiveId, provider: "Planet" };
+      },
+      searchArchives: async () => ({ total: 0, archives: [] }),
+      getArchivesPage: async () => ({ total: 0, archives: [] }),
+    };
+
+    registerSearchTools(harness.server as any, client as any);
+
+    const raw = await harness.invoke("archive_get", { archive_id: "arc-123" });
+    const result = JSON.parse((raw as any).content[0].text);
+
+    expect(result).toEqual({ archiveId: "arc-123", provider: "Planet" });
+    expect(calls).toEqual(["arc-123"]);
   });
 });

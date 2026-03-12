@@ -77,12 +77,14 @@ export interface DeliveryParams {
 /** Identity of the authenticated API caller, returned by GET /auth/whoami. */
 export interface WhoAmI {
   id: string;
+  organizationId: string | null;
   email: string;
-  name: string;
-  /** The API key associated with this account — useful for verifying key identity. */
-  apiKey: string;
-  /** Demo accounts have limited access; useful for gating purchase-side tools. */
+  firstName: string;
+  lastName: string;
   isDemoAccount: boolean;
+  currentBudgetUsage: number;
+  budgetAmount: number;
+  hasValidSharedCard: boolean;
 }
 
 // ── Archives (Search) ─────────────────────────────────────────────────────────

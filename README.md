@@ -7,8 +7,11 @@ An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.co
 | Tool                   | Description                                                                                 |
 | ---------------------- | ------------------------------------------------------------------------------------------- |
 | `archives_search`      | Search the SkyFi satellite imagery catalog by area, date range, cloud cover, and resolution |
+| `archive_get`          | Get full metadata for a single archive scene by archive ID                                  |
+| `passes_predict`       | Predict upcoming satellite passes over an AOI and time window                               |
 | `feasibility_check`    | Check whether a new satellite tasking capture is feasible for a given area and time window  |
 | `pricing_get`          | Get the SkyFi pricing matrix, optionally scoped to a specific area                          |
+| `account_whoami`       | Get account identity, budget usage, and payment readiness                                   |
 | `orders_list`          | List your previous SkyFi orders                                                             |
 | `orders_get`           | Get detailed status and history for a specific order                                        |
 | `orders_prepare`       | Prepare an order and get pricing — does NOT place the order (returns a confirmation token)  |
@@ -30,12 +33,12 @@ The SkyFi Platform API (v2.0.0) spec is saved locally at [`docs/openapi.json`](d
 | -------- | --------------------------------------- | ---------------------- | ---------------------------------------------------------------- |
 | `POST`   | `/archives`                             | `archives_search`      | Initial search                                                   |
 | `GET`    | `/archives`                             | `archives_search`      | Pagination via cursor                                            |
-| `GET`    | `/archives/{archive_id}`                | —                      | **Not exposed** — no tool to look up a single archive by ID      |
-| `GET`    | `/auth/whoami`                          | —                      | **Not exposed** — account info and budget balance not accessible |
+| `GET`    | `/archives/{archive_id}`                | `archive_get`          |                                                                  |
+| `GET`    | `/auth/whoami`                          | `account_whoami`       |                                                                  |
 | `POST`   | `/demo-delivery`                        | —                      | **Not exposed** — demo-only feature, low priority                |
 | `POST`   | `/feasibility`                          | `feasibility_check`    | Submit step (polled internally)                                  |
 | `GET`    | `/feasibility/{feasibility_id}`         | _(internal)_           | Only called by the polling loop inside `feasibility_check`       |
-| `POST`   | `/feasibility/pass-prediction`          | —                      | **Not exposed** — see note below                                 |
+| `POST`   | `/feasibility/pass-prediction`          | `passes_predict`       | Use with `orders_prepare.providerWindowId` for pass targeting    |
 | `GET`    | `/health_check`                         | —                      | Infrastructure; not useful as an MCP tool                        |
 | `POST`   | `/notifications`                        | `notifications_create` |                                                                  |
 | `GET`    | `/notifications`                        | `notifications_list`   |                                                                  |
@@ -47,25 +50,10 @@ The SkyFi Platform API (v2.0.0) spec is saved locally at [`docs/openapi.json`](d
 | `GET`    | `/orders/{order_id}`                    | `orders_get`           |                                                                  |
 | `POST`   | `/orders/{order_id}/redelivery`         | —                      | **Not exposed** — no tool to re-trigger delivery                 |
 | `GET`    | `/orders/{order_id}/{deliverable_type}` | —                      | **Not exposed** — no tool to get download URLs                   |
-| `POST`   | `/pricing`                              | _(internal)_           | Only called inside `orders_prepare`; not exposed standalone      |
+| `POST`   | `/pricing`                              | `pricing_get`          | Also called internally by `orders_prepare`                       |
 | `GET`    | `/ping`                                 | —                      | Infrastructure                                                   |
 
 ### Missing Gaps
-
-**`POST /feasibility/pass-prediction` — not exposed.**
-This is the intended first step in the tasking workflow: find upcoming satellite passes over an AOI, then pin a tasking order to a specific pass via `providerWindowId`. Without this tool, agents cannot use pass-level targeting. The full workflow is:
-
-1. `POST /feasibility/pass-prediction` → get candidate passes with `provider_window_id` values
-2. `POST /feasibility` → verify feasibility for a specific pass
-3. `POST /order-tasking` with `providerWindowId` set → lock the order to that pass
-
-Currently step 1 is not available, and `orders_prepare` does not accept `providerWindowId` even if it were obtained externally.
-
-**`GET /archives/{archive_id}` — not exposed.**
-An agent that has an `archiveId` from a prior session or external source cannot look it up directly; it must re-run a full catalog search.
-
-**`GET /auth/whoami` — not exposed.**
-Exposes account balance (`currentBudgetUsage`, `budgetAmount`), demo account flag, and org membership. Useful for an agent to check remaining budget before preparing a costly order.
 
 **`POST /orders/{order_id}/redelivery` — not exposed.**
 Allows re-triggering delivery of a completed order to a new destination. Useful when a delivery destination was misconfigured.
@@ -73,8 +61,14 @@ Allows re-triggering delivery of a completed order to a new destination. Useful 
 **`GET /orders/{order_id}/{deliverable_type}` — not exposed.**
 Returns a redirect URL to download the actual imagery file. Without this, an agent can confirm an order was delivered but cannot produce a download link for the user.
 
-**`POST /pricing` — internal only.**
-Currently called only inside `orders_prepare` to show pricing before confirmation. It cannot be called standalone, so an agent cannot get pricing estimates without also constructing a full order payload.
+### Pass-Targeted Tasking
+
+Pass-level targeting is now exposed end-to-end:
+
+1. `passes_predict` → get candidate passes and `providerWindowId` values
+2. `feasibility_check` → verify the requested collection window and constraints
+3. `orders_prepare` with `providerWindowId` set → prepare a tasking order pinned to that pass
+4. `orders_confirm` → execute the prepared tasking order
 
 ## Tech Stack
 

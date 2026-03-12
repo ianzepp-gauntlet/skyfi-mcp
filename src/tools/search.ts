@@ -162,4 +162,28 @@ export function registerSearchTools(server: McpServer, client: SkyFiClient) {
       };
     },
   );
+
+  server.registerTool(
+    "archive_get",
+    {
+      title: "Get Archive",
+      description:
+        "Look up a single archive scene by archive ID and return its full metadata.",
+      inputSchema: {
+        archive_id: z.string().describe("Archive ID to retrieve"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ archive_id }) => {
+      const archive = await client.getArchive(String(archive_id));
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(archive, null, 2),
+          },
+        ],
+      };
+    },
+  );
 }

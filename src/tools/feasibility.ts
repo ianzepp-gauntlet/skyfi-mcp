@@ -41,6 +41,39 @@ export function registerFeasibilityTools(
   client: SkyFiClient,
 ) {
   server.registerTool(
+    "passes_predict",
+    {
+      title: "Predict Passes",
+      description:
+        "Predict upcoming satellite passes over an AOI within a time window. Use this to find candidate providerWindowId values before preparing a tasking order.",
+      inputSchema: {
+        aoi: z.string().describe("Area of interest as WKT POLYGON string"),
+        from_date: z
+          .string()
+          .describe("Start of prediction window (ISO 8601)"),
+        to_date: z.string().describe("End of prediction window (ISO 8601)"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ aoi, from_date, to_date }) => {
+      const result = await client.getPassPrediction({
+        aoi,
+        fromDate: from_date,
+        toDate: to_date,
+      });
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
     "feasibility_check",
     {
       title: "Check Feasibility",

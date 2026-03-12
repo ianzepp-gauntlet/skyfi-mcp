@@ -47,6 +47,46 @@ import {
   taskingResolutionInputSchema,
 } from "./resolution.js";
 
+export function registerAccountTools(server: McpServer, client: SkyFiClient) {
+  server.registerTool(
+    "account_whoami",
+    {
+      title: "Get Account Info",
+      description:
+        "Get the authenticated SkyFi account profile, billing budget, and payment readiness details.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const user = await client.whoami();
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                id: user.id,
+                organizationId: user.organizationId,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                isDemoAccount: user.isDemoAccount,
+                currentBudgetUsage: user.currentBudgetUsage,
+                budgetAmount: user.budgetAmount,
+                remainingBudget:
+                  user.budgetAmount - user.currentBudgetUsage,
+                hasValidSharedCard: user.hasValidSharedCard,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+}
+
 /**
  * Register order management tools on the given MCP server.
  *
@@ -173,6 +213,12 @@ export function registerOrderTools(
           .optional()
           .describe("Product type (required for tasking)"),
         resolution: taskingResolutionInputSchema.optional(),
+        providerWindowId: z
+          .string()
+          .optional()
+          .describe(
+            "Optional provider window ID from passes_predict or feasibility_check to pin the tasking order to a specific pass",
+          ),
         deliveryDriver: z
           .enum(["S3", "GS", "AZURE"])
           .describe("Cloud storage delivery target"),
@@ -237,6 +283,7 @@ export function registerOrderTools(
           windowEnd: params.window_end,
           productType: params.product_type,
           resolution: normalizeTaskingResolution(params.resolution),
+          providerWindowId: params.providerWindowId,
           deliveryDriver: params.deliveryDriver,
           deliveryParams,
         } satisfies OrderTaskingRequest;
@@ -287,6 +334,7 @@ export function registerOrderTools(
                         window: `${params.window_start} → ${params.window_end}`,
                         productType: params.product_type,
                         resolution: normalizedResolution,
+                        providerWindowId: params.providerWindowId,
                       }),
                 },
               },

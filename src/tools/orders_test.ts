@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { registerOrderTools } from "./orders.js";
+import { registerAccountTools, registerOrderTools } from "./orders.js";
 import { ConfirmationStore } from "./confirmation.js";
 import { createToolHarness } from "./test_harness.js";
 
@@ -8,6 +8,29 @@ function parseToolJson(result: any) {
 }
 
 describe("registerOrderTools", () => {
+  test("account_whoami returns budget and identity summary", async () => {
+    const harness = createToolHarness();
+    const client = {
+      whoami: async () => ({
+        id: "user-1",
+        organizationId: "org-1",
+        email: "user@example.com",
+        firstName: "Sky",
+        lastName: "Fi",
+        isDemoAccount: false,
+        currentBudgetUsage: 1200,
+        budgetAmount: 5000,
+        hasValidSharedCard: true,
+      }),
+    };
+
+    registerAccountTools(harness.server as any, client as any);
+
+    const result = parseToolJson(await harness.invoke("account_whoami", {}));
+    expect(result.email).toBe("user@example.com");
+    expect(result.remainingBudget).toBe(3800);
+  });
+
   test("orders_prepare archive path stores token and orders_confirm submits archive order", async () => {
     const harness = createToolHarness();
     const store = new ConfirmationStore();
@@ -210,6 +233,7 @@ describe("registerOrderTools (additional)", () => {
       window_end: "2026-01-02T00:00:00Z",
       product_type: "DAY",
       resolution: "HIGH",
+      providerWindowId: "pw-123",
       deliveryDriver: "S3",
       deliveryBucket: "bucket-a",
       deliveryPath: "task/path",
@@ -219,6 +243,7 @@ describe("registerOrderTools (additional)", () => {
     expect(prepared.orderDetails.window).toContain("2026-01-01T00:00:00Z");
     expect(prepared.orderDetails.productType).toBe("DAY");
     expect(prepared.orderDetails.resolution).toBe("HIGH");
+    expect(prepared.orderDetails.providerWindowId).toBe("pw-123");
 
     const confirmedRaw = await harness.invoke("orders_confirm", {
       confirmationToken: prepared.confirmationToken,
@@ -350,6 +375,7 @@ describe("registerOrderTools (additional)", () => {
       window_end: "2026-02-02T00:00:00Z",
       product_type: "DAY",
       resolution: "HIGH",
+      providerWindowId: "pw-task-1",
       deliveryDriver: "S3",
       deliveryBucket: "task-bucket",
       deliveryPath: "task/out",
@@ -364,6 +390,7 @@ describe("registerOrderTools (additional)", () => {
     expect(capturedParams[0].windowEnd).toBe("2026-02-02T00:00:00Z");
     expect(capturedParams[0].productType).toBe("DAY");
     expect(capturedParams[0].resolution).toBe("HIGH");
+    expect(capturedParams[0].providerWindowId).toBe("pw-task-1");
     expect(capturedParams[0].deliveryDriver).toBe("S3");
     expect(capturedParams[0].deliveryParams.bucket).toBe("task-bucket");
   });
