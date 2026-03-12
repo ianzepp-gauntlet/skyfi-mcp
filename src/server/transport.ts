@@ -141,8 +141,10 @@ export function createApp(
 
     // Thread runtime env bindings through to the factory. On Cloudflare
     // Workers, c.env contains Worker bindings (secrets, KV, etc.). On Bun,
-    // c.env is empty and the config layer falls through to process.env.
-    const env = (c.env ?? {}) as Record<string, string>;
+    // c.env is an empty object — pass undefined so loadConfig falls through
+    // to process.env via the nullish coalescing operator.
+    const rawEnv = (c.env ?? {}) as Record<string, string>;
+    const env = Object.keys(rawEnv).length > 0 ? rawEnv : undefined;
 
     if (sessionMode === "stateless" && sessionId) {
       return new Response(
