@@ -117,7 +117,7 @@ The Workers entry point now runs on **Cloudflare Agents** with stateful Durable 
 
 ## Implementation Status
 
-Overall: ~90% complete.
+Overall: ~95% complete.
 
 ### Phase 1 — Scaffold & SkyFi Client ✅ COMPLETE
 
@@ -125,15 +125,15 @@ Overall: ~90% complete.
 - Typed HTTP client covering all SkyFi API endpoints (archives, orders, pricing, feasibility, notifications)
 - Config loader supporting env variables, request headers, and `~/.skyfi/config.json` (Bun only)
 
-### Phase 2 — MCP Server + Core Read-Only Tools 🚧 PARTIAL
+### Phase 2 — MCP Server + Core Read-Only Tools ✅ COMPLETE
 
 - MCP transport (Bun via Hono, Workers via Cloudflare Agents Durable Objects): done
 - Dual-runtime support (Cloudflare Workers + Bun): done
 - Tools implemented: `archives_search` (with pagination), `feasibility_check` (async polling), `pricing_get`, `orders_list`, `orders_get`: done
 - Unit and contract test suite: done
+- Real SkyFi API smoke test: done
+- End-to-end validation with a live MCP client: done (deployed on Cloudflare Workers)
 - LangSmith tracing at tool-call boundary: not started
-- Real SkyFi API smoke test: not done
-- End-to-end validation with a live MCP client: not done
 
 ### Phase 3 — Conversational Ordering ✅ COMPLETE
 
@@ -156,9 +156,9 @@ Overall: ~90% complete.
 - Nominatim client with `User-Agent` header for polite usage
 - `location_resolve` tool converts place names to bounding boxes and WKT polygons for use with SkyFi
 
-### Phase 6 — CLI Interface ❌ NOT STARTED
+### Phase 6 — CLI Interface ✅ COMPLETE (separate repo)
 
-Planned: `skyfi search`, `skyfi orders list/get`, `skyfi aoi list/create`, `skyfi auth login/status` — all backed by the same tool logic as the MCP server.
+Implemented in a standalone repository: [skyfi-cli](https://github.com/ianzepp/skyfi-cli).
 
 ### Phase 7 — Documentation ✅ COMPLETE
 
@@ -414,7 +414,7 @@ Workers also declare two Durable Object bindings:
 bun run deploy
 ```
 
-The server deploys to `https://skyfi-mcp.<your-account>.workers.dev/mcp`.
+The server deploys to `https://skyfi-mcp.ian-zepp.workers.dev/mcp`.
 
 **Local Workers dev server:**
 
@@ -427,7 +427,7 @@ This starts a local Wrangler dev server that simulates the Workers runtime, usef
 **Connect a remote MCP client:**
 
 ```bash
-claude mcp add skyfi -- https://skyfi-mcp.<your-account>.workers.dev/mcp
+claude mcp add skyfi -- https://skyfi-mcp.ian-zepp.workers.dev/mcp
 ```
 
 ### Bun Self-Hosting
@@ -506,9 +506,7 @@ wrangler.jsonc             # Cloudflare Workers deployment config
 
 ## Next Steps
 
-These are the highest-priority items needed to bring the implementation in line with `REQUIREMENTS.md`:
+These are the remaining items needed to bring the implementation in line with `REQUIREMENTS.md`:
 
-1. Add live-system verification. Real SkyFi API smoke tests and an end-to-end MCP client validation pass are still missing.
-2. Build the demo agent. The requirements call for a polished geospatial deep research agent using this MCP server, ready to be open-sourced.
-3. Add LangSmith tracing at the tool-call boundary (Phase 2 gap).
-4. Build the CLI interface (Phase 6).
+1. Build the demo agent. The requirements call for a polished geospatial deep research agent using this MCP server, ready to be open-sourced.
+2. Add LangSmith tracing at the tool-call boundary (Phase 2 stretch goal).
