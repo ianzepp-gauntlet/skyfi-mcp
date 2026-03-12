@@ -37,7 +37,7 @@ export function registerLocationTools(server: McpServer) {
     {
       title: "Resolve Location",
       description:
-        "Resolve a place name to geographic coordinates and bounding box using OpenStreetMap. Returns a WKT POLYGON that can be used directly as the 'aoi' parameter in other tools like archives_search.",
+        "Geocode a place name to coordinates and WKT polygon via OpenStreetMap. The returned polygon can be passed directly as an AOI to other tools.",
       inputSchema: {
         query: z
           .string()

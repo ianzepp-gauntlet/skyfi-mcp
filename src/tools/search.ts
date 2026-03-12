@@ -105,9 +105,9 @@ export function registerSearchTools(server: McpServer, client: SkyFiClient) {
   server.registerTool(
     "archives_search",
     {
-      title: "Search Satellite Imagery",
+      title: "Search Archives",
       description:
-        "Search the SkyFi satellite imagery catalog. Provide an area of interest as a WKT polygon, date range, and optional filters for an initial search, or provide a page cursor from a previous result to fetch the next page.",
+        "Search the SkyFi archive catalog by area of interest (WKT polygon), date range, and optional filters. Returns matching imagery with pricing. Pass a page cursor from a previous result to paginate.",
       inputSchema: searchImagerySchema,
       annotations: { readOnlyHint: true },
     },

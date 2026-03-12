@@ -29,7 +29,7 @@ export function registerPricingTools(server: McpServer, client: SkyFiClient) {
     {
       title: "Get Pricing",
       description:
-        "Get the SkyFi pricing matrix for satellite imagery. Optionally provide an AOI to get area-specific pricing. Returns pricing by product type, resolution, and provider.",
+        "Get the SkyFi pricing matrix. Optionally scope to an AOI for area-specific pricing.",
       inputSchema: {
         aoi: z
           .string()

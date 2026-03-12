@@ -67,7 +67,7 @@ export function registerOrderTools(
     {
       title: "List Orders",
       description:
-        "List your SkyFi orders with optional filtering by type and pagination.",
+        "List orders with optional filtering by type (ARCHIVE or TASKING) and pagination.",
       inputSchema: {
         orderType: z
           .enum(["ARCHIVE", "TASKING"])
@@ -114,8 +114,8 @@ export function registerOrderTools(
   server.registerTool(
     "orders_get",
     {
-      title: "Get Order Details",
-      description: "Get detailed status and history for a specific order.",
+      title: "Get Order",
+      description: "Get status, history, and delivery details for a specific order.",
       inputSchema: {
         order_id: z.string().describe("Order UUID"),
       },
@@ -143,7 +143,7 @@ export function registerOrderTools(
     {
       title: "Prepare Order",
       description:
-        "Prepare a satellite imagery order and get pricing. This does NOT place the order — it returns a confirmation token that must be passed to orders_confirm to actually execute the purchase. The user MUST review and approve the price before confirming.",
+        "Validate order parameters and fetch pricing. Does NOT place the order. Returns a confirmation token for use with orders_confirm.",
       inputSchema: {
         type: z
           .enum(["archive", "tasking"])
@@ -298,9 +298,9 @@ export function registerOrderTools(
   server.registerTool(
     "orders_confirm",
     {
-      title: "Confirm and Place Order",
+      title: "Confirm Order",
       description:
-        "Execute a previously prepared order. Requires a valid confirmation token from orders_prepare. The user must have explicitly approved the order before calling this tool.",
+        "Execute a previously prepared order using the confirmation token from orders_prepare. Places an archive or tasking order.",
       inputSchema: {
         confirmationToken: z
           .string()

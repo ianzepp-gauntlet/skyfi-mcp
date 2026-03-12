@@ -43,9 +43,9 @@ export function registerAoiTools(
   server.registerTool(
     "notifications_create",
     {
-      title: "Create AOI Monitor",
+      title: "Create Notification",
       description:
-        "Create an Area of Interest monitor that will send webhook notifications when new imagery is available for the specified area.",
+        "Create a notification filter that sends webhooks when new imagery matches the specified AOI and optional quality filters.",
       inputSchema: {
         aoi: z.string().describe("Area of interest as WKT POLYGON"),
         webhookUrl: z.string().describe("URL to receive webhook notifications"),
@@ -96,8 +96,8 @@ export function registerAoiTools(
   server.registerTool(
     "notifications_list",
     {
-      title: "List AOI Monitors",
-      description: "List all active Area of Interest monitors.",
+      title: "List Notifications",
+      description: "List all active notification filters.",
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -133,9 +133,9 @@ export function registerAoiTools(
   server.registerTool(
     "notifications_get",
     {
-      title: "Get AOI Monitor",
+      title: "Get Notification",
       description:
-        "Get details for a specific AOI monitor by ID, including recent alerts received via webhook.",
+        "Get a notification filter by ID, including its history and any recent webhook alerts.",
       inputSchema: {
         monitor_id: z
           .string()
@@ -180,8 +180,8 @@ export function registerAoiTools(
   server.registerTool(
     "notifications_delete",
     {
-      title: "Delete AOI Monitor",
-      description: "Delete an Area of Interest monitor by ID.",
+      title: "Delete Notification",
+      description: "Delete a notification filter and discard its stored alerts.",
       inputSchema: {
         monitor_id: z.string().describe("Monitor/notification UUID to delete"),
       },
@@ -209,9 +209,9 @@ export function registerAoiTools(
   server.registerTool(
     "alerts_list",
     {
-      title: "Get AOI Alerts",
+      title: "List Alerts",
       description:
-        "Retrieve recent alerts received via webhook for AOI monitors. Specify a monitor_id to filter by monitor, or omit it to see all alerts.",
+        "List recent webhook alerts. Optionally filter by notification ID.",
       inputSchema: {
         monitor_id: z
           .string()

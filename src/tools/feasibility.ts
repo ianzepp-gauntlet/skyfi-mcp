@@ -39,9 +39,9 @@ export function registerFeasibilityTools(
   server.registerTool(
     "feasibility_check",
     {
-      title: "Check Tasking Feasibility",
+      title: "Check Feasibility",
       description:
-        "Check whether a satellite tasking order is feasible for a given area, time window, product type, and resolution. Submits the request and polls until results are available.",
+        "Check whether a satellite tasking order is feasible for a given area, time window, product type, and resolution. Submits the request and polls until complete.",
       inputSchema: {
         aoi: z.string().describe("Area of interest as WKT POLYGON string"),
         window_start: z.string().describe("Start of capture window (ISO 8601)"),
