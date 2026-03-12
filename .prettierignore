@@ -1,0 +1,6 @@
+.claude
+.wrangler
+coverage
+dist
+docs/openapi.json
+node_modules

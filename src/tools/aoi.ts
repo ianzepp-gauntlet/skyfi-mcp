@@ -181,7 +181,8 @@ export function registerAoiTools(
     "notifications_delete",
     {
       title: "Delete Notification",
-      description: "Delete a notification filter and discard its stored alerts.",
+      description:
+        "Delete a notification filter and discard its stored alerts.",
       inputSchema: {
         monitor_id: z.string().describe("Monitor/notification UUID to delete"),
       },

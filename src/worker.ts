@@ -18,7 +18,7 @@
  */
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { DurableAlertStoreClient, SkyFiAlertStore } from "./alerts_object.js";
+import { DurableAlertStoreClient } from "./alerts_object.js";
 import { loadConfig } from "./config/index.js";
 import { createAgentMcpHandler } from "./server/agent_transport.js";
 import { createMcpServer } from "./server/mcp.js";
@@ -40,7 +40,11 @@ export interface WorkerEnv extends Cloudflare.Env {
  * the Streamable HTTP transport, session lifecycle, and WebSocket hibernation.
  * We only need to provide `server` and `init()` to register our tools.
  */
-export class SkyFiMcpAgent extends McpAgent<WorkerEnv, unknown, SkyFiAgentProps> {
+export class SkyFiMcpAgent extends McpAgent<
+  WorkerEnv,
+  unknown,
+  SkyFiAgentProps
+> {
   server = new McpServer({ name: "skyfi", version: "0.1.0" });
 
   async init() {

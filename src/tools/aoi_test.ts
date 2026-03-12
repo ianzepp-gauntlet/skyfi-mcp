@@ -55,7 +55,9 @@ describe("registerAoiTools", () => {
     );
     expect(created.monitorId).toBe("mon-1");
 
-    const listed = parseToolJson(await harness.invoke("notifications_list", {}));
+    const listed = parseToolJson(
+      await harness.invoke("notifications_list", {}),
+    );
     expect(listed.total).toBe(1);
     expect(listed.monitors[0].id).toBe("mon-1");
 
@@ -76,7 +78,9 @@ describe("registerAoiTools", () => {
 
     registerAoiTools(harness.server as any, client as any);
 
-    const listed = parseToolJson(await harness.invoke("notifications_list", {}));
+    const listed = parseToolJson(
+      await harness.invoke("notifications_list", {}),
+    );
     expect(listed.total).toBe(2);
   });
 

@@ -49,16 +49,16 @@ This two-step flow ensures you always see the price before any purchase is made.
 
 All SkyFi MCP tools are available in the conversation:
 
-| Tool | What it does |
-|------|-------------|
-| `archives_search` | Search the satellite catalog |
-| `feasibility_check` | Check if a new capture is possible |
-| `pricing_get` | View pricing matrix |
-| `orders_list` / `orders_get` | Browse order history |
-| `orders_prepare` / `orders_confirm` | Place orders (with confirmation) |
-| `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete` | Manage area monitors |
-| `alerts_list` | Check for new imagery notifications |
-| `location_resolve` | Convert place names to coordinates |
+| Tool                                                                                         | What it does                        |
+| -------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `archives_search`                                                                            | Search the satellite catalog        |
+| `feasibility_check`                                                                          | Check if a new capture is possible  |
+| `pricing_get`                                                                                | View pricing matrix                 |
+| `orders_list` / `orders_get`                                                                 | Browse order history                |
+| `orders_prepare` / `orders_confirm`                                                          | Place orders (with confirmation)    |
+| `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete` | Manage area monitors                |
+| `alerts_list`                                                                                | Check for new imagery notifications |
+| `location_resolve`                                                                           | Convert place names to coordinates  |
 
 ## Notes
 

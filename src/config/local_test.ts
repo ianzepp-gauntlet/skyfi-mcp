@@ -49,7 +49,10 @@ afterEach(() => {
 describe("loadLocalConfig JSON normalization", () => {
   test("reads camelCase apiKey and baseUrl", () => {
     const result = parseLocalConfig(
-      JSON.stringify({ apiKey: "key-camel", baseUrl: "https://camel.example.com" }),
+      JSON.stringify({
+        apiKey: "key-camel",
+        baseUrl: "https://camel.example.com",
+      }),
     );
     expect(result.apiKey).toBe("key-camel");
     expect(result.baseUrl).toBe("https://camel.example.com");
@@ -57,7 +60,10 @@ describe("loadLocalConfig JSON normalization", () => {
 
   test("reads snake_case api_key and base_url", () => {
     const result = parseLocalConfig(
-      JSON.stringify({ api_key: "key-snake", base_url: "https://snake.example.com" }),
+      JSON.stringify({
+        api_key: "key-snake",
+        base_url: "https://snake.example.com",
+      }),
     );
     expect(result.apiKey).toBe("key-snake");
     expect(result.baseUrl).toBe("https://snake.example.com");
@@ -85,7 +91,12 @@ describe("loadLocalConfig JSON normalization", () => {
 
 describe("loadLocalConfig with real files", () => {
   test("reads camelCase config from real temp file", () => {
-    writeConfig(JSON.stringify({ apiKey: "real-key", baseUrl: "https://real.example.com" }));
+    writeConfig(
+      JSON.stringify({
+        apiKey: "real-key",
+        baseUrl: "https://real.example.com",
+      }),
+    );
     const raw = require("fs").readFileSync(configPath, "utf-8");
     const result = parseLocalConfig(raw);
     expect(result.apiKey).toBe("real-key");

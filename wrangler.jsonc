@@ -14,29 +14,29 @@
     "bindings": [
       {
         "name": "MCP_OBJECT",
-        "class_name": "SkyFiMcpAgent"
+        "class_name": "SkyFiMcpAgent",
       },
       {
         "name": "ALERT_STORE",
-        "class_name": "SkyFiAlertStore"
-      }
-    ]
+        "class_name": "SkyFiAlertStore",
+      },
+    ],
   },
 
   // Durable Object migration — required on first deploy
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["SkyFiMcpAgent"]
+      "new_sqlite_classes": ["SkyFiMcpAgent"],
     },
     {
       "tag": "v2",
-      "new_sqlite_classes": ["SkyFiAlertStore"]
-    }
+      "new_sqlite_classes": ["SkyFiAlertStore"],
+    },
   ],
 
   // Observability: enable Worker-level logging
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
 }

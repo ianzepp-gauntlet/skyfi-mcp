@@ -35,11 +35,7 @@ export interface AgentMcpHandlerOptions<
   getAgent?: AgentGetter;
 }
 
-function jsonRpcError(
-  status: number,
-  code: number,
-  message: string,
-): Response {
+function jsonRpcError(status: number, code: number, message: string): Response {
   return Response.json(
     {
       error: { code, message },
@@ -121,9 +117,13 @@ export function createAgentMcpHandler<
         return jsonRpcError(400, -32_700, "Parse error: Invalid JSON");
       }
 
-      const arrayMessage = Array.isArray(rawMessage) ? rawMessage : [rawMessage];
+      const arrayMessage = Array.isArray(rawMessage)
+        ? rawMessage
+        : [rawMessage];
       if (
-        arrayMessage.some((message) => !JSONRPCMessageSchema.safeParse(message).success)
+        arrayMessage.some(
+          (message) => !JSONRPCMessageSchema.safeParse(message).success,
+        )
       ) {
         return jsonRpcError(
           400,
@@ -135,8 +135,8 @@ export function createAgentMcpHandler<
       const messages = arrayMessage.map((message) =>
         JSONRPCMessageSchema.parse(message),
       );
-      const maybeInitializeRequest = messages.find((message) =>
-        InitializeRequestSchema.safeParse(message).success,
+      const maybeInitializeRequest = messages.find(
+        (message) => InitializeRequestSchema.safeParse(message).success,
       );
 
       let sessionId = request.headers.get("mcp-session-id");
@@ -163,7 +163,9 @@ export function createAgentMcpHandler<
       }
 
       sessionId = sessionId ?? namespace.newUniqueId().toString();
-      const props = maybeInitializeRequest ? getPropsForInit?.(request) : undefined;
+      const props = maybeInitializeRequest
+        ? getPropsForInit?.(request)
+        : undefined;
       const agent = (await getAgentImpl(
         namespace,
         `streamable-http:${sessionId}`,

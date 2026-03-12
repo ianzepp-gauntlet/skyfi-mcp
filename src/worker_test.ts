@@ -24,7 +24,8 @@ describe("worker fetch", () => {
   });
 
   test("webhook endpoint persists alerts using notification_id", async () => {
-    const seen: Array<{ monitorId: string; payload: Record<string, unknown> }> = [];
+    const seen: Array<{ monitorId: string; payload: Record<string, unknown> }> =
+      [];
     const fetch = createWorkerFetch({
       createAlertStore: () => ({
         add: async (monitorId, payload) => {

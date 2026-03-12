@@ -119,7 +119,8 @@ export function registerOrderTools(
     "orders_get",
     {
       title: "Get Order",
-      description: "Get status, history, and delivery details for a specific order.",
+      description:
+        "Get status, history, and delivery details for a specific order.",
       inputSchema: {
         order_id: z.string().describe("Order UUID"),
       },

@@ -288,7 +288,12 @@ describe("registerOrderTools (additional)", () => {
       getPricing: async () => ({ currency: "USD", rows: [] }),
       createArchiveOrder: async (params: any) => {
         capturedParams.push(params);
-        return { id: "ord-1", orderType: "ARCHIVE", status: "SUBMITTED", createdAt: "2026-01-01T00:00:00Z" };
+        return {
+          id: "ord-1",
+          orderType: "ARCHIVE",
+          status: "SUBMITTED",
+          createdAt: "2026-01-01T00:00:00Z",
+        };
       },
       createTaskingOrder: async () => ({ id: "unused" }),
     };
@@ -327,7 +332,12 @@ describe("registerOrderTools (additional)", () => {
       createArchiveOrder: async () => ({ id: "unused" }),
       createTaskingOrder: async (params: any) => {
         capturedParams.push(params);
-        return { id: "ord-task-2", orderType: "TASKING", status: "SUBMITTED", createdAt: "2026-01-01T00:00:00Z" };
+        return {
+          id: "ord-task-2",
+          orderType: "TASKING",
+          status: "SUBMITTED",
+          createdAt: "2026-01-01T00:00:00Z",
+        };
       },
     };
 

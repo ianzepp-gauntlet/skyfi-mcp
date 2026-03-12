@@ -42,7 +42,8 @@ const { text } = await generateText({
   model: openai("gpt-4o"),
   tools,
   maxSteps: 10,
-  prompt: "Search for satellite imagery of the Golden Gate Bridge from the last week",
+  prompt:
+    "Search for satellite imagery of the Golden Gate Bridge from the last week",
 });
 
 console.log(text);

@@ -110,10 +110,7 @@ describe("hygiene", () => {
       for (let i = 0; i < file.lines.length; i++) {
         const trimmed = file.lines[i]?.trimStart();
         // Count "void expr" statements, not return type annotations
-        if (
-          trimmed?.startsWith("void ") &&
-          !trimmed.startsWith("void 0")
-        ) {
+        if (trimmed?.startsWith("void ") && !trimmed.startsWith("void 0")) {
           fireAndForget++;
           hits.push(`  ${file.filePath}:${i + 1}: ${trimmed}`);
         }

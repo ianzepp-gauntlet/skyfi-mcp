@@ -48,7 +48,9 @@ export const searchImagerySchema = z
     page: z
       .string()
       .optional()
-      .describe("Pagination cursor returned by a previous archives_search call"),
+      .describe(
+        "Pagination cursor returned by a previous archives_search call",
+      ),
     aoi: z
       .string()
       .optional()

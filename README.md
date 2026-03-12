@@ -4,21 +4,21 @@ An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.co
 
 ## Tools
 
-| Tool | Description |
-|------|-------------|
-| `archives_search` | Search the SkyFi satellite imagery catalog by area, date range, cloud cover, and resolution |
-| `feasibility_check` | Check whether a new satellite tasking capture is feasible for a given area and time window |
-| `pricing_get` | Get the SkyFi pricing matrix, optionally scoped to a specific area |
-| `orders_list` | List your previous SkyFi orders |
-| `orders_get` | Get detailed status and history for a specific order |
-| `orders_prepare` | Prepare an order and get pricing — does NOT place the order (returns a confirmation token) |
-| `orders_confirm` | Execute a prepared order using a confirmation token from `orders_prepare` |
-| `notifications_create` | Create an Area of Interest monitor with webhook notifications for new imagery |
-| `notifications_list` | List all active AOI monitors |
-| `notifications_get` | Get details for a specific AOI monitor, including recent webhook alerts |
-| `notifications_delete` | Delete an AOI monitor |
-| `alerts_list` | Retrieve recent webhook alerts for AOI monitors |
-| `location_resolve` | Resolve a place name to coordinates and WKT polygon via OpenStreetMap |
+| Tool                   | Description                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| `archives_search`      | Search the SkyFi satellite imagery catalog by area, date range, cloud cover, and resolution |
+| `feasibility_check`    | Check whether a new satellite tasking capture is feasible for a given area and time window  |
+| `pricing_get`          | Get the SkyFi pricing matrix, optionally scoped to a specific area                          |
+| `orders_list`          | List your previous SkyFi orders                                                             |
+| `orders_get`           | Get detailed status and history for a specific order                                        |
+| `orders_prepare`       | Prepare an order and get pricing — does NOT place the order (returns a confirmation token)  |
+| `orders_confirm`       | Execute a prepared order using a confirmation token from `orders_prepare`                   |
+| `notifications_create` | Create an Area of Interest monitor with webhook notifications for new imagery               |
+| `notifications_list`   | List all active AOI monitors                                                                |
+| `notifications_get`    | Get details for a specific AOI monitor, including recent webhook alerts                     |
+| `notifications_delete` | Delete an AOI monitor                                                                       |
+| `alerts_list`          | Retrieve recent webhook alerts for AOI monitors                                             |
+| `location_resolve`     | Resolve a place name to coordinates and WKT polygon via OpenStreetMap                       |
 
 ## API Coverage
 
@@ -26,34 +26,35 @@ The SkyFi Platform API (v2.0.0) spec is saved locally at [`docs/openapi.json`](d
 
 ### Endpoint Mapping
 
-| Method | Path | MCP Tool | Notes |
-|--------|------|----------|-------|
-| `POST` | `/archives` | `archives_search` | Initial search |
-| `GET` | `/archives` | `archives_search` | Pagination via cursor |
-| `GET` | `/archives/{archive_id}` | — | **Not exposed** — no tool to look up a single archive by ID |
-| `GET` | `/auth/whoami` | — | **Not exposed** — account info and budget balance not accessible |
-| `POST` | `/demo-delivery` | — | **Not exposed** — demo-only feature, low priority |
-| `POST` | `/feasibility` | `feasibility_check` | Submit step (polled internally) |
-| `GET` | `/feasibility/{feasibility_id}` | *(internal)* | Only called by the polling loop inside `feasibility_check` |
-| `POST` | `/feasibility/pass-prediction` | — | **Not exposed** — see note below |
-| `GET` | `/health_check` | — | Infrastructure; not useful as an MCP tool |
-| `POST` | `/notifications` | `notifications_create` | |
-| `GET` | `/notifications` | `notifications_list` | |
-| `GET` | `/notifications/{notification_id}` | `notifications_get` | |
-| `DELETE` | `/notifications/{notification_id}` | `notifications_delete` | |
-| `POST` | `/order-archive` | `orders_confirm` | Archive path |
-| `POST` | `/order-tasking` | `orders_confirm` | Tasking path |
-| `GET` | `/orders` | `orders_list` | |
-| `GET` | `/orders/{order_id}` | `orders_get` | |
-| `POST` | `/orders/{order_id}/redelivery` | — | **Not exposed** — no tool to re-trigger delivery |
-| `GET` | `/orders/{order_id}/{deliverable_type}` | — | **Not exposed** — no tool to get download URLs |
-| `POST` | `/pricing` | *(internal)* | Only called inside `orders_prepare`; not exposed standalone |
-| `GET` | `/ping` | — | Infrastructure |
+| Method   | Path                                    | MCP Tool               | Notes                                                            |
+| -------- | --------------------------------------- | ---------------------- | ---------------------------------------------------------------- |
+| `POST`   | `/archives`                             | `archives_search`      | Initial search                                                   |
+| `GET`    | `/archives`                             | `archives_search`      | Pagination via cursor                                            |
+| `GET`    | `/archives/{archive_id}`                | —                      | **Not exposed** — no tool to look up a single archive by ID      |
+| `GET`    | `/auth/whoami`                          | —                      | **Not exposed** — account info and budget balance not accessible |
+| `POST`   | `/demo-delivery`                        | —                      | **Not exposed** — demo-only feature, low priority                |
+| `POST`   | `/feasibility`                          | `feasibility_check`    | Submit step (polled internally)                                  |
+| `GET`    | `/feasibility/{feasibility_id}`         | _(internal)_           | Only called by the polling loop inside `feasibility_check`       |
+| `POST`   | `/feasibility/pass-prediction`          | —                      | **Not exposed** — see note below                                 |
+| `GET`    | `/health_check`                         | —                      | Infrastructure; not useful as an MCP tool                        |
+| `POST`   | `/notifications`                        | `notifications_create` |                                                                  |
+| `GET`    | `/notifications`                        | `notifications_list`   |                                                                  |
+| `GET`    | `/notifications/{notification_id}`      | `notifications_get`    |                                                                  |
+| `DELETE` | `/notifications/{notification_id}`      | `notifications_delete` |                                                                  |
+| `POST`   | `/order-archive`                        | `orders_confirm`       | Archive path                                                     |
+| `POST`   | `/order-tasking`                        | `orders_confirm`       | Tasking path                                                     |
+| `GET`    | `/orders`                               | `orders_list`          |                                                                  |
+| `GET`    | `/orders/{order_id}`                    | `orders_get`           |                                                                  |
+| `POST`   | `/orders/{order_id}/redelivery`         | —                      | **Not exposed** — no tool to re-trigger delivery                 |
+| `GET`    | `/orders/{order_id}/{deliverable_type}` | —                      | **Not exposed** — no tool to get download URLs                   |
+| `POST`   | `/pricing`                              | _(internal)_           | Only called inside `orders_prepare`; not exposed standalone      |
+| `GET`    | `/ping`                                 | —                      | Infrastructure                                                   |
 
 ### Missing Gaps
 
 **`POST /feasibility/pass-prediction` — not exposed.**
 This is the intended first step in the tasking workflow: find upcoming satellite passes over an AOI, then pin a tasking order to a specific pass via `providerWindowId`. Without this tool, agents cannot use pass-level targeting. The full workflow is:
+
 1. `POST /feasibility/pass-prediction` → get candidate passes with `provider_window_id` values
 2. `POST /feasibility` → verify feasibility for a specific pass
 3. `POST /order-tasking` with `providerWindowId` set → lock the order to that pass
@@ -315,13 +316,13 @@ The `--errors` flag is required — it enables strict request validation. Withou
 
 Contract test coverage (17 tests):
 
-| Group | Endpoints tested |
-|-------|-----------------|
-| Auth | `GET /auth/whoami` |
-| Archives | `POST /archives` (search), `GET /archives` (pagination), `GET /archives/{id}` |
-| Pricing | `POST /pricing` (with and without AOI) |
-| Feasibility | `POST /feasibility`, `GET /feasibility/{id}`, `POST /feasibility/pass-prediction` |
-| Orders | `GET /orders`, `GET /orders/{id}`, `POST /order-archive`, `POST /order-tasking` |
+| Group         | Endpoints tested                                                                                     |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| Auth          | `GET /auth/whoami`                                                                                   |
+| Archives      | `POST /archives` (search), `GET /archives` (pagination), `GET /archives/{id}`                        |
+| Pricing       | `POST /pricing` (with and without AOI)                                                               |
+| Feasibility   | `POST /feasibility`, `GET /feasibility/{id}`, `POST /feasibility/pass-prediction`                    |
+| Orders        | `GET /orders`, `GET /orders/{id}`, `POST /order-archive`, `POST /order-tasking`                      |
 | Notifications | `POST /notifications`, `GET /notifications`, `GET /notifications/{id}`, `DELETE /notifications/{id}` |
 
 Contract tests require Prism to be running. If Prism is not reachable, the test file fails immediately with a startup error message. They are excluded from `bun test` by default (no `contract` in the grep pattern) — run them explicitly.
@@ -374,11 +375,11 @@ Add to your Claude Desktop MCP config:
 
 ## Endpoints
 
-| Path | Method | Purpose |
-|------|--------|---------|
-| `/mcp` | POST/GET/DELETE | MCP protocol (tool calls, SSE streams, session management) |
-| `/health` | GET | Health check |
-| `/webhooks/aoi` | POST | Inbound webhook receiver for AOI notifications |
+| Path            | Method          | Purpose                                                    |
+| --------------- | --------------- | ---------------------------------------------------------- |
+| `/mcp`          | POST/GET/DELETE | MCP protocol (tool calls, SSE streams, session management) |
+| `/health`       | GET             | Health check                                               |
+| `/webhooks/aoi` | POST            | Inbound webhook receiver for AOI notifications             |
 
 ## Deployment
 
@@ -439,6 +440,7 @@ bun run start
 ```
 
 Environment variables:
+
 - `SKYFI_API_KEY` — your SkyFi API key
 - `SKYFI_BASE_URL` — override the SkyFi API base URL (optional)
 - `PORT` — listening port (default: 3000)

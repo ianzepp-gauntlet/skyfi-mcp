@@ -194,7 +194,9 @@ describe("createApp", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({ error: "invalid JSON" });
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid JSON",
+    });
   });
 
   test("stateful mode reuses initialized session transport and closes server on session close", async () => {

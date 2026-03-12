@@ -104,7 +104,9 @@ export class SkyFiAlertStore {
   }
 
   private async readAlerts(monitorId: string): Promise<AoiAlert[]> {
-    const stored = await this.state.storage.get<AoiAlert[]>(alertKey(monitorId));
+    const stored = await this.state.storage.get<AoiAlert[]>(
+      alertKey(monitorId),
+    );
     return parseAlertList(stored);
   }
 }

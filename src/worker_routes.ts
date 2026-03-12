@@ -22,7 +22,10 @@ async function handleAoiWebhook(
     return Response.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  await alertStore.add(resolveMonitorId(body), (body ?? {}) as Record<string, unknown>);
+  await alertStore.add(
+    resolveMonitorId(body),
+    (body ?? {}) as Record<string, unknown>,
+  );
   return Response.json({ received: true });
 }
 
@@ -39,7 +42,8 @@ export function createWorkerFetch(options?: {
   ): Promise<Response> {
     const url = new URL(request.url);
     const alertStore =
-      options?.createAlertStore?.(env) ?? new DurableAlertStoreClient(env.ALERT_STORE);
+      options?.createAlertStore?.(env) ??
+      new DurableAlertStoreClient(env.ALERT_STORE);
 
     if (url.pathname === "/mcp") {
       const mcpHandler = options?.createMcpHandler?.(env);
