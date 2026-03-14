@@ -1,0 +1,20 @@
+suites:
+  planner-smoke:
+    description: Fixture-backed smoke cases for validating that the model picks the expected SkyFi tools.
+    stage: smoke
+    mode: fixture
+    fixture_set: planner-smoke
+    cases:
+      - archive-search-place-name
+      - prepare-archive-order-with-confirmation-gate
+      - ambiguous-order-needs-clarification
+      - archive-order-missing-aoi
+      - order-confirm-without-preparation
+  live-smoke:
+    description: Read-only live cases against a running SkyFi MCP server to verify useful outputs.
+    stage: smoke
+    mode: live
+    cases:
+      - live-location-and-search
+      - live-pricing-exploration
+      - live-account-readiness

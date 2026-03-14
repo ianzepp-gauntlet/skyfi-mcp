@@ -1,0 +1,19 @@
+id: live-account-readiness
+description: Live account health and budget readiness check.
+query: Before we buy anything, check whether my account is ready and how much budget I have left.
+category: account
+difficulty: easy
+tags:
+  - live
+  - account
+allowed_tools:
+  - account_whoami
+expected_tools:
+  - account_whoami
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  account_whoami:
+    - remainingBudget
+min_final_chars: 60

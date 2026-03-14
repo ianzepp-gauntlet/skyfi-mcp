@@ -1,0 +1,14 @@
+id: ambiguous-order-needs-clarification
+description: The model should ask for clarification instead of guessing the order type.
+query: Order imagery for this area next month.
+category: ordering
+difficulty: easy
+tags:
+  - smoke
+  - clarification
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+  - archives_search
+  - feasibility_check
+min_final_chars: 40

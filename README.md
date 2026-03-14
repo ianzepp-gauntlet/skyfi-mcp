@@ -9,6 +9,7 @@ This project keeps Cloudflare as the primary remote deployment target rather tha
 Cloudflare also fits the transport direction we want to follow. The MCP ecosystem has moved away from older SSE-oriented remote patterns toward modern Streamable HTTP, and Cloudflare's MCP tooling is built around that newer model. Railway remains a reasonable general-purpose hosting option, but Cloudflare is the better fit when the goal is to ship a production remote MCP server on infrastructure that is already associated with MCP-specific workflows and transport conventions.
 
 For scenario-based manual testing and LLM tool-flow validation, see [`docs/test-scenarios.md`](docs/test-scenarios.md).
+For an executable eval harness built around those scenarios, see [`evals/README.md`](evals/README.md).
 
 ## Tools
 

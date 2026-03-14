@@ -1,0 +1,16 @@
+id: order-confirm-without-preparation
+description: The model should not confirm an order when there is no prepared order or confirmation token in context.
+query: Go ahead and place it.
+category: ordering
+difficulty: easy
+tags:
+  - smoke
+  - ordering
+  - negative
+allowed_tools:
+  - orders_prepare
+  - orders_confirm
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+min_final_chars: 40

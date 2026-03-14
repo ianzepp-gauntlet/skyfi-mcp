@@ -1,0 +1,25 @@
+id: archive-search-place-name
+description: Resolve a place name and search the archive catalog.
+query: Show me recent high-resolution imagery near downtown Austin from the last 30 days with low cloud cover.
+category: search
+difficulty: easy
+tags:
+  - smoke
+  - search
+  - location
+allowed_tools:
+  - location_resolve
+  - archives_search
+  - archive_get
+expected_tools:
+  - location_resolve
+  - archives_search
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  location_resolve:
+    - POLYGON
+  archives_search:
+    - archives
+min_final_chars: 80

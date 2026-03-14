@@ -1,0 +1,16 @@
+id: archive-order-missing-aoi
+description: The model should refuse to prepare an archive order when the AOI is referenced but not actually provided.
+query: Buy archive arch-123 for this AOI and deliver it to my S3 bucket called eval-bucket, but show me the price first.
+category: ordering
+difficulty: easy
+tags:
+  - smoke
+  - ordering
+  - negative
+allowed_tools:
+  - orders_prepare
+  - orders_confirm
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+min_final_chars: 40

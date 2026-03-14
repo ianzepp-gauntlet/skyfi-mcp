@@ -1,0 +1,55 @@
+tool_results:
+  location_resolve:
+    content:
+      - type: text
+        text: |
+          {
+            "query": "downtown Austin",
+            "displayName": "Austin, Travis County, Texas, United States",
+            "wkt": "POLYGON ((-97.75 30.25, -97.73 30.25, -97.73 30.28, -97.75 30.28, -97.75 30.25))"
+          }
+  archives_search:
+    content:
+      - type: text
+        text: |
+          {
+            "total": 2,
+            "count": 2,
+            "archives": [
+              {
+                "archiveId": "arch-101",
+                "provider": "Umbra",
+                "productType": "DAY",
+                "resolution": "HIGH",
+                "captureDate": "2026-02-18T10:00:00Z",
+                "cloudCover": "8%",
+                "pricePerKm2": "$4.20"
+              },
+              {
+                "archiveId": "arch-102",
+                "provider": "Airbus",
+                "productType": "DAY",
+                "resolution": "HIGH",
+                "captureDate": "2026-03-01T09:30:00Z",
+                "cloudCover": "12%",
+                "pricePerKm2": "$4.80"
+              }
+            ],
+            "hasMore": false,
+            "nextPage": null
+          }
+  archive_get:
+    content:
+      - type: text
+        text: |
+          {
+            "archiveId": "arch-101",
+            "provider": "Umbra",
+            "constellation": "Umbra SAR",
+            "productType": "DAY",
+            "resolution": "HIGH",
+            "captureTimestamp": "2026-02-18T10:00:00Z",
+            "cloudCoveragePercent": 8,
+            "priceForOneSquareKm": 4.2,
+            "deliveryTimeHours": 12
+          }

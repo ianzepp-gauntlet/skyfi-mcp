@@ -1,0 +1,9 @@
+models:
+  gpt-4o:
+    label: GPT-4o
+    provider: openai
+    model: gpt-4o
+  gpt-4o-mini:
+    label: GPT-4o mini
+    provider: openai
+    model: gpt-4o-mini
