@@ -1,0 +1,16 @@
+id: aoi-create-missing-webhook
+description: The model should not create an AOI monitor when the webhook URL is missing.
+query: Create an AOI monitor for POLYGON ((-97.75 30.25, -97.73 30.25, -97.73 30.28, -97.75 30.28, -97.75 30.25)) and notify me when new DAY imagery arrives.
+category: monitoring
+difficulty: easy
+tags:
+  - smoke
+  - aoi
+  - negative
+allowed_tools:
+  - notifications_create
+  - notifications_delete
+tool_must_not_contain:
+  - notifications_create
+  - notifications_delete
+min_final_chars: 40

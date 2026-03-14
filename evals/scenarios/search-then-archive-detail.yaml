@@ -1,0 +1,35 @@
+id: search-then-archive-detail
+description: Resolve a place, search archives, then inspect one returned scene in a follow-up turn.
+query: Show me recent high-resolution imagery near downtown Austin from the last 30 days with low cloud cover.
+follow_up_messages:
+  - Show me the full details for the cheapest returned archive option.
+category: search
+difficulty: medium
+tags:
+  - smoke
+  - multistep
+  - search
+allowed_tools:
+  - location_resolve
+  - archives_search
+  - archive_get
+expected_tools:
+  - location_resolve
+  - archives_search
+  - archive_get
+expected_tool_sequence:
+  - location_resolve
+  - archives_search
+  - archive_get
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  location_resolve:
+    - POLYGON
+  archives_search:
+    - archives
+  archive_get:
+    - archiveId
+    - priceForOneSquareKm
+min_final_chars: 80

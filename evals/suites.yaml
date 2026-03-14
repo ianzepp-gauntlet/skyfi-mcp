@@ -18,6 +18,24 @@ suites:
     cases:
       - human-approval-confirms-order
       - no-approval-no-confirm
+  planner-multistep-smoke:
+    description: Fixture-backed multi-step workflow cases for search, clarification, and tasking exploration.
+    stage: smoke
+    mode: fixture
+    fixture_set: planner-smoke
+    cases:
+      - search-then-archive-detail
+      - clarify-then-prepare-archive-order
+      - feasibility-then-pass-prediction
+  planner-aoi-smoke:
+    description: Fixture-backed AOI monitoring workflows covering create, review, alerts, delete, and underspecified requests.
+    stage: smoke
+    mode: fixture
+    fixture_set: planner-smoke
+    cases:
+      - aoi-create-list-delete
+      - aoi-create-get-alerts-delete
+      - aoi-create-missing-webhook
   live-smoke:
     description: Read-only live cases against a running SkyFi MCP server to verify useful outputs.
     stage: smoke
@@ -61,6 +79,14 @@ suites:
     mode: live
     cases:
       - live-monitoring-review
+  live-aoi-smoke:
+    description: Live AOI monitoring lifecycle and webhook visibility checks.
+    stage: smoke
+    mode: live
+    cases:
+      - live-aoi-create-list-delete
+      - live-aoi-create-get-delete
+      - live-webhook-alerts-list
   live-budget-smoke:
     description: Minimal pricing and budget-filtered discovery checks against the real SkyFi-backed MCP server.
     stage: smoke
@@ -75,3 +101,20 @@ suites:
     cases:
       - live-prepare-archive-order
       - live-order-missing-details
+  live-multistep-smoke:
+    description: Safe live multi-step conversational flows that chain read-only tools and prepare-only ordering.
+    stage: smoke
+    mode: live
+    cases:
+      - live-search-then-archive-detail-ambiguous
+      - live-search-then-archive-detail
+      - live-search-then-prepare-no-confirm
+  live-tasking-smoke:
+    description: Safe live tasking workflows that resolve an address, check feasibility, and prepare but do not confirm tasking orders.
+    stage: smoke
+    mode: live
+    cases:
+      - live-address-feasibility-no-opportunities
+      - live-address-feasibility-then-prepare-tasking
+      - live-address-pass-then-prepare-tasking
+      - live-tasking-missing-constraints

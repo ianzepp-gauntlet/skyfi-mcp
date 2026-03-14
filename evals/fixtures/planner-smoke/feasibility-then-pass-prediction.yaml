@@ -1,0 +1,29 @@
+tool_results:
+  feasibility_check:
+    content:
+      - type: text
+        text: |
+          {
+            "feasibilityId": "feas-eval-123",
+            "status": "SUCCESS",
+            "opportunities": [
+              {
+                "providerWindowId": "pw-123",
+                "provider": "SIWEI"
+              }
+            ]
+          }
+  passes_predict:
+    content:
+      - type: text
+        text: |
+          {
+            "passes": [
+              {
+                "provider": "SIWEI",
+                "satellite": "SV-1",
+                "passDate": "2026-03-18T12:00:00Z",
+                "providerWindowId": "pw-123"
+              }
+            ]
+          }

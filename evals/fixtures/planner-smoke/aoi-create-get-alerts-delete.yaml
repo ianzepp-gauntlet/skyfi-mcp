@@ -1,0 +1,58 @@
+tool_results:
+  notifications_create:
+    content:
+      - type: text
+        text: |
+          {
+            "message": "AOI monitor created.",
+            "monitorId": "mon-eval-2",
+            "aoi": "POLYGON ((-97.75 30.25, -97.73 30.25, -97.73 30.28, -97.75 30.28, -97.75 30.25))",
+            "webhookUrl": "https://example.com/skyfi-eval-hook",
+            "createdAt": "2026-03-14T23:00:00Z"
+          }
+  notifications_get:
+    content:
+      - type: text
+        text: |
+          {
+            "monitor": {
+              "id": "mon-eval-2",
+              "aoi": "POLYGON ((-97.75 30.25, -97.73 30.25, -97.73 30.28, -97.75 30.28, -97.75 30.25))",
+              "webhookUrl": "https://example.com/skyfi-eval-hook",
+              "productType": "DAY",
+              "createdAt": "2026-03-14T23:00:00Z"
+            },
+            "recentAlerts": 1,
+            "alerts": [
+              {
+                "receivedAt": "2026-03-14T23:05:00Z",
+                "payload": {
+                  "imagery": "scene-a"
+                }
+              }
+            ]
+          }
+  alerts_list:
+    content:
+      - type: text
+        text: |
+          {
+            "total": 1,
+            "alerts": [
+              {
+                "monitorId": "mon-eval-2",
+                "receivedAt": "2026-03-14T23:05:00Z",
+                "payload": {
+                  "imagery": "scene-a"
+                }
+              }
+            ]
+          }
+  notifications_delete:
+    content:
+      - type: text
+        text: |
+          {
+            "message": "AOI monitor deleted.",
+            "monitorId": "mon-eval-2"
+          }

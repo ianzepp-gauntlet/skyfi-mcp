@@ -1,0 +1,25 @@
+tool_results:
+  orders_prepare:
+    content:
+      - type: text
+        text: |
+          {
+            "confirmationToken": "tok-eval-123",
+            "orderType": "archive",
+            "expiresInSeconds": 300,
+            "message": "ORDER NOT YET PLACED. Review the pricing below and call orders_confirm with the confirmation token to execute the purchase.",
+            "pricing": {
+              "currency": "USD",
+              "rows": [
+                {
+                  "provider": "Umbra",
+                  "price": 42.5
+                }
+              ]
+            },
+            "orderDetails": {
+              "archiveId": "arch-123",
+              "deliveryDriver": "S3",
+              "deliveryBucket": "eval-bucket"
+            }
+          }

@@ -15,16 +15,24 @@ For an executable eval harness built around those scenarios, see [`evals/README.
 
 This repo now includes a real eval harness that exercises the MCP server through an actual LLM tool loop instead of grading static text. The harness is intentionally biased toward production-stable signals: correct tool choice, forbidden-tool avoidance, useful tool outputs, and basic non-empty final responses. Exact wording is treated as low-signal because production users may connect many different LLMs to the same MCP server.
 
-The eval corpus is YAML-defined under [`evals/scenarios`](evals/scenarios), suite definitions live in [`evals/suites.yaml`](evals/suites.yaml), and the runner is [`scripts/run-evals.ts`](scripts/run-evals.ts). Fixture-backed planner cases validate tool routing and confirmation-gate safety without depending on live SkyFi data, while live suites validate read-only end-to-end behavior against the real server. Failed deterministic cases can receive a secondary OpenRouter judge pass, but deterministic grading remains the primary pass/fail source.
+The eval corpus is YAML-defined under [`evals/scenarios`](evals/scenarios), suite definitions live in [`evals/suites.yaml`](evals/suites.yaml), and the runner is [`scripts/run-evals.ts`](scripts/run-evals.ts). Fixture-backed planner cases validate tool routing, clarification behavior, AOI lifecycle handling, and confirmation-gate safety without depending on live SkyFi data, while live suites validate read-only and prepare-only end-to-end behavior against the real server. The harness now supports multi-turn follow-up messages, ordered tool-sequence assertions, and simple HTTP setup hooks so webhook ingestion can be exercised as part of eval runs. Failed deterministic cases can receive a secondary OpenRouter judge pass, but deterministic grading remains the primary pass/fail source.
 
 Current passing smoke suites:
 
 - `planner-smoke` — fixture-backed tool-planning and confirmation-gate coverage
+- `planner-human-loop-smoke` — explicit human approval required before order confirmation
+- `planner-multistep-smoke` — multi-step search, clarification, and tasking exploration
+- `planner-aoi-smoke` — AOI monitoring create/review/alert/delete workflows and missing-webhook safety
 - `live-integration-smoke` — account, pricing, place-name search, and exact-address lookup
 - `live-feasibility-smoke` — live feasibility checks
 - `live-opportunity-smoke` — next-pass lookup, including an expected-failure too-soon case
+- `live-budget-smoke` — pricing catalog exploration and budget-filtered archive discovery
 - `live-orders-smoke` — read-only order history checks
+- `live-ordering-smoke` — prepare-only archive ordering without confirmation
+- `live-multistep-smoke` — multi-turn archive search/detail and search-to-prepare flows
+- `live-tasking-smoke` — address-based tasking feasibility/pass/prepare workflows with negative safety cases
 - `live-monitoring-smoke` — read-only AOI monitor review
+- `live-aoi-smoke` — AOI create/list/get/delete lifecycle plus webhook alert visibility
 
 Useful commands:
 
@@ -32,6 +40,7 @@ Useful commands:
 bun run evals --list
 bun run evals:planner-smoke --server-url http://localhost:8787/mcp
 bun run evals --suite live-integration-smoke --server-url http://localhost:8787/mcp
+bun run evals --suite live-aoi-smoke --server-url http://localhost:3000/mcp
 ```
 
 See [`evals/README.md`](evals/README.md) for environment variables, suite details, and artifact locations under `evals/results/`.

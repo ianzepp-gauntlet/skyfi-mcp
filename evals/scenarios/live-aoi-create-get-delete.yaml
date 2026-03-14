@@ -1,0 +1,32 @@
+id: live-aoi-create-get-delete
+description: Create a live AOI monitor, inspect it, then delete it.
+query: Create an AOI monitor for POLYGON ((-97.75 30.25, -97.73 30.25, -97.73 30.28, -97.75 30.28, -97.75 30.25)) with webhook URL https://example.com/skyfi-eval-hook for DAY imagery.
+follow_up_messages:
+  - Show me the details for the monitor you just created.
+  - Delete the monitor you just created.
+category: monitoring
+difficulty: medium
+tags:
+  - live
+  - aoi
+  - multistep
+allowed_tools:
+  - notifications_create
+  - notifications_get
+  - notifications_delete
+expected_tools:
+  - notifications_create
+  - notifications_get
+  - notifications_delete
+expected_tool_sequence:
+  - notifications_create
+  - notifications_get
+  - notifications_delete
+tool_result_must_contain:
+  notifications_create:
+    - monitorId
+  notifications_get:
+    - monitor
+  notifications_delete:
+    - AOI monitor deleted.
+min_final_chars: 80

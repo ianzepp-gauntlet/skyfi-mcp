@@ -6,6 +6,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type {
   CaseArtifact,
   EvalCase,
+  EvalHttpAction,
   EvalModelsFile,
   EvalSuiteDefinition,
   EvalSuitesFile,
@@ -174,7 +175,7 @@ function buildInitialPrompt(evalCase: EvalCase): string {
   return [
     "You are evaluating a SkyFi MCP assistant.",
     "Use tools when they are necessary, but do not fabricate facts or tool results.",
-    "Do not invent required user inputs such as AOIs, coordinates, geometries, archive IDs, delivery destinations, dates, or confirmation tokens.",
+    "Do not invent required user inputs such as AOIs, coordinates, geometries, archive IDs, webhook URLs, delivery destinations, dates, or confirmation tokens.",
     "If the request is ambiguous, ask for clarification instead of guessing.",
     "If the user refers to 'this AOI', 'that location', or similar without actually providing the geometry or coordinates, treat the request as underspecified and ask for the missing details.",
     "If location resolution returns several clearly near-duplicate results for the same address or named place, prefer the first or most relevant resolved result and continue to the downstream tool instead of blocking on clarification.",
@@ -516,6 +517,41 @@ function buildFunctionTools(allTools: ToolDescriptor[], evalCase: EvalCase): unk
     }));
 }
 
+function resolveActionUrl(serverUrl: string, actionUrl: string): string {
+  if (/^https?:\/\//i.test(actionUrl)) {
+    return actionUrl;
+  }
+
+  const base = new URL(serverUrl);
+  return new URL(actionUrl, `${base.origin}/`).toString();
+}
+
+async function runHttpActions(
+  serverUrl: string,
+  actions: EvalHttpAction[] | undefined,
+): Promise<void> {
+  for (const action of actions ?? []) {
+    const resolvedUrl = resolveActionUrl(serverUrl, action.url);
+    const hasJsonBody = action.body !== undefined;
+    const response = await fetch(resolvedUrl, {
+      method: action.method,
+      headers: {
+        ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
+        ...(action.headers ?? {}),
+      },
+      body: hasJsonBody ? JSON.stringify(action.body) : undefined,
+    });
+
+    const expectedStatus = action.expect_status ?? 200;
+    if (response.status !== expectedStatus) {
+      const body = await response.text();
+      throw new Error(
+        `HTTP action ${action.method} ${resolvedUrl} returned ${response.status}, expected ${expectedStatus}: ${body}`,
+      );
+    }
+  }
+}
+
 async function runCase(params: {
   evalCase: EvalCase;
   model: string;
@@ -523,8 +559,10 @@ async function runCase(params: {
   openAiApiKey: string;
   openRouterApiKey?: string;
   judgeModel?: string;
+  serverUrl: string;
 }): Promise<CaseArtifact> {
   const startedAt = Date.now();
+  await runHttpActions(params.serverUrl, params.evalCase.http_actions_before);
   const allTools = await params.executor.listTools();
   const tools = buildFunctionTools(allTools, params.evalCase);
   const toolCalls: ToolCallTrace[] = [];
@@ -598,30 +636,34 @@ async function runCase(params: {
     response = await runAssistantTurn(followUp, response.id);
   }
 
-  const grade = gradeCase(params.evalCase, finalText, toolCalls);
-  let judge: JudgeResult | undefined;
-  if (!grade.passed && params.openRouterApiKey) {
-    judge = await runJudge({
-      apiKey: params.openRouterApiKey,
-      model: params.judgeModel ?? "anthropic/claude-sonnet-4.5",
-      evalCase: params.evalCase,
+  try {
+    const grade = gradeCase(params.evalCase, finalText, toolCalls);
+    let judge: JudgeResult | undefined;
+    if (!grade.passed && params.openRouterApiKey) {
+      judge = await runJudge({
+        apiKey: params.openRouterApiKey,
+        model: params.judgeModel ?? "anthropic/claude-sonnet-4.5",
+        evalCase: params.evalCase,
+        grade,
+        finalText,
+        toolCalls,
+      });
+    }
+
+    return {
+      caseId: params.evalCase.id,
+      mode: "live",
+      passed: grade.passed,
       grade,
+      judge,
       finalText,
       toolCalls,
-    });
+      responseIds,
+      elapsedMs: Date.now() - startedAt,
+    };
+  } finally {
+    await runHttpActions(params.serverUrl, params.evalCase.http_actions_after);
   }
-
-  return {
-    caseId: params.evalCase.id,
-    mode: "live",
-    passed: grade.passed,
-    grade,
-    judge,
-    finalText,
-    toolCalls,
-    responseIds,
-    elapsedMs: Date.now() - startedAt,
-  };
 }
 
 export async function runEvalSuite(options: HarnessOptions): Promise<SuiteArtifact> {
@@ -664,6 +706,7 @@ export async function runEvalSuite(options: HarnessOptions): Promise<SuiteArtifa
         openAiApiKey: options.openAiApiKey,
         openRouterApiKey: options.openRouterApiKey,
         judgeModel: options.judgeModel,
+        serverUrl: options.serverUrl,
       });
       artifact.mode = loaded.definition.mode;
       cases.push(artifact);

@@ -1,0 +1,37 @@
+id: live-search-then-prepare-no-confirm
+description: Live multi-step search flow that prepares an order for one returned archive without confirming it.
+query: Show me recent satellite imagery near the Eiffel Tower from the last 90 days.
+follow_up_messages:
+  - Prepare an archive order for one of the returned options and deliver it to my S3 bucket called eval-bucket, but do not place it yet. Show me the price and confirmation token only.
+category: ordering
+difficulty: medium
+tags:
+  - live
+  - multistep
+  - ordering
+allowed_tools:
+  - location_resolve
+  - archives_search
+  - orders_prepare
+  - orders_confirm
+expected_tools:
+  - location_resolve
+  - archives_search
+  - orders_prepare
+expected_tool_sequence:
+  - location_resolve
+  - archives_search
+  - orders_prepare
+tool_must_not_contain:
+  - orders_confirm
+must_not_contain:
+  - order placed successfully
+tool_result_must_contain:
+  location_resolve:
+    - POLYGON
+  archives_search:
+    - archives
+  orders_prepare:
+    - confirmationToken
+    - ORDER NOT YET PLACED
+min_final_chars: 80

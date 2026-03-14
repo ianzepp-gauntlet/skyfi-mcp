@@ -1,0 +1,34 @@
+id: live-search-then-archive-detail
+description: Live multi-step search flow that inspects one returned archive in a follow-up turn.
+query: Show me recent satellite imagery near the Eiffel Tower from the last 90 days.
+follow_up_messages:
+  - Show me the full details for the cheapest returned archive option.
+category: search
+difficulty: medium
+tags:
+  - live
+  - multistep
+  - search
+allowed_tools:
+  - location_resolve
+  - archives_search
+  - archive_get
+expected_tools:
+  - location_resolve
+  - archives_search
+  - archive_get
+expected_tool_sequence:
+  - location_resolve
+  - archives_search
+  - archive_get
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  location_resolve:
+    - POLYGON
+  archives_search:
+    - archives
+  archive_get:
+    - archiveId
+min_final_chars: 80

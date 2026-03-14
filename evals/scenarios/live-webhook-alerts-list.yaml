@@ -1,0 +1,26 @@
+id: live-webhook-alerts-list
+description: Inject a webhook payload into the local server and verify alerts_list can see it.
+query: Show me the recent AOI webhook alerts for monitor mon-eval-webhook.
+category: monitoring
+difficulty: easy
+tags:
+  - live
+  - aoi
+  - webhook
+allowed_tools:
+  - alerts_list
+expected_tools:
+  - alerts_list
+http_actions_before:
+  - method: POST
+    url: /webhooks/aoi
+    body:
+      notification_id: mon-eval-webhook
+      imagery: scene-eval
+      provider: test-provider
+    expect_status: 200
+tool_result_must_contain:
+  alerts_list:
+    - mon-eval-webhook
+    - scene-eval
+min_final_chars: 60

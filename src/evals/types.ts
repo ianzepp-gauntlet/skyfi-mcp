@@ -1,3 +1,11 @@
+export interface EvalHttpAction {
+  method: string;
+  url: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  expect_status?: number;
+}
+
 export interface EvalCase {
   id: string;
   description: string;
@@ -16,6 +24,8 @@ export interface EvalCase {
   min_final_chars?: number;
   max_steps?: number;
   follow_up_messages?: string[];
+  http_actions_before?: EvalHttpAction[];
+  http_actions_after?: EvalHttpAction[];
 }
 
 export interface EvalSuiteDefinition {

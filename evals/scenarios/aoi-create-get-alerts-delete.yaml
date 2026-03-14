@@ -1,0 +1,39 @@
+id: aoi-create-get-alerts-delete
+description: Create an AOI monitor, inspect it with recent alerts, review alerts directly, then delete it.
+query: Create an AOI monitor for POLYGON ((-97.75 30.25, -97.73 30.25, -97.73 30.28, -97.75 30.28, -97.75 30.25)) with webhook URL https://example.com/skyfi-eval-hook for DAY imagery.
+follow_up_messages:
+  - Show me the details and recent alerts for the monitor you just created.
+  - Show me the recent alerts for that monitor.
+  - Delete the monitor you just created.
+category: monitoring
+difficulty: medium
+tags:
+  - smoke
+  - aoi
+  - multistep
+allowed_tools:
+  - notifications_create
+  - notifications_get
+  - alerts_list
+  - notifications_delete
+expected_tools:
+  - notifications_create
+  - notifications_get
+  - alerts_list
+  - notifications_delete
+expected_tool_sequence:
+  - notifications_create
+  - notifications_get
+  - alerts_list
+  - notifications_delete
+tool_result_must_contain:
+  notifications_create:
+    - monitorId
+  notifications_get:
+    - recentAlerts
+    - alerts
+  alerts_list:
+    - alerts
+  notifications_delete:
+    - AOI monitor deleted.
+min_final_chars: 80

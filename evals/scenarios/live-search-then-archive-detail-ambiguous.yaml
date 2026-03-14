@@ -1,0 +1,32 @@
+id: live-search-then-archive-detail-ambiguous
+description: Live multi-step search flow where the follow-up is too ambiguous to inspect a specific returned archive.
+query: Show me recent satellite imagery near the Eiffel Tower from the last 90 days.
+follow_up_messages:
+  - Show me the full details for one of the returned archive options.
+category: search
+difficulty: medium
+tags:
+  - live
+  - multistep
+  - search
+  - negative
+allowed_tools:
+  - location_resolve
+  - archives_search
+  - archive_get
+expected_tools:
+  - location_resolve
+  - archives_search
+expected_tool_sequence:
+  - location_resolve
+  - archives_search
+tool_must_not_contain:
+  - archive_get
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  location_resolve:
+    - POLYGON
+  archives_search:
+    - archives
+min_final_chars: 80

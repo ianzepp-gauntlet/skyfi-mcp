@@ -1,0 +1,29 @@
+id: feasibility-then-pass-prediction
+description: Check tasking feasibility first, then ask for the next available pass in a follow-up turn.
+query: Check whether a DAY HIGH capture is feasible over AOI POLYGON ((-97.75 30.25, -97.73 30.25, -97.73 30.28, -97.75 30.28, -97.75 30.25)) between 2026-03-17T00:00:00Z and 2026-03-24T00:00:00Z.
+follow_up_messages:
+  - Now find the next earliest satellite pass opportunity for that same AOI and window.
+category: feasibility
+difficulty: medium
+tags:
+  - smoke
+  - multistep
+  - feasibility
+allowed_tools:
+  - feasibility_check
+  - passes_predict
+expected_tools:
+  - feasibility_check
+  - passes_predict
+expected_tool_sequence:
+  - feasibility_check
+  - passes_predict
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  feasibility_check:
+    - feasibilityId
+  passes_predict:
+    - passes
+min_final_chars: 80

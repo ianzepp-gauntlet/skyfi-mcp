@@ -1,0 +1,31 @@
+id: live-address-feasibility-no-opportunities
+description: Resolve an address and check feasibility; when no opportunities exist, the model should not prepare a tasking order.
+query: Resolve 2220 Barton Springs Rd, Austin, TX 78746 and check whether a DAY HIGH capture is feasible between 2026-03-17T00:00:00Z and 2026-03-24T00:00:00Z. If there are no opportunities, do not prepare a tasking order.
+category: tasking
+difficulty: medium
+tags:
+  - live
+  - tasking
+  - negative
+  - safe
+allowed_tools:
+  - location_resolve
+  - feasibility_check
+  - orders_prepare
+  - orders_confirm
+expected_tools:
+  - location_resolve
+  - feasibility_check
+expected_tool_sequence:
+  - location_resolve
+  - feasibility_check
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  location_resolve:
+    - POLYGON
+  feasibility_check:
+    - feasibilityId
+    - opportunities
+min_final_chars: 80
