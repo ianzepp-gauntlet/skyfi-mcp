@@ -19,6 +19,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DurableAlertStoreClient } from "./alerts_object.js";
+export { SkyFiAlertStore } from "./alerts_object.js";
 import { loadConfig } from "./config/index.js";
 import { createAgentMcpHandler } from "./server/agent_transport.js";
 import { createMcpServer } from "./server/mcp.js";

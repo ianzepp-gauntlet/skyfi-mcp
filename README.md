@@ -2,6 +2,14 @@
 
 An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.com) satellite imagery platform to AI agents. Enables conversational search, ordering, pricing, feasibility checks, and area-of-interest monitoring — all through standard MCP tool calls.
 
+## Technical Decisions
+
+This project keeps Cloudflare as the primary remote deployment target rather than Railway. Railway would be a feasible host for the Bun HTTP server, but Cloudflare is more directly aligned with the current MCP ecosystem: it has stronger market recognition as an MCP-focused platform, first-party support for remote MCP patterns, and a deployment model that maps cleanly onto multi-user hosted MCP servers.
+
+Cloudflare also fits the transport direction we want to follow. The MCP ecosystem has moved away from older SSE-oriented remote patterns toward modern Streamable HTTP, and Cloudflare's MCP tooling is built around that newer model. Railway remains a reasonable general-purpose hosting option, but Cloudflare is the better fit when the goal is to ship a production remote MCP server on infrastructure that is already associated with MCP-specific workflows and transport conventions.
+
+For scenario-based manual testing and LLM tool-flow validation, see [`docs/test-scenarios.md`](docs/test-scenarios.md).
+
 ## Tools
 
 | Tool                     | Description                                                                                 |
