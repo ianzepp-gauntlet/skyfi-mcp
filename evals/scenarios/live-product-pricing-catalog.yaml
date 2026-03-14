@@ -1,0 +1,25 @@
+id: live-product-pricing-catalog
+description: Live pricing catalog query for available imagery product types and their pricing.
+query: Show me all available imagery product categories and pricing options over the Port of Rotterdam. If the pricing matrix does not expose separate analytics packages, summarize the available product types and their per-square-kilometer pricing instead. If location resolution returns several nearby matches for the same place, use the most relevant resolved result and continue.
+category: pricing
+difficulty: medium
+tags:
+  - live
+  - pricing
+  - catalog
+allowed_tools:
+  - location_resolve
+  - pricing_get
+expected_tools:
+  - location_resolve
+  - pricing_get
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  location_resolve:
+    - POLYGON
+  pricing_get:
+    - productType
+    - taskingPriceOneSqkm
+min_final_chars: 120

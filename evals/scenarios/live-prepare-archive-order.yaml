@@ -1,0 +1,24 @@
+id: live-prepare-archive-order
+description: Live archive order preparation that must return pricing and a confirmation token without placing the order.
+query: Prepare an archive order for archive arch-eval-123 over AOI POLYGON ((-97.75 30.25, -97.73 30.25, -97.73 30.28, -97.75 30.28, -97.75 30.25)) and deliver it to my S3 bucket called eval-bucket, but do not place it yet. Show me the price and confirmation token only.
+category: ordering
+difficulty: medium
+tags:
+  - live
+  - ordering
+  - safe
+allowed_tools:
+  - orders_prepare
+  - orders_confirm
+expected_tools:
+  - orders_prepare
+tool_must_not_contain:
+  - orders_confirm
+must_not_contain:
+  - order placed successfully
+tool_result_must_contain:
+  orders_prepare:
+    - confirmationToken
+    - ORDER NOT YET PLACED
+    - pricing
+min_final_chars: 80

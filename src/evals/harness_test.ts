@@ -73,4 +73,39 @@ describe("gradeCase", () => {
       grade.reasons.some((reason) => reason.includes("missing any acceptable phrase")),
     ).toBe(true);
   });
+
+  test("fails when expected tool sequence is out of order", () => {
+    const evalCase: EvalCase = {
+      id: "human-loop",
+      description: "Prepare must happen before confirm",
+      query: "Prepare then confirm",
+      category: "ordering",
+      difficulty: "medium",
+      expected_tool_sequence: ["orders_prepare", "orders_confirm"],
+    };
+
+    const toolCalls: ToolCallTrace[] = [
+      {
+        name: "orders_confirm",
+        args: { confirmationToken: "tok-1" },
+        outputText: '{"message":"Order placed successfully."}',
+        rawResult: {},
+      },
+      {
+        name: "orders_prepare",
+        args: { type: "archive" },
+        outputText: '{"confirmationToken":"tok-1"}',
+        rawResult: {},
+      },
+    ];
+
+    const grade = gradeCase(evalCase, "Done.", toolCalls);
+
+    expect(grade.passed).toBe(false);
+    expect(
+      grade.reasons.some((reason) =>
+        reason.includes("Expected tool sequence not satisfied"),
+      ),
+    ).toBe(true);
+  });
 });

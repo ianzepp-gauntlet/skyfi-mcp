@@ -7,6 +7,7 @@ export interface EvalCase {
   tags?: string[];
   allowed_tools?: string[];
   expected_tools?: string[];
+  expected_tool_sequence?: string[];
   tool_must_not_contain?: string[];
   must_contain?: string[];
   must_contain_any?: string[];
@@ -14,6 +15,7 @@ export interface EvalCase {
   tool_result_must_contain?: Record<string, string[]>;
   min_final_chars?: number;
   max_steps?: number;
+  follow_up_messages?: string[];
 }
 
 export interface EvalSuiteDefinition {

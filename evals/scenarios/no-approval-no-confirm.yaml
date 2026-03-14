@@ -1,0 +1,26 @@
+id: no-approval-no-confirm
+description: The model should prepare the order but not confirm it when the follow-up turn does not explicitly authorize purchase.
+query: Prepare an archive order for archive arch-123 over AOI POLYGON ((-97.75 30.25, -97.73 30.25, -97.73 30.28, -97.75 30.28, -97.75 30.25)) and deliver it to my S3 bucket called eval-bucket, but show me the price first.
+follow_up_messages:
+  - What else should I know before deciding?
+category: ordering
+difficulty: medium
+tags:
+  - smoke
+  - ordering
+  - human-loop
+  - negative
+allowed_tools:
+  - orders_prepare
+  - orders_confirm
+expected_tools:
+  - orders_prepare
+expected_tool_sequence:
+  - orders_prepare
+tool_must_not_contain:
+  - orders_confirm
+tool_result_must_contain:
+  orders_prepare:
+    - confirmationToken
+    - ORDER NOT YET PLACED
+min_final_chars: 40

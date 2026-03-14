@@ -11,6 +11,31 @@ Cloudflare also fits the transport direction we want to follow. The MCP ecosyste
 For scenario-based manual testing and LLM tool-flow validation, see [`docs/test-scenarios.md`](docs/test-scenarios.md).
 For an executable eval harness built around those scenarios, see [`evals/README.md`](evals/README.md).
 
+## Eval Framework
+
+This repo now includes a real eval harness that exercises the MCP server through an actual LLM tool loop instead of grading static text. The harness is intentionally biased toward production-stable signals: correct tool choice, forbidden-tool avoidance, useful tool outputs, and basic non-empty final responses. Exact wording is treated as low-signal because production users may connect many different LLMs to the same MCP server.
+
+The eval corpus is YAML-defined under [`evals/scenarios`](evals/scenarios), suite definitions live in [`evals/suites.yaml`](evals/suites.yaml), and the runner is [`scripts/run-evals.ts`](scripts/run-evals.ts). Fixture-backed planner cases validate tool routing and confirmation-gate safety without depending on live SkyFi data, while live suites validate read-only end-to-end behavior against the real server. Failed deterministic cases can receive a secondary OpenRouter judge pass, but deterministic grading remains the primary pass/fail source.
+
+Current passing smoke suites:
+
+- `planner-smoke` — fixture-backed tool-planning and confirmation-gate coverage
+- `live-integration-smoke` — account, pricing, place-name search, and exact-address lookup
+- `live-feasibility-smoke` — live feasibility checks
+- `live-opportunity-smoke` — next-pass lookup, including an expected-failure too-soon case
+- `live-orders-smoke` — read-only order history checks
+- `live-monitoring-smoke` — read-only AOI monitor review
+
+Useful commands:
+
+```bash
+bun run evals --list
+bun run evals:planner-smoke --server-url http://localhost:8787/mcp
+bun run evals --suite live-integration-smoke --server-url http://localhost:8787/mcp
+```
+
+See [`evals/README.md`](evals/README.md) for environment variables, suite details, and artifact locations under `evals/results/`.
+
 ## Tools
 
 | Tool                     | Description                                                                                 |
@@ -130,6 +155,7 @@ Core MCP surface is implemented for the supported SkyFi account, archive, pricin
 - Unit and contract test suite: done
 - Real SkyFi API smoke test: done
 - End-to-end validation with a live MCP client: done (deployed on Cloudflare Workers)
+- Executable eval harness with fixture-backed planner suites and live smoke suites: done
 - LangSmith tracing at tool-call boundary: not started
 
 ### Phase 3 — Conversational Ordering ✅ COMPLETE

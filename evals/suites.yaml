@@ -10,6 +10,14 @@ suites:
       - ambiguous-order-needs-clarification
       - archive-order-missing-aoi
       - order-confirm-without-preparation
+  planner-human-loop-smoke:
+    description: Fixture-backed multi-turn confirmation-gate cases for validating explicit human approval before order confirmation.
+    stage: smoke
+    mode: fixture
+    fixture_set: planner-smoke
+    cases:
+      - human-approval-confirms-order
+      - no-approval-no-confirm
   live-smoke:
     description: Read-only live cases against a running SkyFi MCP server to verify useful outputs.
     stage: smoke
@@ -53,3 +61,17 @@ suites:
     mode: live
     cases:
       - live-monitoring-review
+  live-budget-smoke:
+    description: Minimal pricing and budget-filtered discovery checks against the real SkyFi-backed MCP server.
+    stage: smoke
+    mode: live
+    cases:
+      - live-product-pricing-catalog
+      - live-archive-under-budget
+  live-ordering-smoke:
+    description: Minimal mutation-safe ordering checks that exercise orders_prepare but forbid order confirmation.
+    stage: smoke
+    mode: live
+    cases:
+      - live-prepare-archive-order
+      - live-order-missing-details

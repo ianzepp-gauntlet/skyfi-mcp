@@ -1,0 +1,26 @@
+id: live-archive-under-budget
+description: Live archive search query that asks for imagery under a per-square-kilometer budget.
+query: Find recent satellite imagery near the Eiffel Tower from the last 90 days that costs less than $50 per square kilometer. Use the resolved location and filter the returned archive options by price.
+category: search
+difficulty: medium
+tags:
+  - live
+  - search
+  - budget
+allowed_tools:
+  - location_resolve
+  - archives_search
+  - archive_get
+expected_tools:
+  - location_resolve
+  - archives_search
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  location_resolve:
+    - POLYGON
+  archives_search:
+    - archives
+    - pricePerKm2
+min_final_chars: 100

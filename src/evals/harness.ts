@@ -315,6 +315,7 @@ async function runJudge(params: {
 function gradeCase(evalCase: EvalCase, finalText: string, toolCalls: ToolCallTrace[]): GradeResult {
   const reasons: string[] = [];
   const expectedTools = normalizeList(evalCase.expected_tools);
+  const expectedToolSequence = normalizeList(evalCase.expected_tool_sequence);
   const forbiddenTools = normalizeList(evalCase.tool_must_not_contain);
   const mustContain = normalizeList(evalCase.must_contain);
   const mustContainAny = normalizeList(evalCase.must_contain_any);
@@ -324,6 +325,20 @@ function gradeCase(evalCase: EvalCase, finalText: string, toolCalls: ToolCallTra
   for (const tool of expectedTools) {
     if (!calledToolNames.includes(tool)) {
       reasons.push(`Missing expected tool call: ${tool}`);
+    }
+  }
+
+  if (expectedToolSequence.length > 0) {
+    let searchStart = 0;
+    for (const tool of expectedToolSequence) {
+      const foundAt = calledToolNames.indexOf(tool, searchStart);
+      if (foundAt === -1) {
+        reasons.push(
+          `Expected tool sequence not satisfied: missing ${tool} after step ${searchStart}`,
+        );
+        break;
+      }
+      searchStart = foundAt + 1;
     }
   }
 
@@ -515,63 +530,72 @@ async function runCase(params: {
   const toolCalls: ToolCallTrace[] = [];
   const responseIds: string[] = [];
   let finalText = "";
-
-  let response = await createOpenAIResponse({
-    apiKey: params.openAiApiKey,
-    model: params.model,
-    input: buildInitialPrompt(params.evalCase),
-    tools,
-  });
-  responseIds.push(response.id);
-
-  for (let step = 0; step < (params.evalCase.max_steps ?? 8); step++) {
-    const functionCalls = extractFunctionCalls(response);
-    if (functionCalls.length === 0) {
-      finalText = extractFinalText(response);
-      break;
-    }
-
-    const toolOutputs = [];
-    for (const call of functionCalls) {
-      let parsedArgs: Record<string, unknown>;
-      try {
-        parsedArgs = JSON.parse(call.arguments) as Record<string, unknown>;
-      } catch {
-        parsedArgs = {};
-      }
-
-      const rawResult = await params.executor.callTool(
-        call.name,
-        parsedArgs,
-        params.evalCase,
-      );
-      const outputText = stringifyToolResult(rawResult);
-      toolCalls.push({
-        name: call.name,
-        args: parsedArgs,
-        outputText,
-        rawResult,
-      });
-
-      toolOutputs.push({
-        type: "function_call_output",
-        call_id: call.callId,
-        output: outputText,
-      });
-    }
-
-    response = await createOpenAIResponse({
+  const runAssistantTurn = async (
+    input: unknown,
+    previousResponseId?: string,
+  ): Promise<OpenAIResponse> => {
+    let response = await createOpenAIResponse({
       apiKey: params.openAiApiKey,
       model: params.model,
-      previousResponseId: response.id,
-      input: toolOutputs,
+      input,
       tools,
+      previousResponseId,
     });
     responseIds.push(response.id);
-  }
 
-  if (!finalText) {
+    for (let step = 0; step < (params.evalCase.max_steps ?? 8); step++) {
+      const functionCalls = extractFunctionCalls(response);
+      if (functionCalls.length === 0) {
+        finalText = extractFinalText(response);
+        return response;
+      }
+
+      const toolOutputs = [];
+      for (const call of functionCalls) {
+        let parsedArgs: Record<string, unknown>;
+        try {
+          parsedArgs = JSON.parse(call.arguments) as Record<string, unknown>;
+        } catch {
+          parsedArgs = {};
+        }
+
+        const rawResult = await params.executor.callTool(
+          call.name,
+          parsedArgs,
+          params.evalCase,
+        );
+        const outputText = stringifyToolResult(rawResult);
+        toolCalls.push({
+          name: call.name,
+          args: parsedArgs,
+          outputText,
+          rawResult,
+        });
+
+        toolOutputs.push({
+          type: "function_call_output",
+          call_id: call.callId,
+          output: outputText,
+        });
+      }
+
+      response = await createOpenAIResponse({
+        apiKey: params.openAiApiKey,
+        model: params.model,
+        previousResponseId: response.id,
+        input: toolOutputs,
+        tools,
+      });
+      responseIds.push(response.id);
+    }
+
     finalText = extractFinalText(response);
+    return response;
+  };
+
+  let response = await runAssistantTurn(buildInitialPrompt(params.evalCase));
+  for (const followUp of params.evalCase.follow_up_messages ?? []) {
+    response = await runAssistantTurn(followUp, response.id);
   }
 
   const grade = gradeCase(params.evalCase, finalText, toolCalls);
