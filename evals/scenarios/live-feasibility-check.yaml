@@ -1,0 +1,20 @@
+id: live-feasibility-check
+description: Live feasibility path using a direct AOI polygon and explicit capture dates.
+query: Check whether a new DAY capture is feasible at HIGH resolution for AOI POLYGON((4.4296936 51.9042372, 4.4299605 51.9042372, 4.4299605 51.9044162, 4.4296936 51.9044162, 4.4296936 51.9042372)) with a capture window from 2026-03-15T00:00:00Z to 2026-03-22T00:00:00Z.
+category: feasibility
+difficulty: medium
+tags:
+  - live
+  - feasibility
+allowed_tools:
+  - feasibility_check
+expected_tools:
+  - feasibility_check
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  feasibility_check:
+    - feasibilityId
+    - opportunities
+min_final_chars: 80

@@ -1,0 +1,22 @@
+id: live-orders-list
+description: Live read-only lookup of recent SkyFi orders.
+query: Show me my recent SkyFi orders and summarize the latest few by type and status.
+category: orders
+difficulty: easy
+tags:
+  - live
+  - orders
+  - read-only
+allowed_tools:
+  - orders_list
+  - orders_get
+expected_tools:
+  - orders_list
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+  - orders_redeliver
+tool_result_must_contain:
+  orders_list:
+    - orders
+min_final_chars: 60

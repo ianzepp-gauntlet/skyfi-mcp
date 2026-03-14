@@ -1,0 +1,22 @@
+id: live-order-detail
+description: Live read-only order inspection, with detail lookup when an order is available.
+query: Check my recent orders. If there is at least one order, inspect one and summarize its detailed status and delivery information.
+category: orders
+difficulty: medium
+tags:
+  - live
+  - orders
+  - read-only
+allowed_tools:
+  - orders_list
+  - orders_get
+expected_tools:
+  - orders_list
+tool_must_not_contain:
+  - orders_prepare
+  - orders_confirm
+  - orders_redeliver
+tool_result_must_contain:
+  orders_list:
+    - orders
+min_final_chars: 80

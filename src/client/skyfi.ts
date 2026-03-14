@@ -51,6 +51,25 @@ import type {
   DeliverableType,
 } from "./types";
 
+function normalizeFeasibilityResponse(payload: unknown): FeasibilityResponse {
+  if (!payload || typeof payload !== "object") {
+    return payload as FeasibilityResponse;
+  }
+
+  const record = payload as Record<string, unknown>;
+  const feasibilityId =
+    typeof record.feasibility_id === "string"
+      ? record.feasibility_id
+      : typeof record.id === "string"
+        ? record.id
+        : undefined;
+
+  return {
+    ...(record as FeasibilityResponse),
+    feasibility_id: feasibilityId ?? String(record.feasibility_id ?? record.id),
+  };
+}
+
 /**
  * Typed HTTP client for the SkyFi Platform API.
  *
@@ -226,7 +245,8 @@ export class SkyFiClient {
   async checkFeasibility(
     params: FeasibilityRequest,
   ): Promise<FeasibilityResponse> {
-    return this.request("POST", "/feasibility", params);
+    const response = await this.request<unknown>("POST", "/feasibility", params);
+    return normalizeFeasibilityResponse(response);
   }
 
   /**
@@ -237,7 +257,11 @@ export class SkyFiClient {
   async getFeasibilityStatus(
     feasibilityId: string,
   ): Promise<FeasibilityResponse> {
-    return this.request("GET", `/feasibility/${feasibilityId}`);
+    const response = await this.request<unknown>(
+      "GET",
+      `/feasibility/${feasibilityId}`,
+    );
+    return normalizeFeasibilityResponse(response);
   }
 
   /**

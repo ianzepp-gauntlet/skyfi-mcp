@@ -125,6 +125,38 @@ describe("SkyFiClient request and wrappers", () => {
     });
     expect(result.status).toBe("FEASIBLE");
   });
+
+  test("checkFeasibility normalizes spec-shaped id to feasibility_id", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          id: "f-spec-1",
+          status: "PENDING",
+        }),
+        { status: 200 },
+      ) as any;
+
+    try {
+      const client = new SkyFiClient({
+        apiKey: "test-key",
+        baseUrl: "https://example.com",
+      });
+
+      const result = await client.checkFeasibility({
+        aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+        startDate: "2026-03-15T00:00:00Z",
+        endDate: "2026-03-22T00:00:00Z",
+        productType: "DAY",
+        resolution: "HIGH",
+      });
+
+      expect(result.feasibility_id).toBe("f-spec-1");
+      expect(result.status).toBe("PENDING");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe("SkyFiClient request and wrappers (additional)", () => {

@@ -1,0 +1,24 @@
+id: live-monitoring-review
+description: Live read-only review of AOI monitors and recent alerts.
+query: What AOI monitors do I have active, and have any of them triggered recently?
+category: monitoring
+difficulty: easy
+tags:
+  - live
+  - monitoring
+  - read-only
+allowed_tools:
+  - notifications_list
+  - notifications_get
+  - alerts_list
+expected_tools:
+  - notifications_list
+tool_must_not_contain:
+  - notifications_create
+  - notifications_delete
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  notifications_list:
+    - monitors
+min_final_chars: 60

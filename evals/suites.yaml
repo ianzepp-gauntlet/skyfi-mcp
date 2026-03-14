@@ -26,3 +26,30 @@ suites:
       - live-account-readiness
       - live-pricing-exploration
       - live-location-and-search
+      - live-address-lookup
+  live-feasibility-smoke:
+    description: Minimal live feasibility check against the real SkyFi-backed MCP server.
+    stage: smoke
+    mode: live
+    cases:
+      - live-feasibility-check
+  live-opportunity-smoke:
+    description: Minimal live pass-prediction check against the real SkyFi-backed MCP server.
+    stage: smoke
+    mode: live
+    cases:
+      - live-address-next-opportunity-too-soon
+      - live-address-next-opportunity
+  live-orders-smoke:
+    description: Minimal read-only order history checks against the real SkyFi-backed MCP server.
+    stage: smoke
+    mode: live
+    cases:
+      - live-orders-list
+      - live-order-detail
+  live-monitoring-smoke:
+    description: Minimal read-only AOI monitoring checks against the real SkyFi-backed MCP server.
+    stage: smoke
+    mode: live
+    cases:
+      - live-monitoring-review
