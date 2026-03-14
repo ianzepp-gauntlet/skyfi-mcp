@@ -1,6 +1,6 @@
 id: live-pricing-exploration
 description: Live pricing query using a resolved place name.
-query: What are the pricing options for imagery over the Port of Rotterdam?
+query: What are the pricing options for imagery over the Port of Rotterdam? If location resolution returns several nearby matches for the same place, use the most relevant resolved result and continue.
 category: pricing
 difficulty: easy
 tags:

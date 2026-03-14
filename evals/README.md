@@ -45,6 +45,34 @@ Read-only live tests. These call the real MCP server and grade whether the model
 
 The live suite intentionally avoids order-confirmation calls.
 
+## Verification Status
+
+Latest completed successful runs:
+
+- `planner-smoke`: passed (`5/5`)
+  - `evals/results/2026-03-14T22-49-47.643Z`
+- `live-integration-smoke`: passed (`4/4`)
+  - `evals/results/2026-03-14T22-52-46.248Z`
+- `live-feasibility-smoke`: passed (`1/1`)
+  - `evals/results/2026-03-14T22-55-42.189Z`
+- `live-opportunity-smoke`: passed (`2/2`)
+  - `evals/results/2026-03-14T22-59-11.707Z`
+- `live-monitoring-smoke`: passed (`1/1`)
+  - `evals/results/2026-03-14T23-00-54.614Z`
+- `live-orders-smoke`: passed (`2/2`)
+  - `evals/results/2026-03-14T23-01-39.469Z`
+
+Coverage included in those successful runs:
+
+- planner tool selection and confirmation-gate behavior
+- account readiness and pricing lookup
+- place-name and exact-address resolution
+- archive search
+- feasibility checks
+- next-opportunity lookup, including an expected failure for too-soon pass windows
+- read-only order history inspection
+- read-only AOI monitoring review
+
 ## Requirements
 
 - `OPENAI_API_KEY`

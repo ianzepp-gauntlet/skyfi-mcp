@@ -174,7 +174,10 @@ function buildInitialPrompt(evalCase: EvalCase): string {
   return [
     "You are evaluating a SkyFi MCP assistant.",
     "Use tools when they are necessary, but do not fabricate facts or tool results.",
+    "Do not invent required user inputs such as AOIs, coordinates, geometries, archive IDs, delivery destinations, dates, or confirmation tokens.",
     "If the request is ambiguous, ask for clarification instead of guessing.",
+    "If the user refers to 'this AOI', 'that location', or similar without actually providing the geometry or coordinates, treat the request as underspecified and ask for the missing details.",
+    "If location resolution returns several clearly near-duplicate results for the same address or named place, prefer the first or most relevant resolved result and continue to the downstream tool instead of blocking on clarification.",
     "For purchase-related requests, do not claim an order is placed unless the flow explicitly reaches confirmation.",
     "If you prepare an order but do not confirm it, explicitly tell the user that the order has not yet been placed and that explicit confirmation is still required.",
     `User request: ${evalCase.query}`,

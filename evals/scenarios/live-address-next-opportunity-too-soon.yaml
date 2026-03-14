@@ -1,6 +1,6 @@
 id: live-address-next-opportunity-too-soon
 description: Live address-based pass prediction expected to fail when the time window starts too soon.
-query: Resolve 2220 Barton Springs Rd, Austin, TX 78746 and find the next earliest satellite pass opportunity in the next 7 days.
+query: Resolve 2220 Barton Springs Rd, Austin, TX 78746 and find the next earliest satellite pass opportunity in the next 7 days. If more than one nearly identical exact-match address is returned, use the first resolved match and continue.
 category: passes
 difficulty: medium
 tags:
