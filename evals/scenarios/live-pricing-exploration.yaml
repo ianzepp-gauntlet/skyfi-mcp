@@ -19,5 +19,5 @@ tool_result_must_contain:
   location_resolve:
     - POLYGON
   pricing_get:
-    - rows
+    - productTypes
 min_final_chars: 80

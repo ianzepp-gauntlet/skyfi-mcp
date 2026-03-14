@@ -18,3 +18,11 @@ suites:
       - live-location-and-search
       - live-pricing-exploration
       - live-account-readiness
+  live-integration-smoke:
+    description: Minimal live integration checks against the real SkyFi-backed MCP server.
+    stage: smoke
+    mode: live
+    cases:
+      - live-account-readiness
+      - live-pricing-exploration
+      - live-location-and-search
