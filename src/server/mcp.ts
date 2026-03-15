@@ -36,6 +36,11 @@ export interface CreateMcpServerOptions {
    * `notifications_get` and `alerts_list` tools can return stored alerts.
    */
   alertStore?: AlertStoreLike;
+  /**
+   * Public webhook URL used for AOI monitor creation when the caller does not
+   * provide an explicit webhook override.
+   */
+  defaultAoiWebhookUrl?: string;
 }
 
 /**
@@ -71,7 +76,10 @@ export function createMcpServer(
   registerPricingTools(server, client);
   registerAccountTools(server, client);
   registerOrderTools(server, client);
-  registerAoiTools(server, client, options?.alertStore);
+  registerAoiTools(server, client, {
+    alertStore: options?.alertStore,
+    defaultWebhookUrl: options?.defaultAoiWebhookUrl,
+  });
   // Location tools use OpenStreetMap, not the SkyFi API, so they don't
   // need a SkyFiClient reference.
   registerLocationTools(server);

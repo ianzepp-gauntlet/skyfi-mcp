@@ -325,6 +325,56 @@ Both `apiKey`/`api_key` and `baseUrl`/`base_url` spellings are accepted.
 
 The server starts at `http://localhost:3000/mcp`.
 
+### Notifications & Webhooks
+
+SkyFi notifications are AOI monitors, not generic saved areas. When a monitor is created, SkyFi sends webhook callbacks whenever new imagery matches the AOI and filters.
+
+This server is designed to receive those callbacks itself at:
+
+- MCP endpoint: `/mcp`
+- AOI webhook endpoint: `/webhooks/aoi`
+
+The intended agent flow is:
+
+1. The agent calls `notifications_create`.
+2. SkyFi sends future AOI match events to this server's `/webhooks/aoi` endpoint.
+3. The server stores those alerts internally.
+4. The agent later reads them with `notifications_get` or `alerts_list`.
+
+By default, `notifications_create` will use the server-managed webhook destination when `SKYFI_MCP_PUBLIC_BASE_URL` is configured. In that case, the default webhook URL becomes:
+
+```text
+<SKYFI_MCP_PUBLIC_BASE_URL>/webhooks/aoi
+```
+
+The `webhookUrl` tool parameter is still supported as an optional override, but most agent-facing deployments should not need to ask the user for one.
+
+Examples:
+
+```bash
+# Public deployed MCP server
+export SKYFI_MCP_PUBLIC_BASE_URL=https://skyfi-mcp.example.com
+```
+
+Default webhook target used by `notifications_create`:
+
+```text
+https://skyfi-mcp.example.com/webhooks/aoi
+```
+
+```bash
+# Local development with a tunnel
+export SKYFI_MCP_PUBLIC_BASE_URL=https://abc123.ngrok-free.app
+```
+
+Default webhook target used by `notifications_create`:
+
+```text
+https://abc123.ngrok-free.app/webhooks/aoi
+```
+
+If `SKYFI_MCP_PUBLIC_BASE_URL` is not set, callers must provide `webhookUrl` explicitly when creating notifications.
+
 ### Scripts
 
 ```bash
@@ -476,6 +526,7 @@ bunx wrangler secret put SKYFI_API_KEY
 Optional environment variables (set in `wrangler.jsonc` or via `wrangler secret put`):
 
 - `SKYFI_BASE_URL` — override the SkyFi API base URL (defaults to `https://app.skyfi.com/platform-api`)
+- `SKYFI_MCP_PUBLIC_BASE_URL` — public base URL for this MCP deployment; used to auto-manage AOI webhook delivery at `/webhooks/aoi`
 - `LANGCHAIN_API_KEY` — LangSmith API key (when tracing is enabled)
 
 Workers also declare two Durable Object bindings:
@@ -518,9 +569,10 @@ Environment variables:
 
 - `SKYFI_API_KEY` — your SkyFi API key
 - `SKYFI_BASE_URL` — override the SkyFi API base URL (optional)
+- `SKYFI_MCP_PUBLIC_BASE_URL` — public base URL for this MCP deployment; used as the default AOI webhook destination at `/webhooks/aoi`
 - `PORT` — listening port (default: 3000)
 
-The inbound webhook endpoint (`POST /webhooks/aoi`) requires a stable public URL. For local development with webhooks, use a tunnel (e.g., ngrok).
+The inbound webhook endpoint (`POST /webhooks/aoi`) requires a stable public URL. Set `SKYFI_MCP_PUBLIC_BASE_URL` so `notifications_create` can default to the server-managed webhook destination. For local development with webhooks, point it at a tunnel URL (for example, an ngrok HTTPS URL).
 
 ## Project Structure
 

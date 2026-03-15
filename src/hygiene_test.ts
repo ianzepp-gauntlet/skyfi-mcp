@@ -21,9 +21,8 @@ const MAX_TS_SUPPRESS = 0; // @ts-ignore, @ts-expect-error, @ts-nocheck
 // Current: transport.ts:187 (void server.close() — intentional async cleanup)
 const MAX_VOID_DISPATCH = 1;
 
-// Raw JSON.parse in production code — should stay at transport/config boundaries.
-// Current: skyfi.ts (response parse + JSDoc comment), local.ts (config parse + JSDoc comment), orders.ts (pricing roundtrip)
-const MAX_JSON_PARSE = 4;
+// Raw JSON.parse in production code — centralized in src/lib/json.ts.
+const MAX_JSON_PARSE = 1;
 
 // console.* calls in production code — debug/info logging.
 // Current: index.ts (startup banner), transport.ts (webhook log), local.ts (console.warn + JSDoc comment)

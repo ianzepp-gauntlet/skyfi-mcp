@@ -14,6 +14,7 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import type { SkyFiConfig } from "./index.js";
+import { parseJsonObject } from "../lib/json.js";
 
 /**
  * Path to the optional local config file.
@@ -36,10 +37,22 @@ export function loadLocalConfig(): Partial<SkyFiConfig> {
   if (!existsSync(CONFIG_PATH)) return {};
   try {
     const raw = readFileSync(CONFIG_PATH, "utf-8");
-    const parsed = JSON.parse(raw);
+    const parsed = parseJsonObject(raw, "SkyFi local config");
+    const apiKey =
+      typeof parsed.apiKey === "string"
+        ? parsed.apiKey
+        : typeof parsed.api_key === "string"
+          ? parsed.api_key
+          : undefined;
+    const baseUrl =
+      typeof parsed.baseUrl === "string"
+        ? parsed.baseUrl
+        : typeof parsed.base_url === "string"
+          ? parsed.base_url
+          : undefined;
     return {
-      apiKey: parsed.apiKey ?? parsed.api_key,
-      baseUrl: parsed.baseUrl ?? parsed.base_url,
+      apiKey,
+      baseUrl,
     };
   } catch (err) {
     console.warn(

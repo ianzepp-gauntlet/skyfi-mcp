@@ -3,6 +3,7 @@ import { basename, join, resolve } from "node:path";
 import YAML from "yaml";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { parseJson, parseJsonObject } from "../lib/json.js";
 import type {
   CaseArtifact,
   EvalCase,
@@ -190,9 +191,9 @@ function parseJsonObjectFromText(text: string): unknown {
   if (trimmed.startsWith("```")) {
     const withoutStart = trimmed.replace(/^```[a-zA-Z0-9_-]*\s*/, "");
     const withoutFence = withoutStart.replace(/\s*```$/, "");
-    return JSON.parse(withoutFence.trim());
+    return parseJson(withoutFence.trim());
   }
-  return JSON.parse(trimmed);
+  return parseJson(trimmed);
 }
 
 async function createOpenAIResponse(params: {
@@ -592,7 +593,10 @@ async function runCase(params: {
       for (const call of functionCalls) {
         let parsedArgs: Record<string, unknown>;
         try {
-          parsedArgs = JSON.parse(call.arguments) as Record<string, unknown>;
+          parsedArgs = parseJsonObject(
+            call.arguments,
+            `Tool arguments for ${call.name}`,
+          );
         } catch {
           parsedArgs = {};
         }

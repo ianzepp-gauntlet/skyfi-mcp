@@ -25,6 +25,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SkyFiClient } from "../client/skyfi.js";
 import type { AlertStoreLike } from "./alerts.js";
 
+export interface RegisterAoiToolsOptions {
+  alertStore?: AlertStoreLike;
+  defaultWebhookUrl?: string;
+}
+
 /**
  * Register AOI monitoring tools on the given MCP server.
  *
@@ -38,17 +43,22 @@ import type { AlertStoreLike } from "./alerts.js";
 export function registerAoiTools(
   server: McpServer,
   client: SkyFiClient,
-  alertStore?: AlertStoreLike,
+  options: RegisterAoiToolsOptions = {},
 ) {
   server.registerTool(
     "notifications_create",
     {
       title: "Create Notification",
       description:
-        "Create a notification filter that sends webhooks when new imagery matches the specified AOI and optional quality filters.",
+        "Create an AOI monitor that sends a webhook when new imagery matches the specified area and optional quality filters. By default the MCP server manages the webhook destination internally; provide webhookUrl only to override that default.",
       inputSchema: {
         aoi: z.string().describe("Area of interest as WKT POLYGON"),
-        webhookUrl: z.string().describe("URL to receive webhook notifications"),
+        webhookUrl: z
+          .string()
+          .optional()
+          .describe(
+            "Optional webhook override. If omitted, the MCP server uses its internally managed AOI webhook URL when configured.",
+          ),
         gsdMin: z
           .number()
           .optional()
@@ -64,9 +74,22 @@ export function registerAoiTools(
       },
     },
     async ({ aoi, webhookUrl, gsdMin, gsdMax, productType }) => {
+      const resolvedWebhookUrl = webhookUrl ?? options.defaultWebhookUrl;
+      if (!resolvedWebhookUrl) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "Error: No webhook URL is available. This server does not have an internally managed AOI webhook URL configured, so provide webhookUrl explicitly or configure SKYFI_MCP_PUBLIC_BASE_URL.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
       const notification = await client.createNotification({
         aoi,
-        webhookUrl,
+        webhookUrl: resolvedWebhookUrl,
         gsdMin,
         gsdMax,
         productType,
@@ -145,7 +168,7 @@ export function registerAoiTools(
     },
     async ({ monitor_id }) => {
       const notification = await client.getNotification(monitor_id);
-      const alerts = (await alertStore?.get(monitor_id)) ?? [];
+      const alerts = (await options.alertStore?.get(monitor_id)) ?? [];
 
       return {
         content: [
@@ -190,7 +213,7 @@ export function registerAoiTools(
     async ({ monitor_id }) => {
       await client.deleteNotification(monitor_id);
       // Clean up stored alerts for the deleted monitor.
-      await alertStore?.clear(monitor_id);
+      await options.alertStore?.clear(monitor_id);
 
       return {
         content: [
@@ -228,8 +251,8 @@ export function registerAoiTools(
     async ({ monitor_id, limit }) => {
       const maxResults = limit ?? 25;
       const alerts = monitor_id
-        ? ((await alertStore?.get(monitor_id, maxResults)) ?? [])
-        : ((await alertStore?.getAll(maxResults)) ?? []);
+        ? ((await options.alertStore?.get(monitor_id, maxResults)) ?? [])
+        : ((await options.alertStore?.getAll(maxResults)) ?? []);
 
       return {
         content: [

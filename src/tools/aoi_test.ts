@@ -45,7 +45,9 @@ describe("registerAoiTools", () => {
   test("create/list/delete AOI monitor flows", async () => {
     const harness = createToolHarness();
     const client = createMockClient();
-    registerAoiTools(harness.server as any, client as any);
+    registerAoiTools(harness.server as any, client as any, {
+      defaultWebhookUrl: "https://mcp.example.com/webhooks/aoi",
+    });
 
     const created = parseToolJson(
       await harness.invoke("notifications_create", {
@@ -91,7 +93,7 @@ describe("registerAoiTools", () => {
     alertStore.add("mon-1", { imagery: "scene-a" }, "2026-01-01T01:00:00Z");
     alertStore.add("mon-1", { imagery: "scene-b" }, "2026-01-01T02:00:00Z");
 
-    registerAoiTools(harness.server as any, client as any, alertStore);
+    registerAoiTools(harness.server as any, client as any, { alertStore });
 
     const result = parseToolJson(
       await harness.invoke("notifications_get", { monitor_id: "mon-1" }),
@@ -122,7 +124,7 @@ describe("registerAoiTools", () => {
     const alertStore = new AlertStore();
     alertStore.add("mon-1", { imagery: "scene-a" });
 
-    registerAoiTools(harness.server as any, client as any, alertStore);
+    registerAoiTools(harness.server as any, client as any, { alertStore });
 
     await harness.invoke("notifications_delete", { monitor_id: "mon-1" });
     expect(alertStore.get("mon-1")).toEqual([]);
@@ -135,7 +137,7 @@ describe("registerAoiTools", () => {
     alertStore.add("mon-1", { src: "a" }, "2026-01-01T01:00:00Z");
     alertStore.add("mon-2", { src: "b" }, "2026-01-01T02:00:00Z");
 
-    registerAoiTools(harness.server as any, client as any, alertStore);
+    registerAoiTools(harness.server as any, client as any, { alertStore });
 
     const result = parseToolJson(
       await harness.invoke("alerts_list", { monitor_id: "mon-1" }),
@@ -151,7 +153,7 @@ describe("registerAoiTools", () => {
     alertStore.add("mon-1", { src: "a" }, "2026-01-01T01:00:00Z");
     alertStore.add("mon-2", { src: "b" }, "2026-01-01T02:00:00Z");
 
-    registerAoiTools(harness.server as any, client as any, alertStore);
+    registerAoiTools(harness.server as any, client as any, { alertStore });
 
     const result = parseToolJson(await harness.invoke("alerts_list", {}));
     expect(result.total).toBe(2);
@@ -165,7 +167,7 @@ describe("registerAoiTools", () => {
       alertStore.add("mon-1", { i }, `2026-01-01T00:0${i}:00Z`);
     }
 
-    registerAoiTools(harness.server as any, client as any, alertStore);
+    registerAoiTools(harness.server as any, client as any, { alertStore });
 
     const result = parseToolJson(
       await harness.invoke("alerts_list", { monitor_id: "mon-1", limit: 3 }),
@@ -183,6 +185,49 @@ describe("registerAoiTools", () => {
     );
     expect(result.total).toBe(0);
     expect(result.alerts).toEqual([]);
+  });
+
+  test("notifications_create uses the internally managed webhook URL by default", async () => {
+    const harness = createToolHarness();
+    let receivedWebhookUrl = "";
+    const client = {
+      ...createMockClient(),
+      createNotification: async ({ webhookUrl }: { webhookUrl: string }) => {
+        receivedWebhookUrl = webhookUrl;
+        return {
+          id: "mon-1",
+          aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+          webhookUrl,
+          createdAt: "2026-01-01T00:00:00Z",
+        };
+      },
+    };
+
+    registerAoiTools(harness.server as any, client as any, {
+      defaultWebhookUrl: "https://mcp.example.com/webhooks/aoi",
+    });
+
+    const created = parseToolJson(
+      await harness.invoke("notifications_create", {
+        aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      }),
+    );
+
+    expect(receivedWebhookUrl).toBe("https://mcp.example.com/webhooks/aoi");
+    expect(created.webhookUrl).toBe("https://mcp.example.com/webhooks/aoi");
+  });
+
+  test("notifications_create errors when neither override nor managed webhook is available", async () => {
+    const harness = createToolHarness();
+    const client = createMockClient();
+    registerAoiTools(harness.server as any, client as any);
+
+    const result = (await harness.invoke("notifications_create", {
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+    })) as any;
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("No webhook URL is available");
   });
 
   test("registers all five AOI tools", () => {

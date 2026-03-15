@@ -43,6 +43,7 @@ import type {
   OrderRedeliveryRequest,
   OrderTaskingRequest,
 } from "../client/types.js";
+import { parseJsonObject } from "../lib/json.js";
 import { ConfirmationStore } from "./confirmation.js";
 import {
   normalizeTaskingResolution,
@@ -416,7 +417,10 @@ export function registerOrderTools(
                 // to reduce the risk of the AI presenting this as a completed transaction.
                 message:
                   "ORDER NOT YET PLACED. Review the pricing below and call orders_confirm with the confirmation token to execute the purchase.",
-                pricing: JSON.parse(pricingSummary),
+                pricing: parseJsonObject(
+                  pricingSummary,
+                  "Prepared order pricing summary",
+                ),
                 orderDetails: {
                   aoi: params.aoi,
                   deliveryDriver: params.deliveryDriver,

@@ -5,7 +5,13 @@ import eslintConfigPrettier from "eslint-config-prettier";
 
 export default tseslint.config(
   {
-    ignores: ["coverage/**", "dist/**", "node_modules/**", ".wrangler/**"],
+    ignores: [
+      "coverage/**",
+      "dist/**",
+      "examples/**",
+      "node_modules/**",
+      ".wrangler/**",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended.map((config) => ({
@@ -38,6 +44,17 @@ export default tseslint.config(
           varsIgnorePattern: "^_",
         },
       ],
+      "no-console": ["error", { allow: ["warn", "log"] }],
+    },
+  },
+  {
+    files: ["**/*.mjs"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
       "no-console": ["error", { allow: ["warn", "log"] }],
     },
   },

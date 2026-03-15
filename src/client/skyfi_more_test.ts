@@ -6,6 +6,14 @@ const originalSetTimeout = globalThis.setTimeout;
 type TestHeaders = Record<string, string>;
 type TimeoutCallback = (...args: unknown[]) => void;
 
+function asFetchMock(
+  fn: (url: string | URL | Request, init?: RequestInit) => Promise<Response>,
+): typeof fetch {
+  return Object.assign(fn, {
+    preconnect: () => Promise.resolve(),
+  }) as typeof fetch;
+}
+
 describe("SkyFiClient request and wrappers", () => {
   beforeEach(() => {
     globalThis.fetch = originalFetch;
@@ -19,10 +27,10 @@ describe("SkyFiClient request and wrappers", () => {
 
   test("constructor normalizes trailing slash and omits undefined query params", async () => {
     let seenUrl = "";
-    globalThis.fetch = (async (url: string | URL | Request) => {
+    globalThis.fetch = asFetchMock(async (url: string | URL | Request) => {
       seenUrl = String(url);
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
-    }) as unknown as typeof fetch;
+    });
 
     const client = new SkyFiClient({
       apiKey: "k",
@@ -41,13 +49,13 @@ describe("SkyFiClient request and wrappers", () => {
 
   test("sets content-type only when request has a body", async () => {
     const headersSeen: Array<TestHeaders | undefined> = [];
-    globalThis.fetch = (async (
+    globalThis.fetch = asFetchMock(async (
       _url: string | URL | Request,
       init?: RequestInit,
     ) => {
       headersSeen.push(init?.headers as TestHeaders | undefined);
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
-    }) as unknown as typeof fetch;
+    });
 
     const client = new SkyFiClient({
       apiKey: "k",
@@ -72,8 +80,9 @@ describe("SkyFiClient request and wrappers", () => {
   });
 
   test("throws detailed error on non-2xx", async () => {
-    globalThis.fetch = (async () =>
-      new Response("boom", { status: 500 })) as unknown as typeof fetch;
+    globalThis.fetch = asFetchMock(
+      async () => new Response("boom", { status: 500 }),
+    );
 
     const client = new SkyFiClient({
       apiKey: "k",
@@ -85,8 +94,7 @@ describe("SkyFiClient request and wrappers", () => {
   });
 
   test("throws for empty 200 body", async () => {
-    globalThis.fetch = (async () =>
-      new Response("", { status: 200 })) as unknown as typeof fetch;
+    globalThis.fetch = asFetchMock(async () => new Response("", { status: 200 }));
 
     const client = new SkyFiClient({
       apiKey: "k",
@@ -102,13 +110,13 @@ describe("SkyFiClient request and wrappers", () => {
       { feasibility_id: "f1", status: "FEASIBLE", opportunities: [1] },
     ];
 
-    globalThis.fetch = (async () =>
+    globalThis.fetch = asFetchMock(async () =>
       new Response(
         JSON.stringify(statuses.shift() ?? statuses[statuses.length - 1]),
         {
           status: 200,
         },
-      )) as unknown as typeof fetch;
+      ));
 
     globalThis.setTimeout = ((fn: TimeoutCallback) => {
       if (typeof fn === "function") fn();
@@ -127,35 +135,50 @@ describe("SkyFiClient request and wrappers", () => {
   });
 
   test("checkFeasibility normalizes spec-shaped id to feasibility_id", async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async () =>
+    globalThis.fetch = asFetchMock(async () =>
       new Response(
         JSON.stringify({
           id: "f-spec-1",
           status: "PENDING",
         }),
         { status: 200 },
-      ) as any;
+      ));
 
-    try {
-      const client = new SkyFiClient({
-        apiKey: "test-key",
-        baseUrl: "https://example.com",
-      });
+    const client = new SkyFiClient({
+      apiKey: "test-key",
+      baseUrl: "https://example.com",
+    });
 
-      const result = await client.checkFeasibility({
+    const result = await client.checkFeasibility({
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      startDate: "2026-03-15T00:00:00Z",
+      endDate: "2026-03-22T00:00:00Z",
+      productType: "DAY",
+      resolution: "HIGH",
+    });
+
+    expect(result.feasibility_id).toBe("f-spec-1");
+    expect(result.status).toBe("PENDING");
+  });
+
+  test("checkFeasibility throws when the upstream response omits an id", async () => {
+    globalThis.fetch = asFetchMock(async () =>
+      new Response(JSON.stringify({ status: "PENDING" }), { status: 200 }));
+
+    const client = new SkyFiClient({
+      apiKey: "test-key",
+      baseUrl: "https://example.com",
+    });
+
+    await expect(
+      client.checkFeasibility({
         aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
         startDate: "2026-03-15T00:00:00Z",
         endDate: "2026-03-22T00:00:00Z",
         productType: "DAY",
         resolution: "HIGH",
-      });
-
-      expect(result.feasibility_id).toBe("f-spec-1");
-      expect(result.status).toBe("PENDING");
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+      }),
+    ).rejects.toThrow("missing feasibility_id");
   });
 });
 
@@ -173,17 +196,27 @@ describe("SkyFiClient request and wrappers (additional)", () => {
   test("calls expected methods and paths across wrapper methods", async () => {
     const calls: Array<{ method: string; path: string }> = [];
 
-    globalThis.fetch = (async (
+    globalThis.fetch = asFetchMock(async (
       url: string | URL | Request,
       init?: RequestInit,
     ) => {
       const parsed = new URL(String(url));
+      const path = `${parsed.pathname}${parsed.search}`;
       calls.push({
         method: String(init?.method ?? "GET"),
-        path: `${parsed.pathname}${parsed.search}`,
+        path,
       });
+      if (path === "/feasibility" || path === "/feasibility/f-1") {
+        return new Response(
+          JSON.stringify({
+            feasibility_id: "f-1",
+            status: "PENDING",
+          }),
+          { status: 200 },
+        );
+      }
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
-    }) as unknown as typeof fetch;
+    });
 
     const client = new SkyFiClient({
       apiKey: "k",
@@ -250,13 +283,13 @@ describe("SkyFiClient request and wrappers (additional)", () => {
   });
 
   test("pollFeasibility returns final pending status when timeout is reached", async () => {
-    globalThis.fetch = (async () =>
+    globalThis.fetch = asFetchMock(async () =>
       new Response(
         JSON.stringify({ feasibility_id: "f2", status: "PENDING" }),
         {
           status: 200,
         },
-      )) as unknown as typeof fetch;
+      ));
 
     globalThis.setTimeout = ((fn: TimeoutCallback) => {
       if (typeof fn === "function") fn();
@@ -289,7 +322,7 @@ describe("SkyFiClient notification endpoints", () => {
   test("createNotification and deleteNotification hit notification endpoints", async () => {
     const calls: Array<{ method: string; path: string }> = [];
 
-    globalThis.fetch = (async (
+    globalThis.fetch = asFetchMock(async (
       url: string | URL | Request,
       init?: RequestInit,
     ) => {
@@ -304,7 +337,7 @@ describe("SkyFiClient notification endpoints", () => {
       }
 
       return new Response(JSON.stringify({ id: "n-1" }), { status: 200 });
-    }) as unknown as typeof fetch;
+    });
 
     const client = new SkyFiClient({
       apiKey: "k",
@@ -337,13 +370,13 @@ describe("SkyFiClient deliverable download endpoint", () => {
   });
 
   test("getOrderDeliverableUrl returns redirect location header", async () => {
-    globalThis.fetch = (async () =>
+    globalThis.fetch = asFetchMock(async () =>
       new Response(null, {
         status: 302,
         headers: {
           location: "https://signed.example.com/file.tif",
         },
-      })) as unknown as typeof fetch;
+      }));
 
     const client = new SkyFiClient({
       apiKey: "k",
@@ -355,8 +388,9 @@ describe("SkyFiClient deliverable download endpoint", () => {
   });
 
   test("getOrderDeliverableUrl throws when redirect location is missing", async () => {
-    globalThis.fetch = (async () =>
-      new Response(null, { status: 200 })) as unknown as typeof fetch;
+    globalThis.fetch = asFetchMock(
+      async () => new Response(null, { status: 200 }),
+    );
 
     const client = new SkyFiClient({
       apiKey: "k",

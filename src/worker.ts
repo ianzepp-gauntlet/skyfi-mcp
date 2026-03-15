@@ -32,6 +32,7 @@ type SkyFiAgentProps = {
 export interface WorkerEnv extends Cloudflare.Env {
   MCP_OBJECT: DurableObjectNamespace<SkyFiMcpAgent>;
   ALERT_STORE: DurableObjectNamespace<any>;
+  SKYFI_MCP_PUBLIC_BASE_URL?: string;
 }
 
 /**
@@ -59,7 +60,17 @@ export class SkyFiMcpAgent extends McpAgent<
     }
     const config = loadConfig(this.props?.skyfiApiKey, undefined, env);
     const alertStore = new DurableAlertStoreClient(this.env.ALERT_STORE);
-    this.server = createMcpServer(config, { alertStore });
+    const publicBaseUrl = this.env.SKYFI_MCP_PUBLIC_BASE_URL?.trim();
+    const defaultAoiWebhookUrl = publicBaseUrl
+      ? new URL(
+          "/webhooks/aoi",
+          `${publicBaseUrl.replace(/\/+$/, "")}/`,
+        ).toString()
+      : undefined;
+    this.server = createMcpServer(config, {
+      alertStore,
+      defaultAoiWebhookUrl,
+    });
   }
 }
 

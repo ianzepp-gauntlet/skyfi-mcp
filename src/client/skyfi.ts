@@ -18,7 +18,7 @@
  * TRADE-OFFS:
  * - The client does not retry on transient failures. The MCP layer will surface
  *   errors directly to the AI caller, which can decide to retry.
- * - Responses are parsed eagerly with `JSON.parse`. Streaming or large payloads
+ * - Responses are parsed eagerly into memory. Streaming or large payloads
  *   are not a current concern given archive search page sizes (≤ 100 results).
  * - 204 and 205 "No Content" responses return `undefined as T`. Callers that
  *   care about the response type (e.g. `deleteNotification`) should declare
@@ -50,10 +50,46 @@ import type {
   WhoAmI,
   DeliverableType,
 } from "./types";
+import { parseJson } from "../lib/json.js";
+
+function inferFeasibilityStatus(record: Record<string, unknown>): string | undefined {
+  if (typeof record.status === "string") {
+    return record.status;
+  }
+
+  const overallScore = record.overallScore;
+  if (!overallScore || typeof overallScore !== "object" || Array.isArray(overallScore)) {
+    return undefined;
+  }
+
+  const providerScore = (overallScore as Record<string, unknown>).providerScore;
+  if (
+    !providerScore ||
+    typeof providerScore !== "object" ||
+    Array.isArray(providerScore)
+  ) {
+    return undefined;
+  }
+
+  const providerScores = (providerScore as Record<string, unknown>).providerScores;
+  if (!Array.isArray(providerScores)) {
+    return undefined;
+  }
+
+  const firstStatus = providerScores
+    .map((item) =>
+      item && typeof item === "object" && !Array.isArray(item)
+        ? (item as Record<string, unknown>).status
+        : undefined,
+    )
+    .find((status): status is string => typeof status === "string");
+
+  return firstStatus;
+}
 
 function normalizeFeasibilityResponse(payload: unknown): FeasibilityResponse {
-  if (!payload || typeof payload !== "object") {
-    return payload as FeasibilityResponse;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("SkyFi feasibility response must be a JSON object");
   }
 
   const record = payload as Record<string, unknown>;
@@ -63,10 +99,19 @@ function normalizeFeasibilityResponse(payload: unknown): FeasibilityResponse {
       : typeof record.id === "string"
         ? record.id
         : undefined;
+  const status = inferFeasibilityStatus(record);
+
+  if (!feasibilityId) {
+    throw new Error("SkyFi feasibility response missing feasibility_id");
+  }
+  if (typeof status !== "string") {
+    throw new Error("SkyFi feasibility response missing status");
+  }
 
   return {
-    ...(record as FeasibilityResponse),
-    feasibility_id: feasibilityId ?? String(record.feasibility_id ?? record.id),
+    ...record,
+    feasibility_id: feasibilityId,
+    status,
   };
 }
 
@@ -159,7 +204,7 @@ export class SkyFiClient {
       );
     }
 
-    return JSON.parse(text) as T;
+    return parseJson(text) as T;
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
