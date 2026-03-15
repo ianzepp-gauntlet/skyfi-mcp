@@ -50,7 +50,7 @@ export function registerAoiTools(
     {
       title: "Create Notification",
       description:
-        "Create an AOI monitor that sends a webhook when new imagery matches the specified WKT AOI and optional quality filters. This is a persistent server-side monitor. If this MCP server does not have an internally managed webhook configured, you must provide webhookUrl explicitly.",
+        "Create an AOI monitor that sends a webhook when new imagery matches the specified WKT AOI and optional quality filters. This is a persistent server-side monitor. Only call this tool when you already have a webhookUrl or you know this MCP server has an internally managed AOI webhook configured; otherwise ask for the missing webhook destination first.",
       inputSchema: {
         aoi: z
           .string()
@@ -61,7 +61,7 @@ export function registerAoiTools(
           .string()
           .optional()
           .describe(
-            "Optional webhook override. Required when the MCP server does not have an internally managed AOI webhook URL configured.",
+            "Optional webhook override. Required unless you already know this MCP server has an internally managed AOI webhook URL configured.",
           ),
         gsdMin: z
           .number()
@@ -125,7 +125,7 @@ export function registerAoiTools(
     {
       title: "List Notifications",
       description:
-        "List all active AOI monitors for the authenticated account. Use this before creating a new monitor so you can avoid duplicates and inspect existing webhook targets.",
+        "List all active AOI monitors for the authenticated account. Use this to inspect existing webhook targets or confirm whether a monitor already exists.",
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },

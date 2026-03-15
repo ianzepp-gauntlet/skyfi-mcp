@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { OrderArchiveRequest } from "../client/types.js";
 import { registerAccountTools, registerOrderTools } from "./orders.js";
 import { ConfirmationStore } from "./confirmation.js";
 import { createToolHarness } from "./test_harness.js";
@@ -231,7 +232,7 @@ describe("registerOrderTools", () => {
 
   test("orders_prepare allows archive orders with deliveryDriver NONE and no bucket", async () => {
     const harness = createToolHarness();
-    let capturedParams: any[] = [];
+    const capturedParams: OrderArchiveRequest[] = [];
     const client = {
       listOrders: async () => ({ total: 0, orders: [] }),
       getOrder: async () => ({ id: "unused" }),
@@ -239,7 +240,7 @@ describe("registerOrderTools", () => {
         currency: "USD",
         rows: [{ provider: "X", price: 0 }],
       }),
-      createArchiveOrder: async (params: any) => {
+      createArchiveOrder: async (params: OrderArchiveRequest) => {
         capturedParams.push(params);
         return {
           id: "ord-archive-none",
@@ -267,10 +268,12 @@ describe("registerOrderTools", () => {
         confirmationToken: prepared.confirmationToken,
       }),
     );
+    const createdOrder = capturedParams[0];
 
     expect(confirmed.orderId).toBe("ord-archive-none");
-    expect(capturedParams[0].deliveryDriver).toBe("NONE");
-    expect(capturedParams[0].deliveryParams).toBeNull();
+    expect(createdOrder).toBeDefined();
+    expect(createdOrder?.deliveryDriver).toBe("NONE");
+    expect(createdOrder?.deliveryParams).toBeNull();
   });
 
   test("orders_list projects order summaries", async () => {

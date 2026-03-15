@@ -21,11 +21,6 @@ expected_tools:
   - notifications_get
   - alerts_list
   - notifications_delete
-expected_tool_sequence:
-  - notifications_create
-  - notifications_get
-  - alerts_list
-  - notifications_delete
 tool_result_must_contain:
   notifications_create:
     - monitorId

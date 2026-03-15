@@ -600,6 +600,7 @@ async function startManagedServer(rootDir: string): Promise<ManagedServer> {
       `Failed to start eval server on port ${port}: ${
         error instanceof Error ? error.message : String(error)
       }${logs ? `\nRecent server logs:\n${logs}` : ""}`,
+      { cause: error },
     );
   }
 

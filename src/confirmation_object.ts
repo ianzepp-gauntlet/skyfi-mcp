@@ -6,6 +6,11 @@ import type {
 const CONFIRMATION_PREFIX = "confirm:";
 const CONFIRMATION_PATH = "/confirmations";
 
+export interface ConfirmationStoreNamespace {
+  get(id: DurableObjectId): DurableObjectStub;
+  idFromName(name: string): DurableObjectId;
+}
+
 function confirmationKey(token: string): string {
   return `${CONFIRMATION_PREFIX}${token}`;
 }
@@ -86,7 +91,7 @@ export class SkyFiConfirmationStore {
  */
 export class DurableConfirmationStoreClient implements ConfirmationStoreLike {
   constructor(
-    private namespace: DurableObjectNamespace<any>,
+    private namespace: ConfirmationStoreNamespace,
     private ttlMs = 5 * 60 * 1000,
     private objectName = "global",
   ) {}
@@ -149,7 +154,6 @@ export class DurableConfirmationStoreClient implements ConfirmationStoreLike {
   }
 
   private stub() {
-    const namespace = this.namespace as any;
-    return namespace.get(namespace.idFromName(this.objectName));
+    return this.namespace.get(this.namespace.idFromName(this.objectName));
   }
 }

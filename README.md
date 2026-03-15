@@ -95,7 +95,7 @@ The target brief is defined in [`REQUIREMENTS.md`](/Users/ianzepp/github/gauntle
 | Payments support within MCP | Partial | The server supports preparing and confirming paid orders through SkyFi using an authenticated account, but it does not implement a separate payment subsystem inside this repo |
 | OpenStreetMap integration | Met | Place-name resolution in [`src/tools/location.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/location.ts) and [`src/client/osm.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/client/osm.ts) |
 | Documentation for ADK, LangChain/LangGraph, AI SDK, Claude Web, OpenAI, Claude Code, Gemini | Met | Integration docs under [`docs/integrations`](/Users/ianzepp/github/gauntlet/skyfi-mcp/docs/integrations) |
-| Demo geospatial deep-research agent | Not in this repo | The current repository does not contain the requested polished demo agent |
+| Demo geospatial deep-research agent | Partial | The repo includes an in-repo deep-research demo skill and agent prompt in [`skills/run-skyfi-deep-research-demo/SKILL.md`](/Users/ianzepp/github/gauntlet/skyfi-mcp/skills/run-skyfi-deep-research-demo/SKILL.md) and [`skills/run-skyfi-deep-research-demo/agents/openai.yaml`](/Users/ianzepp/github/gauntlet/skyfi-mcp/skills/run-skyfi-deep-research-demo/agents/openai.yaml), but not a standalone polished demo application |
 
 ### Important transport note
 
@@ -110,7 +110,7 @@ That is a deliberate modernization, not an omission. It aligns the server with t
 
 ## What Was Built
 
-The current server exposes tools across six workflow areas:
+The current server exposes tools across seven workflow areas:
 
 - account readiness and budget inspection
 - archive search and archive detail lookup
@@ -151,7 +151,7 @@ The latest checked-in eval artifacts under [`evals/results`](/Users/ianzepp/gith
 
 This repo is credible as an MCP submission, but there are still clear boundaries.
 
-- The demo deep-research agent requested in the brief is not included here.
+- The repo includes a repeatable deep-research demo skill and agent prompt, but not a standalone polished demo application or UI.
 - "Payments support" is currently satisfied through SkyFi account/payment readiness and order confirmation flows, not through a bespoke payment UX or wallet layer.
 - The remote transport is intentionally modernized around Streamable HTTP semantics and session-backed Cloudflare Agents behavior, which should be treated as an upgrade over the older stateless HTTP + SSE pattern.
 - Bun-hosted AOI alert persistence is in-memory; Cloudflare gets the stronger shared Durable Object implementation.
@@ -159,7 +159,7 @@ This repo is credible as an MCP submission, but there are still clear boundaries
 
 The most credible next steps would be:
 
-1. Add the open-source geospatial deep-research demo agent requested by the brief.
+1. Promote the in-repo deep-research demo skill into a more standalone open-source demo application if the brief is interpreted as requiring that packaging.
 2. Add trace-level observability around tool execution and failure paths.
 3. Decide whether the transport should be reframed as an intentional modernization or adjusted further to match the original requirement wording more literally.
 4. Promote the eval harness into a standard release gate for remote deployments.
