@@ -250,6 +250,8 @@ The suite inventory below reflects `evals/suites.yaml`.
   Pricing and budget-filtered discovery checks.
 - `live-ordering-smoke`
   Safe ordering-prep checks without confirmation.
+- `live-human-loop`
+  Opt-in live prepare-and-confirm confirmation-gate checks using zero-cost open-data archive orders, including a fast expiry case when `SKYFI_CONFIRMATION_TTL_MS` is set to a low value for evals.
 - `live-multistep-smoke`
   Safe multi-step live flows that chain multiple tools.
 - `live-tasking-smoke`

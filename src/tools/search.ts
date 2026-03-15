@@ -79,6 +79,10 @@ export const searchImagerySchema = z
       .array(z.string())
       .optional()
       .describe("Product type filters (e.g. DAY, MULTISPECTRAL, SAR)"),
+    openData: z
+      .boolean()
+      .optional()
+      .describe("If true, restrict results to open/free datasets"),
     pageSize: z.number().optional().describe("Results per page (default 25)"),
   })
   .superRefine((params, ctx) => {
@@ -109,7 +113,7 @@ export function registerSearchTools(server: McpServer, client: SkyFiClient) {
     {
       title: "Search Archives",
       description:
-        "Search the SkyFi archive catalog by area of interest (WKT polygon), date range, and optional filters. Returns matching imagery with pricing. Pass a page cursor from a previous result to paginate.",
+        "Search the SkyFi archive catalog by WKT AOI polygon, date range, and optional filters. Use location_resolve first if the user gave a place name instead of a polygon. For a new search, provide aoi + fromDate + toDate; for pagination, provide only the page cursor from a previous archives_search result.",
       inputSchema: searchImagerySchema,
       annotations: { readOnlyHint: true },
     },
@@ -149,6 +153,7 @@ export function registerSearchTools(server: McpServer, client: SkyFiClient) {
                   gsd: `${a.gsd}m`,
                   area: `${a.totalAreaSquareKm} km²`,
                   pricePerKm2: `$${a.priceForOneSquareKm}`,
+                  openData: a.openData,
                   deliveryTime: `${a.deliveryTimeHours}h`,
                 })),
                 hasMore: !!result.next_page,
@@ -168,7 +173,7 @@ export function registerSearchTools(server: McpServer, client: SkyFiClient) {
     {
       title: "Get Archive",
       description:
-        "Look up a single archive scene by archive ID and return its full metadata.",
+        "Look up a single archive scene by archive ID and return full scene metadata such as footprint, capture time, pricing, and delivery details. Use this after archives_search when you need to inspect one candidate scene closely.",
       inputSchema: {
         archive_id: z.string().describe("Archive ID to retrieve"),
       },

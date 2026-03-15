@@ -1,0 +1,46 @@
+id: live-open-data-human-approval-expired-token
+description: Use a pinned known zero-cost open-data archive scene, prepare the order with deliveryDriver NONE, wait for a short eval TTL to expire, then verify confirmation is rejected.
+query: Use archive 4ecd615a-0588-4a80-9010-580f2b6a6e67 for AOI POLYGON ((-118.27 33.72, -118.21 33.72, -118.21 33.76, -118.27 33.76, -118.27 33.72)). First inspect that archive and confirm it is open data with zero cost. Then prepare an archive order for it using deliveryDriver NONE so no cloud bucket credentials are required. Do not place the order yet. Show me the price and confirmation token first.
+follow_up_http_actions:
+  - - method: SLEEP
+      sleep_ms: 2500
+follow_up_messages:
+  - I explicitly approve placing this order now. Use the current confirmation token.
+category: ordering
+difficulty: hard
+tags:
+  - live
+  - ordering
+  - human-loop
+  - mutation
+  - open-data
+  - expiry
+allowed_tools:
+  - archive_get
+  - orders_prepare
+  - orders_confirm
+expected_tools:
+  - archive_get
+  - orders_prepare
+  - orders_confirm
+expected_tool_sequence:
+  - archive_get
+  - orders_prepare
+  - orders_confirm
+tool_result_must_contain:
+  archive_get:
+    - openData
+    - priceFullScene
+    - '"openData": true'
+    - '"priceFullScene": 0'
+  orders_prepare:
+    - confirmationToken
+    - ORDER NOT YET PLACED
+    - '"archiveId": "4ecd615a-0588-4a80-9010-580f2b6a6e67"'
+  orders_confirm:
+    - Invalid or expired confirmation token
+must_contain_any:
+  - prepare again
+  - new token
+  - expired
+min_final_chars: 120

@@ -20,10 +20,21 @@ import { loadLocalConfig } from "./config/local.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createApp } from "./server/transport.js";
 import { AlertStore } from "./tools/alerts.js";
+import { ConfirmationStore } from "./tools/confirmation.js";
 
 const port = parseInt(process.env.PORT ?? "3000", 10);
 const alertStore = new AlertStore();
+const parsedConfirmationTtlMs = process.env.SKYFI_CONFIRMATION_TTL_MS
+  ? parseInt(process.env.SKYFI_CONFIRMATION_TTL_MS, 10)
+  : undefined;
+const confirmationTtlMs =
+  parsedConfirmationTtlMs !== undefined &&
+  Number.isFinite(parsedConfirmationTtlMs) &&
+  parsedConfirmationTtlMs > 0
+    ? parsedConfirmationTtlMs
+    : undefined;
 const publicBaseUrl = process.env.SKYFI_MCP_PUBLIC_BASE_URL?.trim();
+const confirmationStore = new ConfirmationStore(confirmationTtlMs);
 const defaultAoiWebhookUrl = publicBaseUrl
   ? new URL("/webhooks/aoi", `${publicBaseUrl.replace(/\/+$/, "")}/`).toString()
   : undefined;
@@ -35,6 +46,8 @@ const app = createApp(
     return createMcpServer(config, {
       alertStore,
       defaultAoiWebhookUrl,
+      confirmationTtlMs,
+      confirmationStore,
     });
   },
   { alertStore },

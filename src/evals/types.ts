@@ -1,9 +1,10 @@
 export interface EvalHttpAction {
   method: string;
-  url: string;
+  url?: string;
   headers?: Record<string, string>;
   body?: unknown;
   expect_status?: number;
+  sleep_ms?: number;
 }
 
 export interface EvalCase {
@@ -25,6 +26,7 @@ export interface EvalCase {
   max_steps?: number;
   follow_up_messages?: string[];
   http_actions_before?: EvalHttpAction[];
+  follow_up_http_actions?: EvalHttpAction[][];
   http_actions_after?: EvalHttpAction[];
 }
 

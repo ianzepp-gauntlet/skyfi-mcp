@@ -185,6 +185,94 @@ describe("registerOrderTools", () => {
     expect(store.size).toBe(0);
   });
 
+  test("orders_prepare and orders_confirm work across separate registrations when a shared store is used", async () => {
+    const prepareHarness = createToolHarness();
+    const confirmHarness = createToolHarness();
+    const store = new ConfirmationStore();
+
+    const client = {
+      listOrders: async () => ({ total: 0, orders: [] }),
+      getOrder: async () => ({ id: "unused" }),
+      getPricing: async () => ({
+        currency: "USD",
+        rows: [{ provider: "X", price: 0 }],
+      }),
+      createArchiveOrder: async () => ({
+        id: "ord-archive-shared",
+        orderType: "ARCHIVE",
+        status: "SUBMITTED",
+        createdAt: "2026-01-01T00:00:00Z",
+      }),
+      createTaskingOrder: async () => ({ id: "unused" }),
+    };
+
+    registerOrderTools(prepareHarness.server as any, client as any, store);
+    registerOrderTools(confirmHarness.server as any, client as any, store);
+
+    const prepared = parseToolJson(
+      await prepareHarness.invoke("orders_prepare", {
+        type: "archive",
+        aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+        archiveId: "arch-123",
+        deliveryDriver: "S3",
+        deliveryBucket: "bucket-a",
+      }),
+    );
+
+    const confirmed = parseToolJson(
+      await confirmHarness.invoke("orders_confirm", {
+        confirmationToken: prepared.confirmationToken,
+      }),
+    );
+
+    expect(confirmed.orderId).toBe("ord-archive-shared");
+    expect(confirmed.type).toBe("ARCHIVE");
+  });
+
+  test("orders_prepare allows archive orders with deliveryDriver NONE and no bucket", async () => {
+    const harness = createToolHarness();
+    let capturedParams: any[] = [];
+    const client = {
+      listOrders: async () => ({ total: 0, orders: [] }),
+      getOrder: async () => ({ id: "unused" }),
+      getPricing: async () => ({
+        currency: "USD",
+        rows: [{ provider: "X", price: 0 }],
+      }),
+      createArchiveOrder: async (params: any) => {
+        capturedParams.push(params);
+        return {
+          id: "ord-archive-none",
+          orderType: "ARCHIVE",
+          status: "SUBMITTED",
+          createdAt: "2026-01-01T00:00:00Z",
+        };
+      },
+      createTaskingOrder: async () => ({ id: "unused" }),
+    };
+
+    registerOrderTools(harness.server as any, client as any, new ConfirmationStore());
+
+    const prepared = parseToolJson(
+      await harness.invoke("orders_prepare", {
+        type: "archive",
+        aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+        archiveId: "arch-open-data",
+        deliveryDriver: "NONE",
+      }),
+    );
+
+    const confirmed = parseToolJson(
+      await harness.invoke("orders_confirm", {
+        confirmationToken: prepared.confirmationToken,
+      }),
+    );
+
+    expect(confirmed.orderId).toBe("ord-archive-none");
+    expect(capturedParams[0].deliveryDriver).toBe("NONE");
+    expect(capturedParams[0].deliveryParams).toBeNull();
+  });
+
   test("orders_list projects order summaries", async () => {
     const harness = createToolHarness();
     const client = {

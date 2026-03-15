@@ -37,7 +37,7 @@ export function registerLocationTools(server: McpServer) {
     {
       title: "Resolve Location",
       description:
-        "Geocode a place name to coordinates and WKT polygon via OpenStreetMap. The returned polygon can be passed directly as an AOI to other tools.",
+        "Geocode a place name or address to coordinates and a WKT polygon via OpenStreetMap. Use this before SkyFi tools whenever the user gives a named location instead of an AOI polygon. Results may be ambiguous, so review the candidates before choosing one.",
       inputSchema: {
         query: z
           .string()

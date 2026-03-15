@@ -28,6 +28,10 @@ import { registerAccountTools, registerOrderTools } from "../tools/orders.js";
 import { registerAoiTools } from "../tools/aoi.js";
 import { registerLocationTools } from "../tools/location.js";
 import type { AlertStoreLike } from "../tools/alerts.js";
+import {
+  ConfirmationStore,
+  type ConfirmationStoreLike,
+} from "../tools/confirmation.js";
 
 /** Options for MCP server creation beyond the base SkyFi config. */
 export interface CreateMcpServerOptions {
@@ -41,6 +45,17 @@ export interface CreateMcpServerOptions {
    * provide an explicit webhook override.
    */
   defaultAoiWebhookUrl?: string;
+  /**
+   * Optional confirmation-token TTL override in milliseconds.
+   * Useful for local/eval runs that need to exercise token expiry quickly.
+   */
+  confirmationTtlMs?: number;
+  /**
+   * Optional shared confirmation store. When omitted, a fresh in-memory store
+   * is created, which is appropriate only when one MCP server instance
+   * handles both prepare and confirm within the same process/session.
+   */
+  confirmationStore?: ConfirmationStoreLike;
 }
 
 /**
@@ -75,7 +90,12 @@ export function createMcpServer(
   registerFeasibilityTools(server, client);
   registerPricingTools(server, client);
   registerAccountTools(server, client);
-  registerOrderTools(server, client);
+  registerOrderTools(
+    server,
+    client,
+    options?.confirmationStore ??
+      new ConfirmationStore(options?.confirmationTtlMs),
+  );
   registerAoiTools(server, client, {
     alertStore: options?.alertStore,
     defaultWebhookUrl: options?.defaultAoiWebhookUrl,

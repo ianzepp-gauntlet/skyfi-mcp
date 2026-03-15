@@ -44,7 +44,10 @@ import type {
   OrderTaskingRequest,
 } from "../client/types.js";
 import { parseJsonObject } from "../lib/json.js";
-import { ConfirmationStore } from "./confirmation.js";
+import {
+  ConfirmationStore,
+  type ConfirmationStoreLike,
+} from "./confirmation.js";
 import {
   normalizeTaskingResolution,
   taskingResolutionInputSchema,
@@ -56,7 +59,7 @@ export function registerAccountTools(server: McpServer, client: SkyFiClient) {
     {
       title: "Get Account Info",
       description:
-        "Get the authenticated SkyFi account profile, billing budget, and payment readiness details.",
+        "Get the authenticated SkyFi account profile, billing budget, and payment readiness details. Use this before proposing paid ordering so you can tell whether the account appears able to place purchases.",
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -104,7 +107,7 @@ export function registerAccountTools(server: McpServer, client: SkyFiClient) {
 export function registerOrderTools(
   server: McpServer,
   client: SkyFiClient,
-  confirmationStore = new ConfirmationStore(),
+  confirmationStore: ConfirmationStoreLike = new ConfirmationStore(),
 ) {
   const deliverableTypeSchema = z.enum(["image", "payload", "cog"]);
 
@@ -115,7 +118,7 @@ export function registerOrderTools(
     {
       title: "List Orders",
       description:
-        "List orders with optional filtering by type (ARCHIVE or TASKING) and pagination.",
+        "List existing orders with optional filtering by type (ARCHIVE or TASKING) and pagination. Use this to inspect prior purchases and retrieve existing deliverables before proposing a new order.",
       inputSchema: {
         orderType: z
           .enum(["ARCHIVE", "TASKING"])
@@ -164,7 +167,7 @@ export function registerOrderTools(
     {
       title: "Get Order",
       description:
-        "Get status, history, and delivery details for a specific order.",
+        "Get status history, delivery details, and associated imagery metadata for a specific order.",
       inputSchema: {
         order_id: z.string().describe("Order UUID"),
       },
@@ -190,7 +193,7 @@ export function registerOrderTools(
     {
       title: "Redeliver Order",
       description:
-        "Re-trigger delivery for an existing order using new delivery settings.",
+        "Re-trigger delivery for an existing order using new delivery settings. This is a side-effecting operation and should only be used when the user explicitly wants delivery changed or retried.",
       inputSchema: {
         order_id: z.string().describe("Order UUID"),
         deliveryDriver: z
@@ -204,10 +207,12 @@ export function registerOrderTools(
             "AZURE_SERVICE_ACCOUNT",
             "NONE",
           ])
-          .describe("New delivery driver"),
+          .describe("New delivery driver for the re-delivery target"),
         deliveryParams: z
           .record(z.string(), z.unknown())
-          .describe("Driver-specific delivery parameters object"),
+          .describe(
+            "Driver-specific delivery parameters object required by the chosen delivery driver",
+          ),
       },
     },
     async ({ order_id, deliveryDriver, deliveryParams }) => {
@@ -241,7 +246,7 @@ export function registerOrderTools(
     {
       title: "Get Deliverable URL",
       description:
-        "Get the signed download URL for an order deliverable such as the image, payload, or COG.",
+        "Get a signed download URL for an existing order deliverable such as the image, payload, or COG. Prefer this when the user wants already-purchased data rather than a new order.",
       inputSchema: {
         order_id: z.string().describe("Order UUID"),
         deliverable_type: deliverableTypeSchema.describe(
@@ -282,30 +287,40 @@ export function registerOrderTools(
     {
       title: "Prepare Order",
       description:
-        "Validate order parameters and fetch pricing. Does NOT place the order. Returns a confirmation token for use with orders_confirm.",
+        "Validate order parameters and fetch pricing for an archive or tasking order. This does NOT place the order. Use it only after the user has chosen a concrete scene or tasking plan and supplied the required delivery destination details. Returns a short-lived confirmation token for orders_confirm.",
       inputSchema: {
         type: z
           .enum(["archive", "tasking"])
           .describe(
             "Order type: archive (existing imagery) or tasking (new capture)",
           ),
-        aoi: z.string().describe("Area of interest as WKT POLYGON"),
+        aoi: z
+          .string()
+          .describe(
+            "Area of interest as WKT POLYGON. Use the same AOI reviewed with the user.",
+          ),
         archiveId: z
           .string()
           .optional()
-          .describe("Archive ID (required for archive orders)"),
+          .describe(
+            "Archive ID from archives_search/archive_get (required for archive orders)",
+          ),
         window_start: z
           .string()
           .optional()
-          .describe("Capture window start (ISO 8601, required for tasking)"),
+          .describe(
+            "Capture window start (ISO 8601, required for tasking orders)",
+          ),
         window_end: z
           .string()
           .optional()
-          .describe("Capture window end (ISO 8601, required for tasking)"),
+          .describe(
+            "Capture window end (ISO 8601, required for tasking orders)",
+          ),
         product_type: z
           .enum(["DAY", "MULTISPECTRAL", "SAR"])
           .optional()
-          .describe("Product type (required for tasking)"),
+          .describe("Product type (required for tasking orders)"),
         resolution: taskingResolutionInputSchema.optional(),
         providerWindowId: z
           .string()
@@ -314,13 +329,20 @@ export function registerOrderTools(
             "Optional provider window ID from passes_predict or feasibility_check to pin the tasking order to a specific pass",
           ),
         deliveryDriver: z
-          .enum(["S3", "GS", "AZURE"])
-          .describe("Cloud storage delivery target"),
-        deliveryBucket: z.string().describe("Delivery bucket name"),
+          .enum(["S3", "GS", "AZURE", "NONE"])
+          .describe(
+            "Delivery target. Use NONE only when the upstream API supports a no-bucket archive delivery path such as open-data orders.",
+          ),
+        deliveryBucket: z
+          .string()
+          .optional()
+          .describe(
+            "Delivery bucket or container name required by S3, GS, or AZURE. Omit when deliveryDriver is NONE.",
+          ),
         deliveryPath: z
           .string()
           .optional()
-          .describe("Delivery path within bucket"),
+          .describe("Optional delivery path or prefix within the bucket/container"),
       },
     },
     async (params) => {
@@ -328,11 +350,6 @@ export function registerOrderTools(
       // Validate fields that are conditionally required based on the order type.
       // These cross-type checks can't be expressed in the Zod schema without
       // a discriminated union, and the mixed schema is simpler for the AI to call.
-
-      const deliveryParams = {
-        bucket: params.deliveryBucket,
-        path: params.deliveryPath,
-      };
 
       let orderParams: OrderArchiveRequest | OrderTaskingRequest;
 
@@ -348,11 +365,29 @@ export function registerOrderTools(
             isError: true,
           };
         }
+        if (params.deliveryDriver !== "NONE" && !params.deliveryBucket) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Error: deliveryBucket is required unless deliveryDriver is NONE.",
+              },
+            ],
+            isError: true,
+          };
+        }
+        const archiveDeliveryParams =
+          params.deliveryDriver === "NONE"
+            ? null
+            : {
+                bucket: params.deliveryBucket!,
+                path: params.deliveryPath,
+              };
         orderParams = {
           aoi: params.aoi,
           archiveId: params.archiveId,
           deliveryDriver: params.deliveryDriver,
-          deliveryParams,
+          deliveryParams: archiveDeliveryParams,
         } satisfies OrderArchiveRequest;
       } else {
         if (
@@ -371,6 +406,32 @@ export function registerOrderTools(
             isError: true,
           };
         }
+        if (params.deliveryDriver === "NONE") {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Error: deliveryDriver NONE is only supported for archive orders.",
+              },
+            ],
+            isError: true,
+          };
+        }
+        if (!params.deliveryBucket) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Error: deliveryBucket is required for tasking orders.",
+              },
+            ],
+            isError: true,
+          };
+        }
+        const taskingDeliveryParams = {
+          bucket: params.deliveryBucket,
+          path: params.deliveryPath,
+        };
         orderParams = {
           aoi: params.aoi,
           windowStart: params.window_start,
@@ -379,7 +440,7 @@ export function registerOrderTools(
           resolution: normalizeTaskingResolution(params.resolution),
           providerWindowId: params.providerWindowId,
           deliveryDriver: params.deliveryDriver,
-          deliveryParams,
+          deliveryParams: taskingDeliveryParams,
         } satisfies OrderTaskingRequest;
       }
 
@@ -398,7 +459,7 @@ export function registerOrderTools(
       // PHASE 3: STORE PENDING ORDER AND RETURN TOKEN
       // Persist the fully-constructed order params and pricing under a short-lived
       // token. The token is what the user (via the AI) must supply to orders_confirm.
-      const token = confirmationStore.store({
+      const token = await confirmationStore.store({
         type: params.type,
         params: orderParams,
         pricingSummary,
@@ -451,7 +512,7 @@ export function registerOrderTools(
     {
       title: "Confirm Order",
       description:
-        "Execute a previously prepared order using the confirmation token from orders_prepare. Places an archive or tasking order.",
+        "Execute a previously prepared order using the confirmation token from orders_prepare. This places the actual archive or tasking order and should only be called after explicit human approval in the conversation.",
       inputSchema: {
         confirmationToken: z
           .string()
@@ -462,7 +523,7 @@ export function registerOrderTools(
       // WHY: `consume` is atomic — it retrieves and deletes the token in one
       // operation. This prevents double-submission if the AI calls this tool
       // twice with the same token (e.g. due to a retry after a network error).
-      const pending = confirmationStore.consume(confirmationToken);
+      const pending = await confirmationStore.consume(confirmationToken);
       if (!pending) {
         return {
           content: [
@@ -483,7 +544,7 @@ export function registerOrderTools(
           order = await client.createTaskingOrder(pending.params);
         }
       } catch (error) {
-        confirmationStore.restore(confirmationToken, pending);
+        await confirmationStore.restore(confirmationToken, pending);
         throw error;
       }
 

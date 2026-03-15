@@ -73,13 +73,24 @@ export interface PendingTaskingOrder extends PendingOrderBase {
   params: OrderTaskingRequest;
 }
 
+type MaybePromise<T> = T | Promise<T>;
+
+export interface ConfirmationStoreLike {
+  store(
+    order: Omit<PendingOrder, "createdAt">,
+    now?: number,
+  ): MaybePromise<string>;
+  consume(token: string, now?: number): MaybePromise<PendingOrder | undefined>;
+  restore(token: string, order: PendingOrder, now?: number): MaybePromise<void>;
+}
+
 /**
  * Single-use token store for the two-step order confirmation flow.
  *
  * Tokens are issued by `store()` and invalidated on first use by `consume()`.
  * Expired tokens are removed lazily on each mutation to avoid background timers.
  */
-export class ConfirmationStore {
+export class ConfirmationStore implements ConfirmationStoreLike {
   private pending = new Map<string, PendingOrder>();
   /** Maximum age of a pending order in milliseconds before it is considered expired. */
   private ttlMs: number;

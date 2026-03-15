@@ -1,0 +1,265 @@
+version: 1
+purpose: >
+  Scenario corpus for refining the run-skyfi-deep-research-demo skill.
+  These scenarios are designed for manual runs first and can later be converted
+  into eval cases with minimal rewriting.
+
+scenarios:
+  - id: archive-port-los-angeles
+    title: Archive-first research on the Port of Los Angeles
+    category: archive-first
+    prompt: >
+      Research recent satellite imagery options for the Port of Los Angeles.
+      I want to understand what imagery is already available, what the best
+      recent scene looks like, and whether there is any existing order or
+      deliverable path worth demonstrating.
+    recommended_aoi_query: "Port of Los Angeles, California"
+    primary_tools:
+      - account_whoami
+      - location_resolve
+      - archives_search
+      - archive_get
+      - orders_list
+      - orders_get
+      - orders_deliverable_get
+    should_demonstrate:
+      - readiness gating before any paid recommendation
+      - use of location_resolve before AOI-based tools
+      - archive-first as the default deep-research path
+      - comparison of open-data versus commercial imagery
+    avoid:
+      - orders_prepare
+      - orders_confirm
+      - notifications_create
+    pass_signals:
+      - resolves a concrete AOI
+      - identifies at least one credible archive candidate
+      - explains why one scene is the strongest example
+      - mentions any useful existing order or deliverable
+
+  - id: ambiguous-location-springfield
+    title: Ambiguous place-name handling
+    category: ambiguity
+    prompt: >
+      Research recent imagery options for Springfield and tell me what we can
+      learn about the area.
+    recommended_aoi_query: "Springfield"
+    primary_tools:
+      - location_resolve
+    should_demonstrate:
+      - recognition that multiple locations are plausible
+      - refusal to silently commit to a random Springfield
+      - either a clarification request or an explicitly justified choice
+    avoid:
+      - archives_search before ambiguity is resolved
+      - passes_predict before ambiguity is resolved
+      - notifications_create before ambiguity is resolved
+    pass_signals:
+      - presents multiple candidate locations
+      - identifies the ambiguity as material
+      - explains what extra specificity is needed
+
+  - id: future-tasking-port-los-angeles
+    title: Tasking-first planning with future pass prediction
+    category: tasking-first
+    prompt: >
+      Plan a future collection for the Port of Los Angeles. I want to know
+      what tasking options may be available next week, what they cost, and
+      whether the account appears ready to move toward an order.
+    recommended_aoi_query: "Port of Los Angeles, California"
+    primary_tools:
+      - account_whoami
+      - location_resolve
+      - pricing_get
+      - passes_predict
+      - feasibility_check
+    should_demonstrate:
+      - exact ISO dates for tool inputs
+      - pass-prediction windows that start at least 24 hours in the future
+      - distinction between pricing and feasibility
+      - readiness discussion before any purchase recommendation
+    avoid:
+      - orders_confirm
+      - pretending an empty opportunities list is a tool failure
+    pass_signals:
+      - gets at least one pass prediction or explains why the time window is invalid
+      - reports feasibility separately from price
+      - explains whether account state blocks commerce
+
+  - id: monitoring-demo-with-webhook
+    title: Monitoring-first demo with explicit webhook
+    category: monitoring-first
+    prompt: >
+      Show me how AOI monitoring would work for the Port of Los Angeles.
+      If you need to create a monitor for the demo, use the server webhook
+      and clean it up afterward.
+    recommended_aoi_query: "Port of Los Angeles, California"
+    setup_notes:
+      - explicit webhookUrl may be required
+      - delete any temporary monitor before finishing
+    primary_tools:
+      - notifications_list
+      - location_resolve
+      - notifications_create
+      - notifications_get
+      - alerts_list
+      - notifications_delete
+    should_demonstrate:
+      - checking for existing monitors first
+      - understanding that monitor creation is persistent
+      - explicit webhook handling when no default exists
+      - cleanup discipline
+    avoid:
+      - leaving a temporary monitor behind
+      - claiming alerts exist if none have arrived
+    pass_signals:
+      - explains whether a webhook URL was required
+      - verifies the created monitor
+      - deletes the temporary monitor
+
+  - id: monitoring-demo-no-webhook
+    title: Monitoring flow when webhook config is missing
+    category: monitoring-constraint
+    prompt: >
+      Set up monitoring for the Port of Los Angeles, but do not assume the
+      server has a built-in webhook URL. Show me what the blocker is if the
+      integration is not configured.
+    recommended_aoi_query: "Port of Los Angeles, California"
+    primary_tools:
+      - notifications_list
+      - location_resolve
+      - notifications_create
+    should_demonstrate:
+      - explicit handling of missing internal webhook configuration
+      - clear explanation of what input or server config is missing
+    avoid:
+      - fabricating a webhook URL
+      - pretending monitor creation succeeded
+    pass_signals:
+      - states that webhookUrl is required when no default exists
+      - keeps the failure categorized as configuration, not generic tool breakage
+
+  - id: research-to-order-boundary
+    title: Research summary that stops before paid action
+    category: purchase-gating
+    prompt: >
+      Research the best current imagery option for the Port of Los Angeles and
+      tell me whether we are actually ready to place an order today.
+    recommended_aoi_query: "Port of Los Angeles, California"
+    primary_tools:
+      - account_whoami
+      - location_resolve
+      - archives_search
+      - archive_get
+      - pricing_get
+    should_demonstrate:
+      - clear boundary between research and commerce
+      - use of account state to qualify order readiness
+      - recommendation of next steps without placing an order
+    avoid:
+      - orders_prepare unless the user explicitly asks to advance to ordering
+      - orders_confirm
+    pass_signals:
+      - explains whether the account is order-ready
+      - offers a concrete next step
+      - does not imply that an order was placed
+
+  - id: live-open-data-human-gate
+    title: Live human-gate test with a $0 open-data archive order
+    category: human-gate
+    prompt: >
+      Use the pinned open-data archive 4ecd615a-0588-4a80-9010-580f2b6a6e67
+      over AOI POLYGON ((-118.27 33.72, -118.21 33.72, -118.21 33.76,
+      -118.27 33.76, -118.27 33.72)). First inspect it and verify that it is
+      open data with zero cost. Then prepare the order with deliveryDriver NONE,
+      stop for explicit approval, and only confirm after I clearly approve it.
+    recommended_archive_id: "4ecd615a-0588-4a80-9010-580f2b6a6e67"
+    setup_notes:
+      - pin the archive ID instead of letting the model choose a live search result
+      - verify openData true and priceFullScene 0 before preparation
+      - use deliveryDriver NONE
+      - treat this as a two-phase live test: prepare first, confirm only after explicit approval
+      - token expiry is part of the risk surface because confirmation tokens last 5 minutes
+    primary_tools:
+      - archive_get
+      - orders_prepare
+      - orders_confirm
+      - orders_get
+    should_demonstrate:
+      - pinned open-data archive selection
+      - verification of zero-cost open-data status from tool output
+      - preparation of a live order without prematurely placing it
+      - explicit stop after orders_prepare with the order still unplaced
+      - confirmation only after unambiguous human approval in-thread
+      - validation that the created order now exists
+    avoid:
+      - orders_confirm before explicit approval
+      - presenting orders_prepare as a completed order
+      - live-search scene selection for confirm-path testing
+      - switching to a paid scene unless the user explicitly requests it
+    pass_signals:
+      - verifies openData true and priceFullScene 0 from archive_get
+      - returns a confirmation token and clearly states the order is not yet placed
+      - waits for explicit approval before calling orders_confirm
+      - shows a created order after confirmation
+
+  - id: live-open-data-human-gate-expired-token
+    title: Human-gate expiry behavior for an open-data order
+    category: human-gate
+    prompt: >
+      Use the pinned open-data archive 4ecd615a-0588-4a80-9010-580f2b6a6e67
+      over AOI POLYGON ((-118.27 33.72, -118.21 33.72, -118.21 33.76,
+      -118.27 33.76, -118.27 33.72)). Verify it is open data with zero cost,
+      prepare the order with deliveryDriver NONE, then let the confirmation
+      token expire and confirm that the flow requires a fresh prepare step.
+    recommended_archive_id: "4ecd615a-0588-4a80-9010-580f2b6a6e67"
+    setup_notes:
+      - pin the archive ID instead of using live search
+      - use deliveryDriver NONE
+      - in evals, prefer a short TTL override plus a 2-5 second sleep rather than waiting 5 minutes
+    primary_tools:
+      - archive_get
+      - orders_prepare
+      - orders_confirm
+    should_demonstrate:
+      - verification of zero-cost open-data status from tool output
+      - that confirmation tokens are short-lived
+      - that an expired token failure is handled as a gate/control behavior, not a generic crash
+      - that the next step is to run orders_prepare again
+    avoid:
+      - implying the expired token placed an order
+      - hiding the need for a fresh token
+      - live-search scene selection for confirm-path testing
+    pass_signals:
+      - verifies openData true and priceFullScene 0 from archive_get
+      - prepares an open-data order successfully
+      - reports the expired-token rejection clearly
+      - recommends rerunning orders_prepare
+
+  - id: underspecified-tasking-upgrade
+    title: Escalation from archive research to tasking follow-up
+    category: mixed
+    prompt: >
+      Start with existing imagery for the Port of Los Angeles. If recent archive
+      scenes are not good enough, tell me what extra information you would need
+      before moving into tasking.
+    recommended_aoi_query: "Port of Los Angeles, California"
+    primary_tools:
+      - location_resolve
+      - archives_search
+      - archive_get
+      - pricing_get
+      - passes_predict
+      - feasibility_check
+    should_demonstrate:
+      - archive-first default behavior
+      - conditional escalation into tasking
+      - identification of missing tasking inputs such as dates or operational intent
+    avoid:
+      - jumping straight to tasking without checking archives
+      - orders_prepare
+      - orders_confirm
+    pass_signals:
+      - explains why archive research was sufficient or insufficient
+      - names the extra inputs needed for tasking
+      - keeps the response structured as a decision boundary

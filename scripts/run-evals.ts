@@ -308,6 +308,11 @@ function formatVerboseMessage(message: string): string {
     return [`### System`, "", `HTTP setup: ${httpAction[1]} ${httpAction[2]}`].join("\n");
   }
 
+  const sleepAction = body.match(/^HTTP action SLEEP (.+)$/);
+  if (sleepAction) {
+    return [`### System`, "", `Delay: ${sleepAction[1]}`].join("\n");
+  }
+
   const httpActionBody = body.match(/^HTTP action body:\n([\s\S]+)$/);
   if (httpActionBody) {
     return [`### System`, "", `HTTP setup body`, "", toYamlFence(httpActionBody[1]!)].join("\n");

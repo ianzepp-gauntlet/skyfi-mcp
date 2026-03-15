@@ -20,6 +20,10 @@
         "name": "ALERT_STORE",
         "class_name": "SkyFiAlertStore",
       },
+      {
+        "name": "CONFIRMATION_STORE",
+        "class_name": "SkyFiConfirmationStore",
+      },
     ],
   },
 
@@ -32,6 +36,10 @@
     {
       "tag": "v2",
       "new_sqlite_classes": ["SkyFiAlertStore"],
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["SkyFiConfirmationStore"],
     },
   ],
 

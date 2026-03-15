@@ -655,6 +655,24 @@ async function runHttpActions(
   caseId?: string,
 ): Promise<void> {
   for (const action of actions ?? []) {
+    if (action.method.toUpperCase() === "SLEEP") {
+      const sleepMs = action.sleep_ms ?? 0;
+      reporter?.log(
+        `[${caseId ?? "eval"}] HTTP action SLEEP ${sleepMs}ms`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, sleepMs));
+      reporter?.log(
+        `[${caseId ?? "eval"}] HTTP action response status=slept expected=${sleepMs}ms`,
+      );
+      continue;
+    }
+
+    if (!action.url) {
+      throw new Error(
+        `HTTP action ${action.method} is missing a url`,
+      );
+    }
+
     const resolvedUrl = resolveActionUrl(serverUrl, action.url);
     const hasJsonBody = action.body !== undefined;
     reporter?.log(
@@ -810,7 +828,13 @@ async function runCase(params: {
   };
 
   let response = await runAssistantTurn(buildInitialPrompt(params.evalCase));
-  for (const followUp of params.evalCase.follow_up_messages ?? []) {
+  for (const [index, followUp] of (params.evalCase.follow_up_messages ?? []).entries()) {
+    await runHttpActions(
+      params.serverUrl,
+      params.evalCase.follow_up_http_actions?.[index],
+      params.reporter,
+      params.evalCase.id,
+    );
     response = await runAssistantTurn(followUp, response.id);
   }
 

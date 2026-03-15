@@ -101,6 +101,13 @@ suites:
     cases:
       - live-prepare-archive-order
       - live-order-missing-details
+  live-human-loop:
+    description: Opt-in live human approval cases that exercise the real prepare-then-confirm gate for a zero-cost open-data archive order.
+    stage: regression
+    mode: live
+    cases:
+      - live-open-data-human-approval-confirms-order
+      - live-open-data-human-approval-expired-token
   live-multistep-smoke:
     description: Safe live multi-step conversational flows that chain read-only tools and prepare-only ordering.
     stage: smoke

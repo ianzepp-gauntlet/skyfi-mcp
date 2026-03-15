@@ -45,10 +45,14 @@ export function registerFeasibilityTools(
     {
       title: "Predict Passes",
       description:
-        "Predict upcoming satellite passes over an AOI within a time window. Use this to find candidate providerWindowId values before preparing a tasking order.",
+        "Predict upcoming satellite passes over a WKT AOI within a future time window. Use this to find candidate providerWindowId values before preparing a tasking order. Prefer windows that start at least 24 hours from now because near-term windows may be rejected upstream.",
       inputSchema: {
         aoi: z.string().describe("Area of interest as WKT POLYGON string"),
-        from_date: z.string().describe("Start of prediction window (ISO 8601)"),
+        from_date: z
+          .string()
+          .describe(
+            "Start of prediction window (ISO 8601). Prefer at least 24 hours in the future.",
+          ),
         to_date: z.string().describe("End of prediction window (ISO 8601)"),
       },
       annotations: { readOnlyHint: true },
@@ -76,14 +80,14 @@ export function registerFeasibilityTools(
     {
       title: "Check Feasibility",
       description:
-        "Check whether a satellite tasking order is feasible for a given area, time window, product type, and resolution. Submits the request and polls until complete.",
+        "Check whether a satellite tasking order is feasible for a given WKT AOI, capture window, product type, and resolution. This submits the request and polls until complete. A successful result may still return zero opportunities, which means no viable collection windows were found.",
       inputSchema: {
         aoi: z.string().describe("Area of interest as WKT POLYGON string"),
         window_start: z.string().describe("Start of capture window (ISO 8601)"),
         window_end: z.string().describe("End of capture window (ISO 8601)"),
         product_type: z
           .enum(["DAY", "MULTISPECTRAL", "SAR"])
-          .describe("Product type"),
+          .describe("Product type for the requested tasking opportunity"),
         resolution: taskingResolutionInputSchema,
       },
       annotations: { readOnlyHint: true },

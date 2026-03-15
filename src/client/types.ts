@@ -163,6 +163,8 @@ export interface Archive {
   maxSquareKms: number;
   /** Per-km² price in USD. */
   priceForOneSquareKm: number;
+  /** Whether the scene is available as open/free data. */
+  openData?: boolean;
   /** Area of the scene that overlaps the requested AOI, in km². */
   totalAreaSquareKm: number;
   /** Estimated delivery time after purchase (hours). */
@@ -295,8 +297,12 @@ export interface OrderArchiveRequest {
   archiveId: string;
   /** Cloud storage provider to deliver the imagery to. */
   deliveryDriver: DeliveryDriver;
-  /** Destination bucket and path details for the chosen delivery driver. */
-  deliveryParams: DeliveryParams;
+  /**
+   * Destination bucket and path details for the chosen delivery driver.
+   * May be omitted or null when the upstream API accepts `deliveryDriver: NONE`
+   * for open-data style archive orders.
+   */
+  deliveryParams?: DeliveryParams | null;
   /** Arbitrary key-value metadata attached to the order for caller's use. */
   metadata?: Record<string, string>;
   /** URL to receive a webhook notification when the order status changes. */
@@ -331,7 +337,7 @@ export interface OrderTaskingRequest {
   /** Cloud storage provider to deliver the imagery to. */
   deliveryDriver: DeliveryDriver;
   /** Destination bucket and path details for the chosen delivery driver. */
-  deliveryParams: DeliveryParams;
+  deliveryParams?: DeliveryParams | null;
   /** Arbitrary key-value metadata attached to the order. */
   metadata?: Record<string, string>;
   /** URL to receive a webhook notification when the order status changes. */
@@ -366,9 +372,9 @@ export interface Order {
   /** The purchased archive scene ID (archive orders only). */
   archiveId?: string;
   /** Cloud storage provider used for delivery. */
-  deliveryDriver: string;
+  deliveryDriver: string | null;
   /** Delivery destination details. */
-  deliveryParams: DeliveryParams;
+  deliveryParams: DeliveryParams | null;
   /** Caller-supplied metadata attached at order creation. */
   metadata?: Record<string, string>;
   /** UTC timestamp when the order was created (ISO 8601). */

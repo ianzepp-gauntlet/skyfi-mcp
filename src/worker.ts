@@ -20,6 +20,8 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DurableAlertStoreClient } from "./alerts_object.js";
 export { SkyFiAlertStore } from "./alerts_object.js";
+import { DurableConfirmationStoreClient } from "./confirmation_object.js";
+export { SkyFiConfirmationStore } from "./confirmation_object.js";
 import { loadConfig } from "./config/index.js";
 import { createAgentMcpHandler } from "./server/agent_transport.js";
 import { createMcpServer } from "./server/mcp.js";
@@ -32,7 +34,9 @@ type SkyFiAgentProps = {
 export interface WorkerEnv extends Cloudflare.Env {
   MCP_OBJECT: DurableObjectNamespace<SkyFiMcpAgent>;
   ALERT_STORE: DurableObjectNamespace<any>;
+  CONFIRMATION_STORE: DurableObjectNamespace<any>;
   SKYFI_MCP_PUBLIC_BASE_URL?: string;
+  SKYFI_CONFIRMATION_TTL_MS?: string;
 }
 
 /**
@@ -61,15 +65,30 @@ export class SkyFiMcpAgent extends McpAgent<
     const config = loadConfig(this.props?.skyfiApiKey, undefined, env);
     const alertStore = new DurableAlertStoreClient(this.env.ALERT_STORE);
     const publicBaseUrl = this.env.SKYFI_MCP_PUBLIC_BASE_URL?.trim();
+    const parsedConfirmationTtlMs = this.env.SKYFI_CONFIRMATION_TTL_MS
+      ? parseInt(this.env.SKYFI_CONFIRMATION_TTL_MS, 10)
+      : undefined;
+    const confirmationTtlMs =
+      parsedConfirmationTtlMs !== undefined &&
+      Number.isFinite(parsedConfirmationTtlMs) &&
+      parsedConfirmationTtlMs > 0
+        ? parsedConfirmationTtlMs
+        : undefined;
     const defaultAoiWebhookUrl = publicBaseUrl
       ? new URL(
           "/webhooks/aoi",
           `${publicBaseUrl.replace(/\/+$/, "")}/`,
         ).toString()
       : undefined;
+    const confirmationStore = new DurableConfirmationStoreClient(
+      this.env.CONFIRMATION_STORE,
+      confirmationTtlMs,
+    );
     this.server = createMcpServer(config, {
       alertStore,
       defaultAoiWebhookUrl,
+      confirmationTtlMs,
+      confirmationStore,
     });
   }
 }

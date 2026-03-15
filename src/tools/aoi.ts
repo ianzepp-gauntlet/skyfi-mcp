@@ -50,14 +50,18 @@ export function registerAoiTools(
     {
       title: "Create Notification",
       description:
-        "Create an AOI monitor that sends a webhook when new imagery matches the specified area and optional quality filters. By default the MCP server manages the webhook destination internally; provide webhookUrl only to override that default.",
+        "Create an AOI monitor that sends a webhook when new imagery matches the specified WKT AOI and optional quality filters. This is a persistent server-side monitor. If this MCP server does not have an internally managed webhook configured, you must provide webhookUrl explicitly.",
       inputSchema: {
-        aoi: z.string().describe("Area of interest as WKT POLYGON"),
+        aoi: z
+          .string()
+          .describe(
+            "Area of interest as WKT POLYGON. Use location_resolve first if the user only gave a place name.",
+          ),
         webhookUrl: z
           .string()
           .optional()
           .describe(
-            "Optional webhook override. If omitted, the MCP server uses its internally managed AOI webhook URL when configured.",
+            "Optional webhook override. Required when the MCP server does not have an internally managed AOI webhook URL configured.",
           ),
         gsdMin: z
           .number()
@@ -70,7 +74,7 @@ export function registerAoiTools(
         productType: z
           .string()
           .optional()
-          .describe("Filter by product type (e.g. DAY, MULTISPECTRAL, SAR)"),
+          .describe("Optional product type filter (e.g. DAY, MULTISPECTRAL, SAR)"),
       },
     },
     async ({ aoi, webhookUrl, gsdMin, gsdMax, productType }) => {
@@ -120,7 +124,8 @@ export function registerAoiTools(
     "notifications_list",
     {
       title: "List Notifications",
-      description: "List all active notification filters.",
+      description:
+        "List all active AOI monitors for the authenticated account. Use this before creating a new monitor so you can avoid duplicates and inspect existing webhook targets.",
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -158,7 +163,7 @@ export function registerAoiTools(
     {
       title: "Get Notification",
       description:
-        "Get a notification filter by ID, including its history and any recent webhook alerts.",
+        "Get an AOI monitor by ID, including its configuration and any recent stored webhook alerts.",
       inputSchema: {
         monitor_id: z
           .string()
@@ -205,7 +210,7 @@ export function registerAoiTools(
     {
       title: "Delete Notification",
       description:
-        "Delete a notification filter and discard its stored alerts.",
+        "Delete an AOI monitor and discard its stored alerts. This is destructive and should be used only when the user wants to remove a monitor or when cleaning up a temporary demo monitor.",
       inputSchema: {
         monitor_id: z.string().describe("Monitor/notification UUID to delete"),
       },
@@ -235,7 +240,7 @@ export function registerAoiTools(
     {
       title: "List Alerts",
       description:
-        "List recent webhook alerts. Optionally filter by notification ID.",
+        "List recent stored webhook alerts received by this MCP server. Optionally filter by monitor ID. This only shows alerts that were delivered to a webhook endpoint connected to this server.",
       inputSchema: {
         monitor_id: z
           .string()

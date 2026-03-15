@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run SkyFi Deep Research Demo"
+  short_description: "Probe SkyFi MCP demo workflows."
+  default_prompt: "Use the active SkyFi MCP connection to assess readiness, resolve an AOI, run archive-first, tasking-first, and monitoring-first geospatial research workflows, summarize the tradeoffs, and delete any temporary monitor you create."
