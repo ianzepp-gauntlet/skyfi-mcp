@@ -47,7 +47,7 @@ curl https://api.openai.com/v1/responses \
       {
         "type": "mcp",
         "server_label": "skyfi",
-        "server_url": "https://skyfi-mcp.your-account.workers.dev/mcp",
+        "server_url": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
         "headers": {
           "x-skyfi-api-key": "YOUR_SKYFI_API_KEY"
         }
@@ -74,7 +74,7 @@ response = client.responses.create(
         {
             "type": "mcp",
             "server_label": "skyfi",
-            "server_url": "https://skyfi-mcp.your-account.workers.dev/mcp",
+            "server_url": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
             "headers": {
                 "x-skyfi-api-key": "YOUR_SKYFI_API_KEY",
             },
@@ -107,7 +107,7 @@ const response = await client.responses.create({
       server_label: "skyfi",
       server_url:
         process.env.SKYFI_MCP_URL ??
-        "https://skyfi-mcp.your-account.workers.dev/mcp",
+        "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
       headers: {
         "x-skyfi-api-key": process.env.SKYFI_API_KEY!,
       },
@@ -138,7 +138,7 @@ response = client.responses.create(
         {
             "type": "mcp",
             "server_label": "skyfi",
-            "server_url": "https://skyfi-mcp.your-account.workers.dev/mcp",
+            "server_url": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
             "headers": {"x-skyfi-api-key": "YOUR_SKYFI_API_KEY"},
         }
     ],
@@ -166,7 +166,7 @@ client = OpenAI()
 mcp_tool = {
     "type": "mcp",
     "server_label": "skyfi",
-    "server_url": "https://skyfi-mcp.your-account.workers.dev/mcp",
+    "server_url": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
     "headers": {"x-skyfi-api-key": "YOUR_SKYFI_API_KEY"},
 }
 
@@ -214,7 +214,7 @@ client = OpenAI()
 mcp_tool = {
     "type": "mcp",
     "server_label": "skyfi",
-    "server_url": "https://skyfi-mcp.your-account.workers.dev/mcp",
+    "server_url": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
     "headers": {"x-skyfi-api-key": "YOUR_SKYFI_API_KEY"},
 }
 
@@ -254,7 +254,7 @@ To expose only specific tools, use the `allowed_tools` parameter:
 mcp_tool = {
     "type": "mcp",
     "server_label": "skyfi",
-    "server_url": "https://skyfi-mcp.your-account.workers.dev/mcp",
+    "server_url": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
     "headers": {
         "x-skyfi-api-key": "YOUR_SKYFI_API_KEY",
     },
@@ -292,7 +292,7 @@ Use the ngrok HTTPS URL (e.g. `https://abc123.ngrok-free.app/mcp`) as `server_ur
 
 - OpenAI connects to the MCP server directly — the server must be publicly accessible over HTTPS
 - The Responses API handles MCP session management, tool discovery, and tool calling automatically
-- The server runs in stateless mode on Cloudflare Workers, which is compatible with OpenAI's connection model
+- The Cloudflare Workers deployment uses Durable Object-backed session state, which is compatible with OpenAI's connection model
 - Orders require two-step confirmation (prepare then confirm) to ensure human approval
 - `location_resolve` uses the OpenStreetMap Nominatim API to convert place names to WKT polygons
 - Use `previous_response_id` to chain multi-turn conversations in the Responses API

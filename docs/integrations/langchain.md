@@ -369,7 +369,7 @@ For a Cloudflare Workers deployment, change the URL:
 
 ```python
 "skyfi": {
-    "url": "https://skyfi-mcp.your-account.workers.dev/mcp",
+    "url": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
     "transport": "streamable_http",
     "headers": {
         "x-skyfi-api-key": "YOUR_SKYFI_API_KEY",

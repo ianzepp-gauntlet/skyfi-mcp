@@ -53,7 +53,7 @@ For a remote deployment with API key authentication:
 ```bash
 claude mcp add skyfi \
   --header "x-skyfi-api-key: YOUR_SKYFI_API_KEY" \
-  https://skyfi-mcp.your-account.workers.dev/mcp
+  https://skyfi-mcp.ian-zepp.workers.dev/mcp
 ```
 
 ## Usage
@@ -127,6 +127,6 @@ claude mcp remove skyfi
 
 - Claude Code connects via the Streamable HTTP transport
 - For local development, the server uses stateful sessions with in-memory session tracking
-- For Cloudflare Workers, the server uses stateless mode (no session persistence)
+- For Cloudflare Workers, the server uses Durable Object-backed session state so MCP sessions can survive across HTTP requests
 - Orders require explicit confirmation — Claude Code will present the price and ask for your approval before placing any order
 - `location_resolve` uses the OpenStreetMap Nominatim API to convert place names to WKT polygons

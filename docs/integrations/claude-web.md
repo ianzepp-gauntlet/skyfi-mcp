@@ -40,7 +40,7 @@ skyfi-cli notifications create \
 3. Click **Add Custom Integration**
 4. Enter the MCP server URL:
    ```
-   https://skyfi-mcp.your-account.workers.dev/mcp
+   https://skyfi-mcp.ian-zepp.workers.dev/mcp
    ```
 5. Add the authentication header:
    - Header name: `x-skyfi-api-key`
@@ -107,9 +107,14 @@ All SkyFi MCP tools are available in the conversation:
 | Tool | What it does |
 | --- | --- |
 | `archives_search` | Search the satellite catalog |
+| `archive_get` | Inspect a specific archive scene in full detail |
+| `passes_predict` | Predict upcoming satellite passes over an AOI |
 | `feasibility_check` | Check if a new capture is possible |
 | `pricing_get` | View pricing matrix |
+| `account_whoami` | Inspect account profile, budget, and payment readiness |
 | `orders_list` / `orders_get` | Browse order history |
+| `orders_deliverable_get` | Get a signed download URL for an existing deliverable |
+| `orders_redeliver` | Retry delivery for an existing order with new delivery settings |
 | `orders_prepare` / `orders_confirm` | Place orders (with confirmation) |
 | `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete` | Manage area monitors |
 | `alerts_list` | Check for new imagery notifications |
@@ -133,6 +138,6 @@ Use the ngrok HTTPS URL (e.g. `https://abc123.ngrok-free.app/mcp`) as the integr
 ## Notes
 
 - Claude manages the MCP session automatically
-- The server runs in stateless mode on Cloudflare Workers — each request is independent
+- The Cloudflare Workers deployment is session-backed via Durable Objects rather than purely stateless request handling
 - API key is sent via the `x-skyfi-api-key` header on every request
 - `location_resolve` uses the OpenStreetMap Nominatim API to convert place names to WKT polygons

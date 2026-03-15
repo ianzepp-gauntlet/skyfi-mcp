@@ -6,6 +6,12 @@ This project turns the SkyFi satellite imagery platform into a remote MCP server
 
 The core submission decision was to optimize for a credible remote MCP MVP rather than a broad but shallow demo. That meant focusing on four things the brief actually depends on: a working Cloudflare-hosted MCP surface, safe conversational ordering, AOI monitoring with webhook ingestion, and enough validation to show the server behaves correctly under real tool loops instead of only in unit tests.
 
+## Links
+
+- [Presentation PDF](./docs/Skyfi%20MCP%20Targeted.pdf)
+- [YouTube demo video](https://www.youtube.com/watch?v=iZfy7hwrO7c)
+- [SkyFi CLI repository](https://github.com/ianzepp/skyfi-cli)
+
 ## Why This Is The Right MVP
 
 The brief is not asking for a generic API wrapper. It is asking whether SkyFi can become usable inside agent workflows where the model must search, reason, ask clarifying questions, and avoid making unsafe purchases. The strongest MVP therefore is one that proves:
@@ -198,7 +204,7 @@ See [`.env.example`](/Users/ianzepp/github/gauntlet/skyfi-mcp/.env.example) for 
 ```bash
 SKYFI_API_KEY=...
 SKYFI_BASE_URL=https://app.skyfi.com/platform-api
-SKYFI_MCP_PUBLIC_BASE_URL=https://your-public-mcp-host.example.com
+SKYFI_MCP_PUBLIC_BASE_URL=https://skyfi-mcp.ian-zepp.workers.dev
 PORT=3000
 ```
 

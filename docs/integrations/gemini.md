@@ -44,7 +44,7 @@ client = genai.Client()
 
 skyfi_tool = genai.types.Tool(
     mcp=genai.types.McpTool(
-        server_url="https://skyfi-mcp.your-account.workers.dev/mcp",
+        server_url="https://skyfi-mcp.ian-zepp.workers.dev/mcp",
         headers={
             "x-skyfi-api-key": "YOUR_SKYFI_API_KEY",
         },
@@ -90,7 +90,7 @@ client = genai.Client()
 
 skyfi_tool = genai.types.Tool(
     mcp=genai.types.McpTool(
-        server_url="https://skyfi-mcp.your-account.workers.dev/mcp",
+        server_url="https://skyfi-mcp.ian-zepp.workers.dev/mcp",
         headers={
             "x-skyfi-api-key": "YOUR_SKYFI_API_KEY",
         },
@@ -183,7 +183,7 @@ curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:g
     "tools": [
       {
         "mcp": {
-          "serverUrl": "https://skyfi-mcp.your-account.workers.dev/mcp",
+          "serverUrl": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
           "headers": {
             "x-skyfi-api-key": "YOUR_SKYFI_API_KEY"
           }
@@ -212,6 +212,6 @@ Use the ngrok HTTPS URL (e.g. `https://abc123.ngrok-free.app/mcp`) as `server_ur
 
 - Gemini connects to the MCP server directly — the server must be publicly accessible over HTTPS
 - The API handles tool discovery, session management, and multi-step tool calling automatically
-- The SkyFi MCP server runs in stateless mode on Cloudflare Workers, compatible with Gemini's connection model
+- The SkyFi MCP server uses Durable Object-backed session state on Cloudflare Workers, which remains compatible with Gemini's connection model
 - Orders use a two-step confirmation flow (prepare then confirm) for safety
 - `location_resolve` uses the OpenStreetMap Nominatim API to convert place names to WKT polygons

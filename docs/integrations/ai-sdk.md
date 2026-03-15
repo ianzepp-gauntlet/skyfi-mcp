@@ -227,7 +227,7 @@ For a Cloudflare Workers deployment:
 const mcpClient = await createMCPClient({
   transport: {
     type: "streamable-http",
-    url: "https://skyfi-mcp.your-account.workers.dev/mcp",
+    url: "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
     headers: {
       "x-skyfi-api-key": process.env.SKYFI_API_KEY!,
     },

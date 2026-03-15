@@ -56,7 +56,7 @@ For a deployed server on Cloudflare Workers:
 skyfi_tools = MCPToolset(
     name="skyfi",
     connection_params={
-        "url": "https://skyfi-mcp.your-account.workers.dev/mcp",
+        "url": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
         "headers": {
             "x-skyfi-api-key": "YOUR_SKYFI_API_KEY",
         },
@@ -166,9 +166,14 @@ response = runner.run(
 Once connected, the agent has access to all SkyFi MCP tools:
 
 - `archives_search` — search the satellite catalog
+- `archive_get` — inspect a specific archive scene in full detail
+- `passes_predict` — predict upcoming satellite passes over an AOI
 - `feasibility_check` — check if a new capture is possible
 - `pricing_get` — view pricing options
+- `account_whoami` — inspect account profile, budget, and payment readiness
 - `orders_list` / `orders_get` — browse order history
+- `orders_deliverable_get` — get a signed download URL for an existing deliverable
+- `orders_redeliver` — retry delivery for an existing order with new delivery settings
 - `orders_prepare` / `orders_confirm` — place orders with human confirmation
 - `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete` — manage AOI monitors
 - `alerts_list` — check for new imagery alerts

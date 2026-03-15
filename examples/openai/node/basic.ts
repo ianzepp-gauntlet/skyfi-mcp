@@ -10,7 +10,7 @@ const response = await client.responses.create({
       server_label: "skyfi",
       server_url:
         process.env.SKYFI_MCP_URL ??
-        "https://skyfi-mcp.your-account.workers.dev/mcp",
+        "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
       headers: {
         "x-skyfi-api-key": process.env.SKYFI_API_KEY!,
       },
