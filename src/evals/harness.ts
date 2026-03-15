@@ -52,6 +52,44 @@ interface HarnessOptions {
   skyfiApiKey?: string;
   resultsRoot?: string;
   caseFilter?: string[];
+  reporter?: EvalReporter;
+}
+
+type EvalLogLevel = "verbose" | "debug";
+
+export interface EvalReporter {
+  level: EvalLogLevel;
+  log(message: string): void;
+}
+
+function createTraceReporter(
+  sink: string[],
+  level: EvalLogLevel,
+): EvalReporter {
+  return {
+    level,
+    log(message: string) {
+      sink.push(message);
+    },
+  };
+}
+
+function combineReporters(
+  ...reporters: Array<EvalReporter | undefined>
+): EvalReporter | undefined {
+  const active = reporters.filter(
+    (reporter): reporter is EvalReporter => reporter !== undefined,
+  );
+  if (active.length === 0) return undefined;
+
+  return {
+    level: active.some((reporter) => reporter.level === "debug")
+      ? "debug"
+      : "verbose",
+    log(message: string) {
+      for (const reporter of active) reporter.log(message);
+    },
+  };
 }
 
 interface LoadedSuite {
@@ -203,7 +241,18 @@ async function createOpenAIResponse(params: {
   input: unknown;
   tools: unknown[];
   previousResponseId?: string;
+  reporter?: EvalReporter;
+  caseId?: string;
 }): Promise<OpenAIResponse> {
+  params.reporter?.log(
+    `[${params.caseId ?? "eval"}] OpenAI request model=${params.model} previousResponseId=${params.previousResponseId ?? "(none)"} tools=${params.tools.length}`,
+  );
+  if (params.reporter?.level === "debug") {
+    params.reporter.log(
+      `[${params.caseId ?? "eval"}] OpenAI input:\n${JSON.stringify(params.input, null, 2)}`,
+    );
+  }
+
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -226,6 +275,15 @@ async function createOpenAIResponse(params: {
     );
   }
 
+  params.reporter?.log(
+    `[${params.caseId ?? "eval"}] OpenAI response id=${json.id} functionCalls=${extractFunctionCalls(json).length} finalTextChars=${extractFinalText(json).length}`,
+  );
+  if (params.reporter?.level === "debug") {
+    params.reporter.log(
+      `[${params.caseId ?? "eval"}] OpenAI raw response:\n${JSON.stringify(json, null, 2)}`,
+    );
+  }
+
   return json;
 }
 
@@ -236,6 +294,7 @@ async function runJudge(params: {
   grade: GradeResult;
   finalText: string;
   toolCalls: ToolCallTrace[];
+  reporter?: EvalReporter;
 }): Promise<JudgeResult> {
   const prompt = [
     "You are grading whether an eval failure is a real failure or a rubric problem.",
@@ -266,6 +325,15 @@ async function runJudge(params: {
       2,
     ),
   ].join("\n");
+
+  params.reporter?.log(
+    `[${params.evalCase.id}] Running secondary judge model=${params.model}`,
+  );
+  if (params.reporter?.level === "debug") {
+    params.reporter.log(
+      `[${params.evalCase.id}] Judge prompt:\n${prompt}`,
+    );
+  }
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -306,13 +374,22 @@ async function runJudge(params: {
   }
 
   const parsed = parseJsonObjectFromText(content) as Omit<JudgeResult, "model">;
-  return {
+  const result = {
     verdict: parsed.verdict,
     confidence: parsed.confidence,
     reasoning: parsed.reasoning,
     recommendedAction: parsed.recommendedAction,
     model: json.model ?? params.model,
   };
+  params.reporter?.log(
+    `[${params.evalCase.id}] Judge verdict=${result.verdict} confidence=${result.confidence} model=${result.model}`,
+  );
+  if (params.reporter?.level === "debug") {
+    params.reporter.log(
+      `[${params.evalCase.id}] Judge reasoning: ${result.reasoning}`,
+    );
+  }
+  return result;
 }
 
 function gradeCase(evalCase: EvalCase, finalText: string, toolCalls: ToolCallTrace[]): GradeResult {
@@ -574,10 +651,20 @@ function resolveActionUrl(serverUrl: string, actionUrl: string): string {
 async function runHttpActions(
   serverUrl: string,
   actions: EvalHttpAction[] | undefined,
+  reporter?: EvalReporter,
+  caseId?: string,
 ): Promise<void> {
   for (const action of actions ?? []) {
     const resolvedUrl = resolveActionUrl(serverUrl, action.url);
     const hasJsonBody = action.body !== undefined;
+    reporter?.log(
+      `[${caseId ?? "eval"}] HTTP action ${action.method} ${resolvedUrl}`,
+    );
+    if (reporter?.level === "debug" && hasJsonBody) {
+      reporter.log(
+        `[${caseId ?? "eval"}] HTTP action body:\n${JSON.stringify(action.body, null, 2)}`,
+      );
+    }
     const response = await fetch(resolvedUrl, {
       method: action.method,
       headers: {
@@ -588,6 +675,9 @@ async function runHttpActions(
     });
 
     const expectedStatus = action.expect_status ?? 200;
+    reporter?.log(
+      `[${caseId ?? "eval"}] HTTP action response status=${response.status} expected=${expectedStatus}`,
+    );
     if (response.status !== expectedStatus) {
       const body = await response.text();
       throw new Error(
@@ -605,11 +695,26 @@ async function runCase(params: {
   openRouterApiKey?: string;
   judgeModel?: string;
   serverUrl: string;
+  reporter?: EvalReporter;
 }): Promise<CaseArtifact> {
   const startedAt = Date.now();
-  await runHttpActions(params.serverUrl, params.evalCase.http_actions_before);
+  params.reporter?.log(
+    `\n[${params.evalCase.id}] START ${params.evalCase.description}`,
+  );
+  params.reporter?.log(`[${params.evalCase.id}] Query: ${params.evalCase.query}`);
+  await runHttpActions(
+    params.serverUrl,
+    params.evalCase.http_actions_before,
+    params.reporter,
+    params.evalCase.id,
+  );
   const allTools = await params.executor.listTools();
   const tools = buildFunctionTools(allTools, params.evalCase);
+  params.reporter?.log(
+    `[${params.evalCase.id}] Allowed tools: ${tools.map((tool) =>
+      typeof tool === "object" && tool && "name" in tool ? String(tool.name) : "unknown",
+    ).join(", ")}`,
+  );
   const toolCalls: ToolCallTrace[] = [];
   const responseIds: string[] = [];
   let finalText = "";
@@ -623,13 +728,23 @@ async function runCase(params: {
       input,
       tools,
       previousResponseId,
+      reporter: params.reporter,
+      caseId: params.evalCase.id,
     });
     responseIds.push(response.id);
 
     for (let step = 0; step < (params.evalCase.max_steps ?? 8); step++) {
       const functionCalls = extractFunctionCalls(response);
+      if (functionCalls.length > 0) {
+        params.reporter?.log(
+          `[${params.evalCase.id}] Step ${step + 1} selected tools: ${functionCalls.map((call) => call.name).join(", ")}`,
+        );
+      }
       if (functionCalls.length === 0) {
         finalText = extractFinalText(response);
+        params.reporter?.log(
+          `[${params.evalCase.id}] Final answer (${finalText.length} chars): ${finalText || "(empty)"}`,
+        );
         return response;
       }
 
@@ -651,6 +766,16 @@ async function runCase(params: {
           params.evalCase,
         );
         const outputText = stringifyToolResult(rawResult);
+        params.reporter?.log(
+          `[${params.evalCase.id}] Tool ${call.name} args=${JSON.stringify(parsedArgs)}`,
+        );
+        const renderedOutput =
+          params.reporter?.level === "debug" || outputText.length <= 1000
+            ? outputText
+            : `${outputText.slice(0, 1000)}... [truncated ${outputText.length - 1000} chars]`;
+        params.reporter?.log(
+          `[${params.evalCase.id}] Tool ${call.name} output:\n${renderedOutput}`,
+        );
         toolCalls.push({
           name: call.name,
           args: parsedArgs,
@@ -671,11 +796,16 @@ async function runCase(params: {
         previousResponseId: response.id,
         input: toolOutputs,
         tools,
+        reporter: params.reporter,
+        caseId: params.evalCase.id,
       });
       responseIds.push(response.id);
     }
 
     finalText = extractFinalText(response);
+    params.reporter?.log(
+      `[${params.evalCase.id}] Final answer after max steps (${finalText.length} chars): ${finalText || "(empty)"}`,
+    );
     return response;
   };
 
@@ -695,10 +825,14 @@ async function runCase(params: {
         grade,
         finalText,
         toolCalls,
+        reporter: params.reporter,
       });
     }
 
     const status = classifyCaseStatus(grade, toolCalls, judge);
+    params.reporter?.log(
+      `[${params.evalCase.id}] Grade status=${status} reasons=${grade.reasons.length ? grade.reasons.join(" | ") : "(none)"}`,
+    );
 
     return {
       caseId: params.evalCase.id,
@@ -713,7 +847,15 @@ async function runCase(params: {
       elapsedMs: Date.now() - startedAt,
     };
   } finally {
-    await runHttpActions(params.serverUrl, params.evalCase.http_actions_after);
+    await runHttpActions(
+      params.serverUrl,
+      params.evalCase.http_actions_after,
+      params.reporter,
+      params.evalCase.id,
+    );
+    params.reporter?.log(
+      `[${params.evalCase.id}] END elapsedMs=${Date.now() - startedAt}`,
+    );
   }
 }
 
@@ -723,6 +865,12 @@ export async function runEvalSuite(options: HarnessOptions): Promise<SuiteArtifa
   const resultsRoot = options.resultsRoot ?? join(options.rootDir, "evals", "results");
   const resultsDir = join(resultsRoot, createResultsDirName());
   await mkdir(resultsDir, { recursive: true });
+  const traceLines: string[] = [];
+  const traceReporter = createTraceReporter(
+    traceLines,
+    options.reporter?.level ?? "verbose",
+  );
+  const reporter = combineReporters(traceReporter, options.reporter);
 
   const filteredCases = options.caseFilter?.length
     ? loaded.cases.filter((evalCase) => options.caseFilter?.includes(evalCase.id))
@@ -736,6 +884,9 @@ export async function runEvalSuite(options: HarnessOptions): Promise<SuiteArtifa
   await liveToolSource.connect();
 
   try {
+    reporter?.log(
+      `Suite ${options.suiteName} starting mode=${loaded.definition.mode} model=${model} serverUrl=${options.serverUrl}`,
+    );
     const cases: CaseArtifact[] = [];
     for (const evalCase of filteredCases) {
       const executor =
@@ -758,6 +909,7 @@ export async function runEvalSuite(options: HarnessOptions): Promise<SuiteArtifa
         openRouterApiKey: options.openRouterApiKey,
         judgeModel: options.judgeModel,
         serverUrl: options.serverUrl,
+        reporter,
       });
       artifact.mode = loaded.definition.mode;
       cases.push(artifact);
@@ -779,8 +931,12 @@ export async function runEvalSuite(options: HarnessOptions): Promise<SuiteArtifa
     };
 
     await writeFile(join(resultsDir, "summary.json"), JSON.stringify(summary, null, 2));
+    reporter?.log(
+      `Suite ${summary.suite} finished passed=${summary.passed} failed=${summary.failed} blocked=${summary.blocked} caseCount=${summary.caseCount}`,
+    );
     return summary;
   } finally {
+    await writeFile(join(resultsDir, "trace.log"), traceLines.join("\n") + (traceLines.length ? "\n" : ""));
     await liveToolSource.close();
   }
 }
