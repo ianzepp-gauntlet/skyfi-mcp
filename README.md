@@ -1,639 +1,220 @@
 # SkyFi MCP Server
 
-An MCP (Model Context Protocol) server that exposes the [SkyFi](https://skyfi.com) satellite imagery platform to AI agents. Enables conversational search, ordering, pricing, feasibility checks, and area-of-interest monitoring — all through standard MCP tool calls.
-
-## Technical Decisions
-
-This project keeps Cloudflare as the primary remote deployment target rather than Railway. Railway would be a feasible host for the Bun HTTP server, but Cloudflare is more directly aligned with the current MCP ecosystem: it has stronger market recognition as an MCP-focused platform, first-party support for remote MCP patterns, and a deployment model that maps cleanly onto multi-user hosted MCP servers.
-
-Cloudflare also fits the transport direction we want to follow. The MCP ecosystem has moved away from older SSE-oriented remote patterns toward modern Streamable HTTP, and Cloudflare's MCP tooling is built around that newer model. Railway remains a reasonable general-purpose hosting option, but Cloudflare is the better fit when the goal is to ship a production remote MCP server on infrastructure that is already associated with MCP-specific workflows and transport conventions.
-
-For scenario-based manual testing and LLM tool-flow validation, see [`docs/test-scenarios.md`](docs/test-scenarios.md).
-For an executable eval harness built around those scenarios, see [`evals/README.md`](evals/README.md).
-
-## Eval Framework
-
-This repo now includes a real eval harness that exercises the MCP server through an actual LLM tool loop instead of grading static text. The harness is intentionally biased toward production-stable signals: correct tool choice, forbidden-tool avoidance, useful tool outputs, and basic non-empty final responses. Exact wording is treated as low-signal because production users may connect many different LLMs to the same MCP server.
-
-The eval corpus is YAML-defined under [`evals/scenarios`](evals/scenarios), suite definitions live in [`evals/suites.yaml`](evals/suites.yaml), and the runner is [`scripts/run-evals.ts`](scripts/run-evals.ts). Fixture-backed planner cases validate tool routing, clarification behavior, AOI lifecycle handling, and confirmation-gate safety without depending on live SkyFi data, while live suites validate read-only and prepare-only end-to-end behavior against the real server. The harness now supports multi-turn follow-up messages, ordered tool-sequence assertions, and simple HTTP setup hooks so webhook ingestion can be exercised as part of eval runs. Failed deterministic cases can receive a secondary OpenRouter judge pass, but deterministic grading remains the primary pass/fail source.
-
-Current passing smoke suites:
-
-- `planner-smoke` — fixture-backed tool-planning and confirmation-gate coverage
-- `planner-human-loop-smoke` — explicit human approval required before order confirmation
-- `planner-multistep-smoke` — multi-step search, clarification, and tasking exploration
-- `planner-aoi-smoke` — AOI monitoring create/review/alert/delete workflows and missing-webhook safety
-- `live-integration-smoke` — account, pricing, place-name search, and exact-address lookup
-- `live-feasibility-smoke` — live feasibility checks
-- `live-opportunity-smoke` — next-pass lookup, including an expected-failure too-soon case
-- `live-budget-smoke` — pricing catalog exploration and budget-filtered archive discovery
-- `live-orders-smoke` — read-only order history checks
-- `live-ordering-smoke` — prepare-only archive ordering without confirmation
-- `live-multistep-smoke` — multi-turn archive search/detail and search-to-prepare flows
-- `live-tasking-smoke` — address-based tasking feasibility/pass/prepare workflows with negative safety cases
-- `live-monitoring-smoke` — read-only AOI monitor review
-- `live-aoi-smoke` — AOI create/list/get/delete lifecycle plus webhook alert visibility
-
-Useful commands:
-
-```bash
-bun run evals --list
-bun run evals:planner-smoke --server-url http://localhost:8787/mcp
-bun run evals --suite live-integration-smoke --server-url http://localhost:8787/mcp
-bun run evals --suite live-aoi-smoke --server-url http://localhost:3000/mcp
-```
-
-See [`evals/README.md`](evals/README.md) for environment variables, suite details, and artifact locations under `evals/results/`.
-
-## Tools
-
-| Tool                     | Description                                                                                 |
-| ------------------------ | ------------------------------------------------------------------------------------------- |
-| `archives_search`        | Search the SkyFi satellite imagery catalog by area, date range, cloud cover, and resolution |
-| `archive_get`            | Get full metadata for a single archive scene by archive ID                                  |
-| `passes_predict`         | Predict upcoming satellite passes over an AOI and time window                               |
-| `feasibility_check`      | Check whether a new satellite tasking capture is feasible for a given area and time window  |
-| `pricing_get`            | Get the SkyFi pricing matrix, optionally scoped to a specific area                          |
-| `account_whoami`         | Get account identity, budget usage, and payment readiness                                   |
-| `orders_list`            | List your previous SkyFi orders                                                             |
-| `orders_get`             | Get detailed status and history for a specific order                                        |
-| `orders_redeliver`       | Re-trigger delivery for an order with new delivery settings                                 |
-| `orders_deliverable_get` | Get the signed download URL for an order deliverable                                        |
-| `orders_prepare`         | Prepare an order and get pricing — does NOT place the order (returns a confirmation token)  |
-| `orders_confirm`         | Execute a prepared order using a confirmation token from `orders_prepare`                   |
-| `notifications_create`   | Create an Area of Interest monitor with webhook notifications for new imagery               |
-| `notifications_list`     | List all active AOI monitors                                                                |
-| `notifications_get`      | Get details for a specific AOI monitor, including recent webhook alerts                     |
-| `notifications_delete`   | Delete an AOI monitor                                                                       |
-| `alerts_list`            | Retrieve recent webhook alerts for AOI monitors                                             |
-| `location_resolve`       | Resolve a place name to coordinates and WKT polygon via OpenStreetMap                       |
-
-## API Coverage
-
-The SkyFi Platform API (v2.0.0) spec is saved locally at [`docs/openapi.json`](docs/openapi.json). The table below maps every API endpoint to its MCP tool, and calls out gaps.
-
-### Endpoint Mapping
-
-| Method   | Path                                    | MCP Tool                 | Notes                                                         |
-| -------- | --------------------------------------- | ------------------------ | ------------------------------------------------------------- |
-| `POST`   | `/archives`                             | `archives_search`        | Initial search                                                |
-| `GET`    | `/archives`                             | `archives_search`        | Pagination via cursor                                         |
-| `GET`    | `/archives/{archive_id}`                | `archive_get`            |                                                               |
-| `GET`    | `/auth/whoami`                          | `account_whoami`         |                                                               |
-| `POST`   | `/demo-delivery`                        | —                        | **Not exposed** — demo-only feature, low priority             |
-| `POST`   | `/feasibility`                          | `feasibility_check`      | Submit step (polled internally)                               |
-| `GET`    | `/feasibility/{feasibility_id}`         | _(internal)_             | Only called by the polling loop inside `feasibility_check`    |
-| `POST`   | `/feasibility/pass-prediction`          | `passes_predict`         | Use with `orders_prepare.providerWindowId` for pass targeting |
-| `GET`    | `/health_check`                         | —                        | Infrastructure; not useful as an MCP tool                     |
-| `POST`   | `/notifications`                        | `notifications_create`   |                                                               |
-| `GET`    | `/notifications`                        | `notifications_list`     |                                                               |
-| `GET`    | `/notifications/{notification_id}`      | `notifications_get`      |                                                               |
-| `DELETE` | `/notifications/{notification_id}`      | `notifications_delete`   |                                                               |
-| `POST`   | `/order-archive`                        | `orders_confirm`         | Executed only after `orders_prepare`                          |
-| `POST`   | `/order-tasking`                        | `orders_confirm`         | Executed only after `orders_prepare`                          |
-| `GET`    | `/orders`                               | `orders_list`            |                                                               |
-| `GET`    | `/orders/{order_id}`                    | `orders_get`             |                                                               |
-| `POST`   | `/orders/{order_id}/redelivery`         | `orders_redeliver`       |                                                               |
-| `GET`    | `/orders/{order_id}/{deliverable_type}` | `orders_deliverable_get` | Returns a signed URL for `image`, `payload`, or `cog`         |
-| `POST`   | `/pricing`                              | `pricing_get`            | Also called internally by `orders_prepare`                    |
-| `GET`    | `/ping`                                 | —                        | Infrastructure                                                |
-
-### Pass-Targeted Tasking
-
-Pass-level targeting is now exposed end-to-end:
-
-1. `passes_predict` → get candidate passes and `providerWindowId` values
-2. `feasibility_check` → verify the requested collection window and constraints
-3. `orders_prepare` with `providerWindowId` set → prepare a tasking order pinned to that pass
-4. `orders_confirm` → execute the prepared tasking order
-
-## Tech Stack
+## Executive Summary
 
-- **Runtimes**: [Cloudflare Workers](https://developers.cloudflare.com/workers/) (production) / [Bun](https://bun.sh) (local development)
-- **MCP SDK**: [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk)
-- **HTTP Framework**: [Hono](https://hono.dev) (runs on both runtimes)
-- **Validation**: [Zod](https://zod.dev)
-- **Database**: SQLite (lightweight; used for AOI alert persistence if enabled)
-- **Observability**: LangSmith tracing (planned at tool-call boundary)
-- **Deployment**: Cloudflare Workers (primary); Bun self-hosting supported
-- **External APIs**: [SkyFi Platform API](https://app.skyfi.com/platform-api/redoc), [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org)
-
-## Architecture
-
-The codebase is designed for **dual-runtime deployment** — all tools, clients, and types are shared between Cloudflare Workers and Bun. Only the entry point and config sourcing differ:
-
-```
-┌─────────────────────────────────────┐
-│  Tools / Client / Types / Config    │  ← 100% shared
-├─────────────────────────────────────┤
-│  MCP Server wiring (mcp.ts)         │  ← 100% shared
-├─────────────────────────────────────┤
-│  Hono transport (transport.ts)      │  ← Bun / local self-hosting
-│    └─ stateful                      │
-├─────────────────────────────────────┤
-│  Agents transport                   │  ← Cloudflare Workers
-│    ├─ agent_transport.ts            │
-│    ├─ worker_routes.ts              │
-│    └─ Durable Objects               │
-│       ├─ SkyFiMcpAgent              │
-│       └─ SkyFiAlertStore            │
-├─────────────────────────────────────┤
-│  Entry point                        │
-│    ├─ src/worker.ts (Workers)       │
-│    └─ src/index.ts  (Bun)           │
-└─────────────────────────────────────┘
-```
-
-The Workers entry point now runs on **Cloudflare Agents** with stateful Durable Object-backed MCP sessions. Per-request `x-skyfi-api-key` credentials are bound to the MCP session during initialization so multi-user remote access still works, while AOI webhook alerts are stored in a separate shared Durable Object. The Bun entry point remains **stateful** with in-memory session tracking and optional `~/.skyfi/config.json` support for local developer convenience.
-
-## Implementation Status
-
-Core MCP surface is implemented for the supported SkyFi account, archive, pricing, feasibility, ordering, notification, and location workflows. The only Platform API endpoints intentionally not exposed are infrastructure-only (`/ping`, `/health_check`), demo-only (`/demo-delivery`), and the internal feasibility polling endpoint (`GET /feasibility/{feasibility_id}`), which is wrapped by `feasibility_check`.
-
-### Phase 1 — Scaffold & SkyFi Client ✅ COMPLETE
-
-- TypeScript project setup with Bun
-- Typed HTTP client covering all SkyFi API endpoints (archives, orders, pricing, feasibility, notifications)
-- Config loader supporting env variables, request headers, and `~/.skyfi/config.json` (Bun only)
-
-### Phase 2 — MCP Server + Core Read-Only Tools ✅ COMPLETE
-
-- MCP transport (Bun via Hono, Workers via Cloudflare Agents Durable Objects): done
-- Dual-runtime support (Cloudflare Workers + Bun): done
-- Read-only tools implemented: `archives_search` (with pagination), `archive_get`, `passes_predict`, `feasibility_check` (async polling), `pricing_get`, `account_whoami`, `orders_list`, `orders_get`, `orders_deliverable_get`: done
-- Unit and contract test suite: done
-- Real SkyFi API smoke test: done
-- End-to-end validation with a live MCP client: done (deployed on Cloudflare Workers)
-- Executable eval harness with fixture-backed planner suites and live smoke suites: done
-- LangSmith tracing at tool-call boundary: not started
+This project turns the SkyFi satellite imagery platform into a remote MCP server that an AI agent can use for real work: searching archives, checking feasibility, pricing orders, creating AOI monitors, and preparing or confirming purchases through a controlled tool interface.
 
-### Phase 3 — Conversational Ordering ✅ COMPLETE
+The core submission decision was to optimize for a credible remote MCP MVP rather than a broad but shallow demo. That meant focusing on four things the brief actually depends on: a working Cloudflare-hosted MCP surface, safe conversational ordering, AOI monitoring with webhook ingestion, and enough validation to show the server behaves correctly under real tool loops instead of only in unit tests.
 
-- `orders_prepare` validates parameters, fetches pricing, returns a summary with a single-use confirmation token (5-minute TTL)
-- `orders_confirm` accepts the token and executes the purchase
-- `orders_redeliver` re-triggers delivery for an existing order using new delivery settings
-- Tasking orders can be pinned to a specific pass by supplying `providerWindowId` to `orders_prepare`
-- Tokens are random UUIDs, single-use, session-isolated
-- `ConfirmationStore` class (`src/tools/confirmation.ts`) implements the token store with lazy TTL expiry and injectable clock for deterministic testing
+## Why This Is The Right MVP
 
-### Phase 4 — AOI Monitoring ✅ COMPLETE
+The brief is not asking for a generic API wrapper. It is asking whether SkyFi can become usable inside agent workflows where the model must search, reason, ask clarifying questions, and avoid making unsafe purchases. The strongest MVP therefore is one that proves:
 
-- `notifications_create`, `notifications_list`, `notifications_get`, `notifications_delete`: done
-- `alerts_list`: done — retrieves alerts per monitor or across all monitors
-- Inbound webhook receiver at `POST /webhooks/aoi`: done — persists payloads to a shared Durable Object alert store on Workers and to an in-memory store on Bun
-- `AlertStore` class (`src/tools/alerts.ts`) implements the in-memory keyed alert store used by Bun and tests
-- `SkyFiAlertStore` Durable Object (`src/alerts_object.ts`) provides shared cross-session alert persistence for Cloudflare Workers
-- AOI alerts are readable from any MCP session on Workers because they are no longer tied to per-session in-memory state
+- a remote MCP server can authenticate per user and run on Cloudflare Agents
+- the ordering flow cannot jump directly from intent to purchase
+- the imagery workflows are broad enough to support exploration, pricing, ordering, and monitoring
+- the server can be exercised through real LLM tool loops, not just mocked function calls
 
-### Phase 5 — OpenStreetMap Integration ✅ COMPLETE
+That is the shape of this repository. The implementation is intentionally narrower than the full long-term platform vision, but it is deep in the areas that matter most for evaluator confidence.
 
-- Nominatim client with `User-Agent` header for polite usage
-- `location_resolve` tool converts place names to bounding boxes and WKT polygons for use with SkyFi
+## Product And Technical Judgment
 
-### Phase 6 — CLI Interface ✅ COMPLETE (separate repo)
+### 1. Remote MCP first, local parity second
 
-Implemented in a standalone repository: [skyfi-cli](https://github.com/ianzepp/skyfi-cli).
+The codebase supports both local Bun hosting and Cloudflare Workers, but the primary target is Cloudflare Agents. The shared MCP/tool layer lives in common modules, while the two entrypoints differ only in bootstrap and config sourcing:
 
-### Related Project: `skyfi-cli`
+- Bun entrypoint: [`src/index.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/index.ts)
+- Cloudflare Workers entrypoint: [`src/worker.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/worker.ts)
+- Shared MCP composition root: [`src/server/mcp.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/server/mcp.ts)
 
-If you want a terminal-first interface to the same SkyFi Platform API workflows, see the companion Rust CLI at [`~/github/ianzepp/skyfi-cli`](/Users/ianzepp/github/ianzepp/skyfi-cli).
+This is the correct tradeoff for the brief. It keeps local development simple without fragmenting the actual product surface.
 
-Install options:
+### 2. Human confirmation is enforced as a system property
 
-```bash
-brew install ianzepp/tap/skyfi-cli
-curl -fsSL https://raw.githubusercontent.com/ianzepp/skyfi-cli/master/install.sh | bash
-```
+Ordering satellite imagery costs money, so the server does not expose a one-shot purchase path. Instead it uses a two-step flow:
 
-Current command groups include:
+1. `orders_prepare` validates the request and returns pricing plus a short-lived confirmation token.
+2. `orders_confirm` consumes that token and places the order.
 
-- `config` — store and inspect API key and base URL settings
-- `ping` / `whoami` — verify connectivity, auth, org, and remaining budget
-- `archives` — search the archive catalog and retrieve archive metadata
-- `orders` — create, list, inspect, and download orders
-- `notifications` — manage AOI webhook monitors
-- `feasibility` — check capture feasibility and predict satellite passes
-- `pricing` — inspect provider pricing tiers
+That logic is implemented in [`src/tools/orders.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/orders.ts) and backed by a dedicated token store in [`src/tools/confirmation.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/confirmation.ts). This is one of the most important design choices in the repo because it prevents a model from silently converting planning behavior into a paid action.
 
-Example CLI flows:
+### 3. AOI monitoring is treated as a real workflow, not a placeholder
 
-```bash
-skyfi-cli whoami
-skyfi-cli archives search --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))'
-skyfi-cli orders order-archive --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))' --archive-id <ARCHIVE_ID>
-skyfi-cli feasibility check --aoi 'POLYGON ((-122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8, -122.4 37.7))' --product-type day --resolution HIGH --start-date 2025-04-01 --end-date 2025-04-15
-```
+The monitoring path includes:
 
-The CLI also supports `--json` on commands for machine-readable output:
+- MCP tools for create/list/get/delete on AOI notifications
+- a webhook receiver at `POST /webhooks/aoi`
+- alert persistence for later retrieval inside MCP sessions
 
-```bash
-skyfi-cli --json orders list
-```
+On Bun, alerts are stored in memory. On Cloudflare, alerts are stored in a shared Durable Object so they are visible across sessions rather than trapped in a single process:
 
-### Phase 7 — Documentation ✅ COMPLETE
+- AOI tools: [`src/tools/aoi.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/aoi.ts)
+- Worker routing: [`src/worker_routes.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/worker_routes.ts)
+- Durable alert store: [`src/alerts_object.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/alerts_object.ts)
 
-- General README and quick start: done
-- Platform-specific integration guides: done — see `docs/integrations/`
-  - [Google ADK](docs/integrations/adk.md)
-  - [LangChain / LangGraph](docs/integrations/langchain.md)
-  - [Vercel AI SDK](docs/integrations/ai-sdk.md)
-  - [Claude Web](docs/integrations/claude-web.md)
-  - [Claude Code](docs/integrations/claude-code.md)
-  - [OpenAI](docs/integrations/openai.md)
-  - [Gemini](docs/integrations/gemini.md)
-- Integration guide code examples for OpenAI and LangChain are backed by checked-in files under `examples/` and can be verified locally with `bun run docs:verify`
-- Cloudflare Workers deployment instructions: done
+### 4. Geospatial usability matters more than raw endpoint count
 
-## Stretch Goals
+SkyFi expects WKT polygons, but users and agents often think in place names. The `location_resolve` tool bridges that gap by converting OpenStreetMap/Nominatim results into WKT polygons that can be passed directly into archive, pricing, feasibility, and monitoring tools:
 
-- **Demo Agent — Geospatial Deep Research**: A polished, open-source-ready agent using this MCP for geospatial-supported deep research (LangGraph or similar); LangSmith tracing included
-- **PostgreSQL migration**: Swap SQLite for PostgreSQL if AOI monitoring state or multi-user demand grows
-- **Rich notification delivery**: Slack, email, or webhook forwarding for AOI alerts beyond console logging
-- **Payments integration**: In-MCP payment flow beyond credential-based API key usage
+- Tool registration: [`src/tools/location.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/location.ts)
+- OSM client: [`src/client/osm.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/client/osm.ts)
 
-## Design Decisions
+This is a good MVP decision because it removes a major practical failure mode for conversational geospatial tooling.
 
-### Two-Tool Confirmation Gate
+### 5. Validation is aimed at agent behavior, not only library correctness
 
-Ordering satellite imagery costs real money. The server enforces a hard human-in-the-loop confirmation before any purchase:
+The repo includes unit tests, transport tests, contract-style tool tests, and an eval harness that runs a real LLM tool loop against fixture-backed and live scenarios:
 
-1. **`orders_prepare`** validates parameters, fetches pricing, and returns a summary with a single-use confirmation token (5-minute TTL).
-2. **`orders_confirm`** accepts the token and executes the purchase. Invalid or expired tokens are rejected.
+- Eval harness: [`src/evals/harness.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/evals/harness.ts)
+- Eval runner: [`scripts/run-evals.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/scripts/run-evals.ts)
+- Eval scenarios: [`evals/scenarios`](/Users/ianzepp/github/gauntlet/skyfi-mcp/evals/scenarios)
+- Eval overview: [`evals/README.md`](/Users/ianzepp/github/gauntlet/skyfi-mcp/evals/README.md)
 
-This two-tool pattern is intentionally safer than a single tool with a `confirmed: true` flag. The agent must make two separate calls, and the human sees the full price between them. Even if an agent tries to chain calls autonomously, the token mechanism ensures the prepare step visibly completed first.
+This is the right evidence to counter "vibe-coded MCP wrapper" skepticism. The harness checks tool choice, forbidden-tool avoidance, multi-step flows, and human approval behavior.
 
-### Dual-Runtime Session Management
+## Requirements Coverage
 
-- **Stateful Bun transport**: The Bun/self-hosted path uses `createApp()` and tracks each MCP client session in an in-memory `Map`, keyed by `mcp-session-id`. This keeps pending order tokens isolated per client while still allowing local config-file auth.
-- **Stateful Cloudflare Agents transport**: The Workers path uses `SkyFiMcpAgent`, a Durable Object-backed `McpAgent`. MCP session state survives across HTTP requests, and the initial `x-skyfi-api-key` header is persisted into session props so multi-user remote auth still works after the initialization handshake.
-- **Shared webhook storage on Workers**: AOI webhook alerts are stored in a separate `SkyFiAlertStore` Durable Object so they are visible across MCP sessions instead of being trapped inside one agent instance.
+The target brief is defined in [`REQUIREMENTS.md`](/Users/ianzepp/github/gauntlet/skyfi-mcp/REQUIREMENTS.md). The table below maps each requirement to what is actually present in this repository.
 
-### No Muninn Framework (PoC)
+| Requirement | Status | Evidence |
+| --- | --- | --- |
+| Remote MCP server on Cloudflare Agents | Met | Worker entrypoint and Agent integration in [`src/worker.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/worker.ts), custom transport in [`src/server/agent_transport.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/server/agent_transport.ts), deployment config in [`wrangler.jsonc`](/Users/ianzepp/github/gauntlet/skyfi-mcp/wrangler.jsonc) |
+| Built on the SkyFi public API | Met | Typed client in [`src/client/skyfi.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/client/skyfi.ts), local spec copy at [`docs/openapi.json`](/Users/ianzepp/github/gauntlet/skyfi-mcp/docs/openapi.json) |
+| Local hosting support | Met | Bun server entrypoint in [`src/index.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/index.ts) |
+| Conversational image ordering with price review and human confirmation | Met | `orders_prepare` and `orders_confirm` in [`src/tools/orders.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/orders.ts), token lifecycle tests in [`src/tools/confirmation_test.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/confirmation_test.ts) |
+| Feasibility before order placement | Met | Feasibility tooling in [`src/tools/feasibility.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/feasibility.ts), ordering and feasibility scenarios under [`evals/scenarios`](/Users/ianzepp/github/gauntlet/skyfi-mcp/evals/scenarios) |
+| Data exploration across search, pricing, orders, and deliverables | Met | Search/pricing/order tools under [`src/tools`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools) |
+| AOI monitoring and webhook notifications | Met | AOI tools and webhook persistence in [`src/tools/aoi.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/aoi.ts), [`src/worker_routes.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/worker_routes.ts), and [`src/alerts_object.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/alerts_object.ts) |
+| Local JSON config plus cloud header-based auth | Met | Config resolution in [`src/config/index.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/config/index.ts) and local config loader in [`src/config/local.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/config/local.ts) |
+| Payments support within MCP | Partial | The server supports preparing and confirming paid orders through SkyFi using an authenticated account, but it does not implement a separate payment subsystem inside this repo |
+| OpenStreetMap integration | Met | Place-name resolution in [`src/tools/location.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/location.ts) and [`src/client/osm.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/client/osm.ts) |
+| Documentation for ADK, LangChain/LangGraph, AI SDK, Claude Web, OpenAI, Claude Code, Gemini | Met | Integration docs under [`docs/integrations`](/Users/ianzepp/github/gauntlet/skyfi-mcp/docs/integrations) |
+| Demo geospatial deep-research agent | Not in this repo | The current repository does not contain the requested polished demo agent |
 
-The project scope describes using `muninn-kernel-ts` and `muninn-frames-ts` as internal dispatch layers. These packages are not published to npm — they exist only as architectural concepts from a prior project. For this PoC, tools are registered directly with the MCP SDK's `McpServer.registerTool()` API. The Muninn patterns (prefix-based syscall routing, frame lifecycle) can be layered in later without changing the external tool surface.
+### Important transport note
 
-### Direct MCP SDK Transport
+The requirement text asks for "stateless HTTP + SSE transport." The implemented remote path is slightly different and should be described honestly:
 
-The server uses `WebStandardStreamableHTTPServerTransport` from the MCP TypeScript SDK, served through Hono. This gives us:
+- the Cloudflare deployment uses Cloudflare Agents and returns `text/event-stream`
+- session identity is preserved via MCP session IDs and Durable Object-backed agent instances
+- the transport is closer to modern Streamable HTTP MCP behavior than to a purely stateless SSE wrapper
 
-- HTTP + SSE transport (the current MCP standard)
-- Works on Bun, Node.js, Cloudflare Workers, and Deno without changes
-- Session resumability support on runtimes that support it (Bun/Node)
+That is a deliberate choice, not an omission. It aligns the server with the current MCP SDK and Cloudflare Agents model, but it is still a divergence from the literal wording of the requirement.
 
-### SkyFi API as WKT
+## What Was Built
 
-The SkyFi API uses WKT (Well-Known Text) polygons for areas of interest rather than GeoJSON. The `location_resolve` tool bridges this by converting OpenStreetMap bounding boxes to WKT polygons automatically, so users can say "search imagery near downtown Kyiv" without knowing the coordinate format.
+The current server exposes tools across six workflow areas:
 
-### Config Precedence
+- account readiness and budget inspection
+- archive search and archive detail lookup
+- pass prediction and feasibility checks for tasking
+- pricing exploration
+- order history, deliverable retrieval, redelivery, and controlled ordering
+- AOI monitor creation, review, deletion, and alert retrieval
+- OpenStreetMap-based location resolution
 
-API key resolution follows this order:
+The MCP composition root in [`src/server/mcp.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/server/mcp.ts) wires these tool groups into a per-session server instance so each caller can be bound to their own SkyFi API key.
 
-1. `x-skyfi-api-key` request header (for cloud/multi-user deployment)
-2. `SKYFI_API_KEY` environment variable (or Worker env binding on Cloudflare)
-3. `~/.skyfi/config.json` file (Bun/Node only — not available on Workers)
+## Validation, Reliability, And Testing
 
-## Local Development
+The strongest evidence in the repo is not the README text. It is the combination of targeted tests plus agent-loop evals.
 
-### Prerequisites
+### Automated tests
 
-- [Bun](https://bun.sh) runtime
-- A SkyFi API key ([get one here](https://app.skyfi.com))
+Representative coverage includes:
 
-### Install and Run
+- transport/session behavior in [`src/server/transport_test.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/server/transport_test.ts)
+- Worker route behavior in [`src/worker_test.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/worker_test.ts)
+- confirmation token safety in [`src/tools/confirmation_test.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/confirmation_test.ts)
+- tool-specific tests under [`src/tools`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools)
+
+### Eval harness
+
+The eval harness is intentionally biased toward signals that matter for a remote MCP server:
+
+- correct tool choice
+- forbidden purchase-tool avoidance
+- multi-step flow handling
+- non-empty, useful outputs
+- explicit human approval behavior before confirmation
+
+The latest checked-in eval artifacts under [`evals/results`](/Users/ianzepp/github/gauntlet/skyfi-mcp/evals/results) show recent successful runs for planner and live smoke suites as documented in [`evals/README.md`](/Users/ianzepp/github/gauntlet/skyfi-mcp/evals/README.md).
+
+## Known Limitations And Expansion Path
+
+This repo is credible as an MCP submission, but there are still clear boundaries.
+
+- The demo deep-research agent requested in the brief is not included here.
+- "Payments support" is currently satisfied through SkyFi account/payment readiness and order confirmation flows, not through a bespoke payment UX or wallet layer.
+- The remote transport is modernized around Streamable HTTP semantics and session-backed Cloudflare Agents behavior rather than a minimal stateless SSE implementation.
+- Bun-hosted AOI alert persistence is in-memory; Cloudflare gets the stronger shared Durable Object implementation.
+- LangSmith tracing is not implemented in the current codebase.
+
+The most credible next steps would be:
+
+1. Add the open-source geospatial deep-research demo agent requested by the brief.
+2. Add trace-level observability around tool execution and failure paths.
+3. Decide whether the transport should be reframed as an intentional modernization or adjusted further to match the original requirement wording more literally.
+4. Promote the eval harness into a standard release gate for remote deployments.
+
+## Stack And Architecture
+
+- Runtime: Bun locally, Cloudflare Workers remotely
+- HTTP layer: Hono for local/server transport, Cloudflare Agents transport for remote
+- MCP SDK: `@modelcontextprotocol/sdk`
+- Validation: Zod
+- External services: SkyFi Platform API and OpenStreetMap Nominatim
+- Build and tooling: Bun, TypeScript, ESLint, Prettier, Wrangler
+
+Architecturally, the repo separates:
+
+- typed upstream API clients under [`src/client`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/client)
+- runtime-agnostic tool registration under [`src/tools`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools)
+- MCP server assembly under [`src/server/mcp.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/server/mcp.ts)
+- transport/runtime bindings under [`src/server`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/server), [`src/index.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/index.ts), and [`src/worker.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/worker.ts)
+
+## Setup And Useful Commands
+
+### Local development
 
 ```bash
 bun install
-```
-
-Set your API key via environment variable:
-
-```bash
-export SKYFI_API_KEY=your-key-here
 bun run dev
 ```
 
-Or create `~/.skyfi/config.json`:
+The local server listens on `http://localhost:3000/mcp` by default.
 
-```json
-{
-  "apiKey": "your-key-here",
-  "baseUrl": "https://app.skyfi.com/platform-api"
-}
-```
-
-Both `apiKey`/`api_key` and `baseUrl`/`base_url` spellings are accepted.
-
-The server starts at `http://localhost:3000/mcp`.
-
-### Notifications & Webhooks
-
-SkyFi notifications are AOI monitors, not generic saved areas. When a monitor is created, SkyFi sends webhook callbacks whenever new imagery matches the AOI and filters.
-
-This server is designed to receive those callbacks itself at:
-
-- MCP endpoint: `/mcp`
-- AOI webhook endpoint: `/webhooks/aoi`
-
-The intended agent flow is:
-
-1. The agent calls `notifications_create`.
-2. SkyFi sends future AOI match events to this server's `/webhooks/aoi` endpoint.
-3. The server stores those alerts internally.
-4. The agent later reads them with `notifications_get` or `alerts_list`.
-
-By default, `notifications_create` will use the server-managed webhook destination when `SKYFI_MCP_PUBLIC_BASE_URL` is configured. In that case, the default webhook URL becomes:
-
-```text
-<SKYFI_MCP_PUBLIC_BASE_URL>/webhooks/aoi
-```
-
-The `webhookUrl` tool parameter is still supported as an optional override, but most agent-facing deployments should not need to ask the user for one.
-
-Examples:
-
-```bash
-# Public deployed MCP server
-export SKYFI_MCP_PUBLIC_BASE_URL=https://skyfi-mcp.example.com
-```
-
-Default webhook target used by `notifications_create`:
-
-```text
-https://skyfi-mcp.example.com/webhooks/aoi
-```
-
-```bash
-# Local development with a tunnel
-export SKYFI_MCP_PUBLIC_BASE_URL=https://abc123.ngrok-free.app
-```
-
-Default webhook target used by `notifications_create`:
-
-```text
-https://abc123.ngrok-free.app/webhooks/aoi
-```
-
-If `SKYFI_MCP_PUBLIC_BASE_URL` is not set, callers must provide `webhookUrl` explicitly when creating notifications.
-
-### Scripts
-
-```bash
-bun run dev      # Start Bun dev server with hot reload
-bun run start    # Start Bun production server
-bun run check    # TypeScript type check
-bun run docs:verify        # Verify synced integration doc examples
-bun run docs:sync-examples # Refresh doc snippets from examples/
-bun test         # Run unit tests
-bun run dev:cf   # Start Cloudflare Workers local dev server (wrangler)
-bun run deploy   # Deploy to Cloudflare Workers
-```
-
-### Docs Verification
-
-The integration guides in [`docs/integrations/`](docs/integrations/) remain the human-facing documentation source, but the primary OpenAI and LangChain code snippets are mirrored from runnable files in [`examples/`](examples/).
-
-Use:
-
-```bash
-bun run docs:verify
-```
-
-This checks that the marked snippets in [`docs/integrations/openai.md`](docs/integrations/openai.md) and [`docs/integrations/langchain.md`](docs/integrations/langchain.md) still match the checked-in example files, and syntax-checks those example files. After editing example files, run:
-
-```bash
-bun run docs:sync-examples
-```
-
-to refresh the embedded Markdown snippets.
-
-### Testing
-
-The project has two test layers: **unit tests** that mock the SkyFi API and test internal logic, and **contract tests** that validate request/response shapes against the published OpenAPI spec via a Prism mock server.
-
-#### Unit Tests
-
-Co-located with each module (files ending in `_test.ts`). Use Bun's built-in test runner. No API key or network access required.
-
-```bash
-bun test                # Run all unit tests
-bun test --coverage     # Run with line/function coverage report
-```
-
-Unit tests mock `fetch` or inject fake client objects so they run fast and offline. They verify:
-
-- **SkyFi client** (`src/client/skyfi_test.ts`, `skyfi_more_test.ts`): HTTP method/path routing for every endpoint, auth header injection, Content-Type conditional on body presence, error throw on non-2xx, empty-body throw on unexpected 2xx, feasibility poll/timeout behavior, query param serialization, 204/205 handling.
-- **Transport layer** (`src/server/transport_test.ts`, `agent_transport_test.ts`, `worker_test.ts`): Bun session creation/lookup/deletion, API key propagation from request headers, worker route behavior, Agents session prop binding, health endpoint, webhook receiver, and alert persistence.
-- **Tool handlers** (`src/tools/*_test.ts`): each tool's happy path, error paths, and edge cases:
-  - `archives_search`: Zod cross-field validation (aoi+dates required unless page cursor provided), response projection (curated fields, human-readable units), pagination cursor passthrough.
-  - `feasibility_check`: submit-then-poll flow, response shape.
-  - `pricing_get`: with and without AOI, verbatim passthrough.
-  - `orders_list` / `orders_get`: response projection (summary vs. full detail), pagination params.
-  - `orders_prepare` / `orders_confirm`: two-step confirmation gate — token generation, pricing fetch, archive vs. tasking param validation, token consumption, expired/invalid token rejection, exact param forwarding to API client (camelCase field names verified).
-  - `notifications_create` / `notifications_list` / `notifications_get` / `notifications_delete`: CRUD operations, alert inclusion on get, alertStore cleanup on delete.
-  - `alerts_list`: per-monitor and cross-monitor retrieval, limit parameter.
-  - `location_resolve`: successful geocode with WKT polygon, no-results handling.
-- **AlertStore** (`src/tools/alerts_test.ts`): add/get/getAll/clear semantics, per-monitor cap enforcement, cross-monitor chronological sorting.
-- **ConfirmationStore** (`src/tools/confirmation_test.ts`): token generation, single-use consumption, TTL expiry with injectable clock, size tracking.
-- **Config** (`src/config/config_test.ts`, `local_test.ts`): precedence order (header > env > file), camelCase/snake_case field normalization, malformed JSON fallback, missing file warning.
-- **OSM client** (`src/client/osm_test.ts`, `osm_more_test.ts`): bboxToWkt coordinate conversion, resolveLocation integration, error handling for not-found.
-
-#### Contract Tests (Prism)
-
-Validate that `SkyFiClient` sends requests the real API would accept and can parse the responses it would return. A [Prism](https://stoplight.io/open-source/prism) mock server reads the OpenAPI spec (`docs/openapi.json`) and validates every request (field names, types, required fields, path param formats) against the published schemas. Any mismatch returns a 422 → test failure.
-
-**Start Prism** (in a separate terminal):
-
-```bash
-bunx prism mock docs/openapi.json --port 4010 --host 127.0.0.1 --errors
-```
-
-**Run contract tests:**
-
-```bash
-bun test src/client/contract_test.ts
-```
-
-The `--errors` flag is required — it enables strict request validation. Without it, Prism accepts any request body and returns mock data regardless.
-
-Contract test coverage:
-
-| Group         | Endpoints tested                                                                                                      |
-| ------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Auth          | `GET /auth/whoami`                                                                                                    |
-| Archives      | `POST /archives` (search), `GET /archives` (pagination), `GET /archives/{id}`                                         |
-| Pricing       | `POST /pricing` (with and without AOI)                                                                                |
-| Feasibility   | `POST /feasibility`, `GET /feasibility/{id}`, `POST /feasibility/pass-prediction`                                     |
-| Orders        | `GET /orders`, `GET /orders/{id}`, `POST /orders/{order_id}/redelivery`, `POST /order-archive`, `POST /order-tasking` |
-| Notifications | `POST /notifications`, `GET /notifications`, `GET /notifications/{id}`, `DELETE /notifications/{id}`                  |
-
-Contract tests require Prism to be running. If Prism is not reachable, the test file fails immediately with a startup error message. They are excluded from `bun test` by default (no `contract` in the grep pattern) — run them explicitly.
-
-#### Coverage
-
-Use Bun's built-in coverage reporter for the current numbers:
-
-```bash
-bun test --coverage
-```
-
-Coverage changes as the suite evolves, so the README does not pin exact percentages or test counts.
-
-### Connect from Claude Code
-
-```bash
-claude mcp add skyfi -- http://localhost:3000/mcp
-```
-
-### Connect from Claude Desktop
-
-Add to your Claude Desktop MCP config:
-
-```json
-{
-  "mcpServers": {
-    "skyfi": {
-      "url": "http://localhost:3000/mcp"
-    }
-  }
-}
-```
-
-## Endpoints
-
-| Path            | Method          | Purpose                                                    |
-| --------------- | --------------- | ---------------------------------------------------------- |
-| `/mcp`          | POST/GET/DELETE | MCP protocol (tool calls, SSE streams, session management) |
-| `/health`       | GET             | Health check                                               |
-| `/webhooks/aoi` | POST            | Inbound webhook receiver for AOI notifications             |
-
-## Deployment
-
-### Cloudflare Workers (recommended)
-
-Cloudflare Workers is the primary deployment target. The server runs on Cloudflare Agents with stateful Durable Object-backed MCP sessions on Workers.
-
-**Prerequisites:**
-
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) (included as a devDependency)
-- A Cloudflare account
-
-**Set secrets:**
-
-```bash
-bunx wrangler secret put SKYFI_API_KEY
-```
-
-Optional environment variables (set in `wrangler.jsonc` or via `wrangler secret put`):
-
-- `SKYFI_BASE_URL` — override the SkyFi API base URL (defaults to `https://app.skyfi.com/platform-api`)
-- `SKYFI_MCP_PUBLIC_BASE_URL` — public base URL for this MCP deployment; used to auto-manage AOI webhook delivery at `/webhooks/aoi`
-- `LANGCHAIN_API_KEY` — LangSmith API key (when tracing is enabled)
-
-Workers also declare two Durable Object bindings:
-
-- `MCP_OBJECT` — per-session MCP agent instances
-- `ALERT_STORE` — shared AOI webhook alert persistence across sessions
-
-**Deploy:**
-
-```bash
-bun run deploy
-```
-
-The server deploys to `https://skyfi-mcp.ian-zepp.workers.dev/mcp`.
-
-**Local Workers dev server:**
+### Cloudflare local development
 
 ```bash
 bun run dev:cf
 ```
 
-This starts a local Wrangler dev server that simulates the Workers runtime, useful for testing Workers-specific behavior without deploying.
+### Environment
 
-**Connect a remote MCP client:**
-
-```bash
-claude mcp add skyfi -- https://skyfi-mcp.ian-zepp.workers.dev/mcp
-```
-
-### Bun Self-Hosting
-
-For self-hosted deployments (Railway, VPS, Docker, etc.), use the Bun entry point:
+See [`.env.example`](/Users/ianzepp/github/gauntlet/skyfi-mcp/.env.example) for the basic variables:
 
 ```bash
-export SKYFI_API_KEY=your-key-here
-bun run start
+SKYFI_API_KEY=...
+SKYFI_BASE_URL=https://app.skyfi.com/platform-api
+SKYFI_MCP_PUBLIC_BASE_URL=https://your-public-mcp-host.example.com
+PORT=3000
 ```
 
-Environment variables:
+### Validation commands
 
-- `SKYFI_API_KEY` — your SkyFi API key
-- `SKYFI_BASE_URL` — override the SkyFi API base URL (optional)
-- `SKYFI_MCP_PUBLIC_BASE_URL` — public base URL for this MCP deployment; used as the default AOI webhook destination at `/webhooks/aoi`
-- `PORT` — listening port (default: 3000)
-
-The inbound webhook endpoint (`POST /webhooks/aoi`) requires a stable public URL. Set `SKYFI_MCP_PUBLIC_BASE_URL` so `notifications_create` can default to the server-managed webhook destination. For local development with webhooks, point it at a tunnel URL (for example, an ngrok HTTPS URL).
-
-## Project Structure
-
-```
-src/
-├── index.ts              # Bun entry point — stateful sessions, local config file
-├── worker.ts             # Cloudflare Workers entry point — Agents wrapper + routes
-├── worker_routes.ts      # Worker route handler for /mcp, /health, /webhooks/aoi
-├── alerts_object.ts      # Durable Object alert persistence + client wrapper
-├── config/
-│   ├── index.ts          # Portable config loader (env, headers) — no Node.js imports
-│   ├── local.ts          # Local config file loader (~/.skyfi/config.json) — Bun only
-│   └── config_test.ts    # Config priority order tests (header > env > local)
-├── client/
-│   ├── types.ts          # SkyFi API request/response types
-│   ├── skyfi.ts          # Typed SkyFi HTTP client
-│   ├── skyfi_test.ts     # SkyFiClient tests (204/205 handling)
-│   ├── skyfi_more_test.ts # Extended client tests (serialization, polling, errors, endpoints)
-│   ├── osm.ts            # OpenStreetMap Nominatim client
-│   ├── osm_test.ts       # bboxToWkt coordinate tests
-│   └── osm_more_test.ts  # Extended OSM tests (resolveLocation, error handling)
-├── server/
-│   ├── mcp.ts            # MCP server factory — registers all tools
-│   ├── transport.ts      # Hono app with HTTP+SSE transport (stateful/stateless)
-│   ├── agent_transport.ts      # Custom Agents streamable HTTP handler with session props
-│   ├── agent_transport_test.ts # Agents transport tests (header-derived session props)
-│   └── transport_test.ts       # Bun transport tests (API key propagation, session modes, lifecycle)
-└── tools/
-    ├── test_harness.ts        # Shared test helper — creates mock MCP server + client
-    ├── search.ts              # archives_search
-    ├── search_test.ts         # Schema cross-field validation tests
-    ├── search_handler_test.ts # archives_search handler tests (projection, pagination)
-    ├── feasibility.ts         # feasibility_check
-    ├── feasibility_test.ts    # Feasibility handler tests (submit + poll flow)
-    ├── pricing.ts             # pricing_get
-    ├── pricing_test.ts        # Pricing handler tests (with/without AOI)
-    ├── orders.ts              # orders_list, orders_get, orders_prepare, orders_confirm
-    ├── orders_test.ts         # Order handler tests (prepare/confirm flow, validation, errors)
-    ├── confirmation.ts        # ConfirmationStore — single-use token store for ordering
-    ├── confirmation_test.ts   # ConfirmationStore tests (TTL, single-use)
-    ├── alerts.ts              # AlertStore — in-memory AOI webhook alert storage
-    ├── alerts_test.ts         # AlertStore tests (add, get, limit, clear)
-    ├── aoi.ts                 # create/list/get/delete AOI monitors + get alerts
-    ├── aoi_test.ts            # AOI handler tests (CRUD, alerts integration)
-    ├── location.ts            # location_resolve (OSM geocoding)
-    └── location_test.ts       # Location handler tests (results, no-match)
-docs/
-└── integrations/
-    ├── adk.md               # Google ADK integration guide
-    ├── ai-sdk.md            # Vercel AI SDK integration guide
-    ├── claude-code.md       # Claude Code integration guide
-    ├── claude-web.md        # Claude Web integration guide
-    ├── gemini.md            # Google Gemini integration guide
-    ├── langchain.md         # LangChain / LangGraph integration guide
-    └── openai.md            # OpenAI integration guide
-wrangler.jsonc             # Cloudflare Workers deployment config
+```bash
+bun test
+bun run check
+bun run lint
+bun run docs:verify
+bun run evals --list
 ```
 
-## Next Steps
+### Deployment
 
-These are the remaining items needed to bring the implementation in line with `REQUIREMENTS.md`:
+The Cloudflare deployment configuration lives in [`wrangler.jsonc`](/Users/ianzepp/github/gauntlet/skyfi-mcp/wrangler.jsonc).
 
-1. Build the demo agent. The requirements call for a polished geospatial deep research agent using this MCP server, ready to be open-sourced.
-2. Add LangSmith tracing at the tool-call boundary (Phase 2 stretch goal).
+```bash
+bun run deploy
+```
