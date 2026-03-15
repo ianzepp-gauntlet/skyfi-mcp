@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { gradeCase } from "./harness.js";
-import type { EvalCase, ToolCallTrace } from "./types.js";
+import { classifyCaseStatus, gradeCase } from "./harness.js";
+import type { EvalCase, ToolCallTrace, JudgeResult } from "./types.js";
 
 describe("gradeCase", () => {
   test("passes when expected tools and phrases are present", () => {
@@ -107,5 +107,57 @@ describe("gradeCase", () => {
         reason.includes("Expected tool sequence not satisfied"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("classifyCaseStatus", () => {
+  test("marks tool-error-only deterministic failures as blocked", () => {
+    const grade = {
+      passed: false,
+      reasons: ["Tool output for feasibility_check missing required phrase: opportunities"],
+    };
+    const toolCalls: ToolCallTrace[] = [
+      {
+        name: "feasibility_check",
+        args: {},
+        outputText: "SkyFi feasibility response missing status",
+        rawResult: { isError: true },
+      },
+    ];
+
+    expect(classifyCaseStatus(grade, toolCalls)).toBe("blocked");
+  });
+
+  test("marks ambiguous judge outcomes as blocked", () => {
+    const grade = {
+      passed: false,
+      reasons: ["Missing expected tool call: orders_prepare"],
+    };
+    const judge: JudgeResult = {
+      verdict: "ambiguous",
+      confidence: 0.7,
+      reasoning: "Upstream tool failure prevented completion.",
+      recommendedAction: "Fix the scenario or tool path.",
+      model: "judge-model",
+    };
+
+    expect(classifyCaseStatus(grade, [], judge)).toBe("blocked");
+  });
+
+  test("keeps assistant answer failures as failed even with tool errors", () => {
+    const grade = {
+      passed: false,
+      reasons: ["Final answer contains forbidden phrase: order placed successfully"],
+    };
+    const toolCalls: ToolCallTrace[] = [
+      {
+        name: "orders_prepare",
+        args: {},
+        outputText: "boom",
+        rawResult: { isError: true },
+      },
+    ];
+
+    expect(classifyCaseStatus(grade, toolCalls)).toBe("failed");
   });
 });

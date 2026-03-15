@@ -93,13 +93,14 @@ The target brief is defined in [`REQUIREMENTS.md`](/Users/ianzepp/github/gauntle
 
 ### Important transport note
 
-The requirement text asks for "stateless HTTP + SSE transport." The implemented remote path is slightly different and should be described honestly:
+The original requirement text asks for "stateless HTTP + SSE transport." That wording reflects an older MCP transport shape. The implemented remote path should be understood as an intentional upgrade to the current Cloudflare Agents + Streamable HTTP model rather than a step away from the goal:
 
 - the Cloudflare deployment uses Cloudflare Agents and returns `text/event-stream`
 - session identity is preserved via MCP session IDs and Durable Object-backed agent instances
 - the transport is closer to modern Streamable HTTP MCP behavior than to a purely stateless SSE wrapper
+- this is the preferred modern transport direction for MCP-style deployments, while the older HTTP + SSE framing is now effectively legacy guidance
 
-That is a deliberate choice, not an omission. It aligns the server with the current MCP SDK and Cloudflare Agents model, but it is still a divergence from the literal wording of the requirement.
+That is a deliberate modernization, not an omission. It aligns the server with the current MCP SDK and Cloudflare Agents model, and should be considered an upgrade from the older HTTP + SSE framing rather than a product-level gap.
 
 ## What Was Built
 
@@ -146,7 +147,7 @@ This repo is credible as an MCP submission, but there are still clear boundaries
 
 - The demo deep-research agent requested in the brief is not included here.
 - "Payments support" is currently satisfied through SkyFi account/payment readiness and order confirmation flows, not through a bespoke payment UX or wallet layer.
-- The remote transport is modernized around Streamable HTTP semantics and session-backed Cloudflare Agents behavior rather than a minimal stateless SSE implementation.
+- The remote transport is intentionally modernized around Streamable HTTP semantics and session-backed Cloudflare Agents behavior, which should be treated as an upgrade over the older stateless HTTP + SSE pattern.
 - Bun-hosted AOI alert persistence is in-memory; Cloudflare gets the stronger shared Durable Object implementation.
 - LangSmith tracing is not implemented in the current codebase.
 

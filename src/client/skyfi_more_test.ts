@@ -139,7 +139,8 @@ describe("SkyFiClient request and wrappers", () => {
       new Response(
         JSON.stringify({
           id: "f-spec-1",
-          status: "PENDING",
+          validUntil: "2026-03-22T00:00:00Z",
+          overallScore: null,
         }),
         { status: 200 },
       ));
@@ -158,12 +159,18 @@ describe("SkyFiClient request and wrappers", () => {
     });
 
     expect(result.feasibility_id).toBe("f-spec-1");
-    expect(result.status).toBe("PENDING");
+    expect(result.status).toBe("STARTED");
   });
 
   test("checkFeasibility throws when the upstream response omits an id", async () => {
     globalThis.fetch = asFetchMock(async () =>
-      new Response(JSON.stringify({ status: "PENDING" }), { status: 200 }));
+      new Response(
+        JSON.stringify({
+          validUntil: "2026-03-22T00:00:00Z",
+          overallScore: null,
+        }),
+        { status: 200 },
+      ));
 
     const client = new SkyFiClient({
       apiKey: "test-key",
@@ -179,6 +186,54 @@ describe("SkyFiClient request and wrappers", () => {
         resolution: "HIGH",
       }),
     ).rejects.toThrow("missing feasibility_id");
+  });
+
+  test("getFeasibilityStatus flattens provider opportunities from spec-shaped payload", async () => {
+    globalThis.fetch = asFetchMock(async () =>
+      new Response(
+        JSON.stringify({
+          id: "f-spec-2",
+          validUntil: "2026-03-22T00:00:00Z",
+          overallScore: {
+            feasibility: 0.8,
+            providerScore: {
+              score: 0.8,
+              providerScores: [
+                {
+                  provider: "PLANET",
+                  status: "COMPLETE",
+                  opportunities: [
+                    {
+                      providerWindowId: "pw-1",
+                      windowStart: "2026-03-20T00:00:00Z",
+                      windowEnd: "2026-03-20T01:00:00Z",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+        { status: 200 },
+      ));
+
+    const client = new SkyFiClient({
+      apiKey: "test-key",
+      baseUrl: "https://example.com",
+    });
+
+    const result = await client.getFeasibilityStatus("f-spec-2");
+
+    expect(result.status).toBe("COMPLETE");
+    expect(result.opportunities).toEqual([
+      {
+        provider: "PLANET",
+        status: "COMPLETE",
+        providerWindowId: "pw-1",
+        windowStart: "2026-03-20T00:00:00Z",
+        windowEnd: "2026-03-20T01:00:00Z",
+      },
+    ]);
   });
 });
 
@@ -209,8 +264,9 @@ describe("SkyFiClient request and wrappers (additional)", () => {
       if (path === "/feasibility" || path === "/feasibility/f-1") {
         return new Response(
           JSON.stringify({
-            feasibility_id: "f-1",
-            status: "PENDING",
+            id: "f-1",
+            validUntil: "2026-03-22T00:00:00Z",
+            overallScore: null,
           }),
           { status: 200 },
         );
@@ -285,7 +341,11 @@ describe("SkyFiClient request and wrappers (additional)", () => {
   test("pollFeasibility returns final pending status when timeout is reached", async () => {
     globalThis.fetch = asFetchMock(async () =>
       new Response(
-        JSON.stringify({ feasibility_id: "f2", status: "PENDING" }),
+        JSON.stringify({
+          id: "f2",
+          validUntil: "2026-03-22T00:00:00Z",
+          overallScore: null,
+        }),
         {
           status: 200,
         },
@@ -304,7 +364,7 @@ describe("SkyFiClient request and wrappers (additional)", () => {
       intervalMs: 1,
       timeoutMs: 1,
     });
-    expect(result.status).toBe("PENDING");
+    expect(result.status).toBe("STARTED");
   });
 });
 

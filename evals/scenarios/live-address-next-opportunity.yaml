@@ -1,6 +1,6 @@
 id: live-address-next-opportunity
 description: Live address-based pass prediction for the next earliest opportunity.
-query: Resolve 2220 Barton Springs Rd, Austin, TX 78746 and find the next earliest satellite pass opportunity between 2026-03-16T00:00:00Z and 2026-03-23T00:00:00Z.
+query: Resolve 2220 Barton Springs Rd, Austin, TX 78746 and find the next earliest satellite pass opportunity between 2026-03-18T00:00:00Z and 2026-03-25T00:00:00Z.
 category: passes
 difficulty: medium
 tags:

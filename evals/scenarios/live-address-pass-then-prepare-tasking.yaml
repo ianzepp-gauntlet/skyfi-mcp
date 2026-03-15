@@ -1,6 +1,6 @@
 id: live-address-pass-then-prepare-tasking
 description: Resolve an address, find the next pass, then prepare a tasking order for the same window without confirming it.
-query: Resolve 2220 Barton Springs Rd, Austin, TX 78746, find the next earliest DAY VERY HIGH satellite pass between 2026-03-16T00:00:00Z and 2026-03-23T00:00:00Z, and then prepare a tasking order for that same AOI and window to my S3 bucket called eval-bucket, but do not place it yet. Use the first resolved address match if multiple near-duplicate results are returned.
+query: Resolve 2220 Barton Springs Rd, Austin, TX 78746, find the next earliest DAY VERY HIGH satellite pass between 2026-03-18T00:00:00Z and 2026-03-25T00:00:00Z, and then prepare a tasking order for that same AOI and window to my S3 bucket called eval-bucket, but do not place it yet. Use the first resolved address match if multiple near-duplicate results are returned.
 category: tasking
 difficulty: medium
 tags:

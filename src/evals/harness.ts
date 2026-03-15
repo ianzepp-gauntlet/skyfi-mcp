@@ -6,6 +6,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { parseJson, parseJsonObject } from "../lib/json.js";
 import type {
   CaseArtifact,
+  EvalCaseStatus,
   EvalCase,
   EvalHttpAction,
   EvalModelsFile,
@@ -402,6 +403,49 @@ function gradeCase(evalCase: EvalCase, finalText: string, toolCalls: ToolCallTra
   };
 }
 
+function toolCallIsError(call: ToolCallTrace): boolean {
+  const raw = call.rawResult;
+  return !!(
+    raw &&
+    typeof raw === "object" &&
+    "isError" in raw &&
+    (raw as { isError?: unknown }).isError === true
+  );
+}
+
+function gradeReasonImpliesAssistantFailure(reason: string): boolean {
+  return (
+    reason.startsWith("Forbidden tool was called:") ||
+    reason.startsWith("Final answer contains forbidden phrase:") ||
+    reason.startsWith("Final answer missing required phrase:") ||
+    reason.startsWith("Final answer missing any acceptable phrase:") ||
+    reason.startsWith("Final answer shorter than required minimum")
+  );
+}
+
+function classifyCaseStatus(
+  grade: GradeResult,
+  toolCalls: ToolCallTrace[],
+  judge?: JudgeResult,
+): EvalCaseStatus {
+  if (grade.passed) return "passed";
+
+  if (judge?.verdict === "rubric_too_strict" || judge?.verdict === "ambiguous") {
+    return "blocked";
+  }
+
+  const hasToolError = toolCalls.some(toolCallIsError);
+  const hasAssistantFailureReason = grade.reasons.some(
+    gradeReasonImpliesAssistantFailure,
+  );
+
+  if (hasToolError && !hasAssistantFailureReason) {
+    return "blocked";
+  }
+
+  return "failed";
+}
+
 class LiveMcpExecutor implements ToolExecutor {
   private client: Client;
   private transport: StreamableHTTPClientTransport;
@@ -654,10 +698,13 @@ async function runCase(params: {
       });
     }
 
+    const status = classifyCaseStatus(grade, toolCalls, judge);
+
     return {
       caseId: params.evalCase.id,
       mode: "live",
-      passed: grade.passed,
+      passed: status === "passed",
+      status,
       grade,
       judge,
       finalText,
@@ -724,8 +771,9 @@ export async function runEvalSuite(options: HarnessOptions): Promise<SuiteArtifa
       mode: loaded.definition.mode,
       model,
       caseCount: cases.length,
-      passed: cases.filter((item) => item.passed).length,
-      failed: cases.filter((item) => !item.passed).length,
+      passed: cases.filter((item) => item.status === "passed").length,
+      failed: cases.filter((item) => item.status === "failed").length,
+      blocked: cases.filter((item) => item.status === "blocked").length,
       resultsDir,
       cases,
     };
@@ -756,4 +804,4 @@ export function resolveRootDir(cwd: string): string {
   return resolve(cwd);
 }
 
-export { gradeCase };
+export { classifyCaseStatus, gradeCase };

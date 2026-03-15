@@ -63,6 +63,8 @@ export interface GradeResult {
   reasons: string[];
 }
 
+export type EvalCaseStatus = "passed" | "failed" | "blocked";
+
 export interface JudgeResult {
   verdict: "real_failure" | "rubric_too_strict" | "ambiguous";
   confidence: number;
@@ -75,6 +77,7 @@ export interface CaseArtifact {
   caseId: string;
   mode: "fixture" | "live";
   passed: boolean;
+  status: EvalCaseStatus;
   grade: GradeResult;
   judge?: JudgeResult;
   finalText: string;
@@ -90,6 +93,7 @@ export interface SuiteArtifact {
   caseCount: number;
   passed: number;
   failed: number;
+  blocked: number;
   resultsDir: string;
   cases: CaseArtifact[];
 }

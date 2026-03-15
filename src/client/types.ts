@@ -235,30 +235,35 @@ export interface FeasibilityRequest {
  * specific satellite pass rather than letting the provider choose.
  */
 export interface FeasibilityOpportunity {
-  /** Opaque identifier for this specific satellite pass. */
-  providerWindowId: string;
+  /** Opaque identifier for this specific satellite pass, when the API provides one. */
+  providerWindowId?: string | null;
   [key: string]: unknown;
 }
 
 /**
  * Current state of a feasibility check, either in-progress or resolved.
  *
- * Feasibility analysis is asynchronous — the server queues the request and
- * clients must poll until `status` reaches a terminal state (not PENDING/PROCESSING).
+ * The upstream API does not consistently expose a stable top-level status
+ * field, so the client normalizes one from the documented feasibility payload.
  */
 export interface FeasibilityResponse {
   /** Unique ID for this feasibility check, used for status polling. */
   feasibility_id: string;
   /**
-   * Current state of the analysis.
-   * Terminal states: COMPLETED, FAILED, NO_OPPORTUNITIES.
-   * Polling states: PENDING, PROCESSING.
+   * Normalized current state of the analysis.
+   * Common values: STARTED, COMPLETE, ERROR.
    */
   status: string;
-  /** Available capture opportunities, populated once status is COMPLETED. */
+  /** Available capture opportunities, flattened from provider-specific results. */
   opportunities?: FeasibilityOpportunity[];
   /** Human-readable explanation, particularly useful on failure or NO_OPPORTUNITIES. */
   message?: string;
+  /** Provider-specific feasibility rows from the upstream response when present. */
+  providerScores?: Array<Record<string, unknown>>;
+  /** Raw overall score object from the upstream response when present. */
+  overallScore?: Record<string, unknown> | null;
+  /** Upstream validity window, when provided. */
+  validUntil?: string;
 }
 
 /**

@@ -140,12 +140,18 @@ async function main(): Promise<void> {
   );
   console.log(`Mode: ${summary.mode}`);
   console.log(`Model: ${summary.model}`);
+  console.log(`Blocked: ${summary.blocked}`);
   console.log(`Results: ${summary.resultsDir}`);
 
   for (const result of summary.cases) {
-    const status = result.passed ? "PASS" : "FAIL";
+    const status =
+      result.status === "passed"
+        ? "PASS"
+        : result.status === "blocked"
+          ? "BLOCKED"
+          : "FAIL";
     console.log(`- [${status}] ${result.caseId} (${result.elapsedMs}ms)`);
-    if (!result.passed) {
+    if (result.status !== "passed") {
       for (const reason of result.grade.reasons) {
         console.log(`    ${reason}`);
       }

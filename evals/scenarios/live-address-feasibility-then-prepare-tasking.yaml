@@ -1,6 +1,6 @@
 id: live-address-feasibility-then-prepare-tasking
 description: Resolve an address and check a stricter feasibility combination; if no opportunities exist, the model should not prepare a tasking order.
-query: Resolve 2220 Barton Springs Rd, Austin, TX 78746 and check whether a DAY VERY HIGH capture is feasible between 2026-03-16T00:00:00Z and 2026-03-23T00:00:00Z. If there are no opportunities, do not prepare a tasking order. Use the first resolved address match if multiple near-duplicate results are returned.
+query: Resolve 2220 Barton Springs Rd, Austin, TX 78746 and check whether a DAY VERY HIGH capture is feasible between 2026-03-18T00:00:00Z and 2026-03-25T00:00:00Z. If there are no opportunities, do not prepare a tasking order. Use the first resolved address match if multiple near-duplicate results are returned.
 category: tasking
 difficulty: medium
 tags:

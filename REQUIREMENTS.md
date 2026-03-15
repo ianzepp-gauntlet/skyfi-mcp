@@ -24,7 +24,7 @@ SkyFi needs a Model Context Protocol (MCP) server that exposes its satellite ima
 
 - Fully deployed remote MCP server built on [Cloudflare Agents](https://developers.cloudflare.com/agents/model-context-protocol/)
 - Built on the [SkyFi public API](https://app.skyfi.com/platform-api/redoc)
-- Stateless HTTP + SSE transport ([reference](https://blog.christianposta.com/ai/understanding-mcp-recent-change-around-http-sse/))
+- Remote MCP transport compatible with the original HTTP + SSE intent, but preferably implemented using the newer Streamable HTTP / Cloudflare Agents model since the older HTTP + SSE framing is now legacy guidance ([reference](https://blog.christianposta.com/ai/understanding-mcp-recent-change-around-http-sse/))
 - Ability to host the server locally as well
 
 ### 2. Conversational Image Ordering

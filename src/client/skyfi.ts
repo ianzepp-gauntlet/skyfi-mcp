@@ -58,7 +58,10 @@ function inferFeasibilityStatus(record: Record<string, unknown>): string | undef
   }
 
   const overallScore = record.overallScore;
-  if (!overallScore || typeof overallScore !== "object" || Array.isArray(overallScore)) {
+  if (overallScore === null || overallScore === undefined) {
+    return "STARTED";
+  }
+  if (typeof overallScore !== "object" || Array.isArray(overallScore)) {
     return undefined;
   }
 
@@ -68,23 +71,78 @@ function inferFeasibilityStatus(record: Record<string, unknown>): string | undef
     typeof providerScore !== "object" ||
     Array.isArray(providerScore)
   ) {
-    return undefined;
+    return "COMPLETE";
+  }
+
+  const providerScores = (providerScore as Record<string, unknown>).providerScores;
+  if (Array.isArray(providerScores)) {
+    const statuses = providerScores
+      .map((item) =>
+        item && typeof item === "object" && !Array.isArray(item)
+          ? (item as Record<string, unknown>).status
+          : undefined,
+      )
+      .filter((status): status is string => typeof status === "string");
+
+    if (statuses.includes("STARTED")) return "STARTED";
+    if (statuses.includes("ERROR")) return "ERROR";
+    if (statuses.includes("COMPLETE")) return "COMPLETE";
+  }
+
+  // The current OpenAPI schema models a feasibility task response without a
+  // required top-level status. Treat null/absent overallScore as still running,
+  // otherwise assume the task is complete and inspectable.
+  return "COMPLETE";
+}
+
+function extractFeasibilityProviderScores(
+  record: Record<string, unknown>,
+): Array<Record<string, unknown>> {
+  const overallScore = record.overallScore;
+  if (!overallScore || typeof overallScore !== "object" || Array.isArray(overallScore)) {
+    return [];
+  }
+
+  const providerScore = (overallScore as Record<string, unknown>).providerScore;
+  if (
+    !providerScore ||
+    typeof providerScore !== "object" ||
+    Array.isArray(providerScore)
+  ) {
+    return [];
   }
 
   const providerScores = (providerScore as Record<string, unknown>).providerScores;
   if (!Array.isArray(providerScores)) {
-    return undefined;
+    return [];
   }
 
-  const firstStatus = providerScores
-    .map((item) =>
-      item && typeof item === "object" && !Array.isArray(item)
-        ? (item as Record<string, unknown>).status
-        : undefined,
-    )
-    .find((status): status is string => typeof status === "string");
+  return providerScores.filter(
+    (item): item is Record<string, unknown> =>
+      !!item && typeof item === "object" && !Array.isArray(item),
+  );
+}
 
-  return firstStatus;
+function extractFeasibilityOpportunities(
+  providerScores: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return providerScores.flatMap((providerScore) => {
+    const provider = providerScore.provider;
+    const status = providerScore.status;
+    const opportunities = providerScore.opportunities;
+    if (!Array.isArray(opportunities)) return [];
+
+    return opportunities
+      .filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === "object" && !Array.isArray(item),
+      )
+      .map((opportunity) => ({
+        ...opportunity,
+        ...(typeof provider === "string" ? { provider } : {}),
+        ...(typeof status === "string" ? { status } : {}),
+      }));
+  });
 }
 
 function normalizeFeasibilityResponse(payload: unknown): FeasibilityResponse {
@@ -99,19 +157,27 @@ function normalizeFeasibilityResponse(payload: unknown): FeasibilityResponse {
       : typeof record.id === "string"
         ? record.id
         : undefined;
+  const providerScores = extractFeasibilityProviderScores(record);
+  const opportunities = extractFeasibilityOpportunities(providerScores);
   const status = inferFeasibilityStatus(record);
 
   if (!feasibilityId) {
     throw new Error("SkyFi feasibility response missing feasibility_id");
   }
-  if (typeof status !== "string") {
-    throw new Error("SkyFi feasibility response missing status");
-  }
 
   return {
     ...record,
     feasibility_id: feasibilityId,
-    status,
+    status: status ?? "COMPLETE",
+    opportunities,
+    providerScores,
+    overallScore:
+      record.overallScore && typeof record.overallScore === "object"
+        ? (record.overallScore as Record<string, unknown>)
+        : record.overallScore === null
+          ? null
+          : undefined,
+    validUntil: typeof record.validUntil === "string" ? record.validUntil : undefined,
   };
 }
 
@@ -280,12 +346,12 @@ export class SkyFiClient {
    * Submit a tasking feasibility check.
    *
    * Feasibility analysis is asynchronous: this call enqueues the check and
-   * returns immediately with a `PENDING` status and a `feasibility_id`. Callers
+   * returns immediately with a `feasibility_id` and a normalized status. Callers
    * must poll via `getFeasibilityStatus` or use the convenience `pollFeasibility`
    * wrapper to wait for a terminal result.
    *
    * @param params - AOI, capture window, product type, and resolution constraints.
-   * @returns Initial feasibility record with `status: "PENDING"`.
+   * @returns Initial feasibility record with a normalized status.
    */
   async checkFeasibility(
     params: FeasibilityRequest,
@@ -327,7 +393,7 @@ export class SkyFiClient {
    *
    * Abstracts the polling loop that the SkyFi API requires: submitters call
    * `checkFeasibility`, then must repeatedly call `getFeasibilityStatus` until
-   * the status is no longer PENDING or PROCESSING. This method encapsulates
+   * the status is no longer in a running state. This method encapsulates
    * that loop so tool implementations stay linear.
    *
    * EDGE: If the timeout is reached before a terminal status, the final
@@ -349,7 +415,11 @@ export class SkyFiClient {
 
     while (Date.now() - start < timeout) {
       const result = await this.getFeasibilityStatus(feasibilityId);
-      if (result.status !== "PENDING" && result.status !== "PROCESSING") {
+      if (
+        result.status !== "PENDING" &&
+        result.status !== "PROCESSING" &&
+        result.status !== "STARTED"
+      ) {
         return result;
       }
       await new Promise((r) => setTimeout(r, interval));
