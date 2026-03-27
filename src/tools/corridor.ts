@@ -1,3 +1,17 @@
+/**
+ * Corridor geometry helpers for long linear assets such as pipelines and roads.
+ *
+ * The main exported entry point is `chunkRouteToCorridorPolygons()`, which:
+ *  1. projects geographic coordinates into a local planar space
+ *  2. simplifies dense input centerlines so callers can pass raw OSRM-like routes
+ *  3. splits the route into bounded-length chunks
+ *  4. builds one SkyFi-safe convex polygon per chunk
+ *  5. converts those chunk polygons back to WKT
+ *
+ * The convex polygon requirement is deliberate: live testing against SkyFi
+ * showed that raw offset-path rings around bends can produce invalid or
+ * unacceptable AOIs, while convex hulls of the corridor offsets are accepted.
+ */
 export interface RoutePoint {
   lat: number;
   lon: number;
@@ -16,7 +30,9 @@ export interface CorridorChunk {
   lengthMeters: number;
 }
 
+/** Earth radius used for the local equirectangular projection. */
 const EARTH_RADIUS_METERS = 6_371_000;
+/** Minimum spacing used to ignore numerically-zero subsegments. */
 const MIN_POINT_SPACING_METERS = 0.01;
 
 function toRadians(value: number): number {
@@ -31,6 +47,34 @@ function distanceMeters(a: XYPoint, b: XYPoint): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
+/**
+ * Distance from a point to a line segment in projected meters.
+ *
+ * Used by the route simplifier to decide whether a dense intermediate point
+ * materially changes the shape of the centerline.
+ */
+function perpendicularDistanceMeters(
+  point: XYPoint,
+  lineStart: XYPoint,
+  lineEnd: XYPoint,
+): number {
+  const dx = lineEnd.x - lineStart.x;
+  const dy = lineEnd.y - lineStart.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) {
+    return distanceMeters(point, lineStart);
+  }
+
+  const t =
+    ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) /
+    lengthSquared;
+  const projected = {
+    x: lineStart.x + Math.max(0, Math.min(1, t)) * dx,
+    y: lineStart.y + Math.max(0, Math.min(1, t)) * dy,
+  };
+  return distanceMeters(point, projected);
+}
+
 function normalize(x: number, y: number): XYPoint {
   const magnitude = Math.hypot(x, y);
   if (magnitude === 0) {
@@ -39,6 +83,13 @@ function normalize(x: number, y: number): XYPoint {
   return { x: x / magnitude, y: y / magnitude };
 }
 
+/**
+ * Project lat/lon into a local planar coordinate frame.
+ *
+ * The chunker only needs local geometric consistency over the route extent,
+ * not global map projection fidelity. A local equirectangular projection is
+ * sufficient and keeps the implementation lightweight.
+ */
 function projectPoint(
   point: RoutePoint,
   originLatDeg: number,
@@ -51,6 +102,7 @@ function projectPoint(
   };
 }
 
+/** Inverse of `projectPoint()` back into decimal-degree lat/lon coordinates. */
 function unprojectPoint(
   point: XYPoint,
   originLatDeg: number,
@@ -69,6 +121,13 @@ function formatCoordinate(value: number): string {
   return Number(value.toFixed(8)).toString();
 }
 
+/**
+ * Extract a distance-bounded sub-polyline from a projected route.
+ *
+ * This lets the caller split a long route by traveled distance rather than by
+ * raw point count, while still interpolating exact start/end points at chunk
+ * boundaries.
+ */
 function lineSubstring(
   points: XYPoint[],
   startDistanceMeters: number,
@@ -145,6 +204,13 @@ function lineSubstring(
   return result;
 }
 
+/**
+ * Approximate the corridor offset direction at one route vertex.
+ *
+ * For interior vertices this blends the normals of the incoming and outgoing
+ * segments so turns expand on both sides of the centerline before the final
+ * convex hull is computed.
+ */
 function computeVertexNormal(
   previous: XYPoint | undefined,
   current: XYPoint,
@@ -183,6 +249,7 @@ function cross(origin: XYPoint, a: XYPoint, b: XYPoint): number {
   return (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x);
 }
 
+/** Remove near-identical projected points before hull construction. */
 function dedupePoints(points: XYPoint[]): XYPoint[] {
   const seen = new Set<string>();
   const result: XYPoint[] = [];
@@ -195,6 +262,60 @@ function dedupePoints(points: XYPoint[]): XYPoint[] {
   return result;
 }
 
+/**
+ * Simplify a dense projected centerline while preserving meaningful bends.
+ *
+ * Callers may provide very granular route data, for example from OSRM. The
+ * chunker should absorb that density internally instead of forcing callers to
+ * pre-downsample. This implementation is an iterative Douglas-Peucker pass.
+ */
+function simplifyProjectedRoute(
+  points: XYPoint[],
+  toleranceMeters: number,
+): XYPoint[] {
+  if (points.length <= 2) {
+    return points;
+  }
+
+  const keep = new Array(points.length).fill(false);
+  keep[0] = true;
+  keep[points.length - 1] = true;
+
+  const stack: Array<[number, number]> = [[0, points.length - 1]];
+  while (stack.length > 0) {
+    const [startIndex, endIndex] = stack.pop()!;
+    let maxDistance = 0;
+    let maxIndex = -1;
+
+    for (let index = startIndex + 1; index < endIndex; index++) {
+      const distance = perpendicularDistanceMeters(
+        points[index]!,
+        points[startIndex]!,
+        points[endIndex]!,
+      );
+      if (distance > maxDistance) {
+        maxDistance = distance;
+        maxIndex = index;
+      }
+    }
+
+    if (maxIndex !== -1 && maxDistance > toleranceMeters) {
+      keep[maxIndex] = true;
+      stack.push([startIndex, maxIndex], [maxIndex, endIndex]);
+    }
+  }
+
+  const simplified = points.filter((_, index) => keep[index]);
+  return simplified.length >= 2 ? simplified : [points[0]!, points[points.length - 1]!];
+}
+
+/**
+ * Compute the convex hull of the offset corridor sample points.
+ *
+ * This intentionally discards concavity from the raw offset path. SkyFi's AOI
+ * validator expects simple convex polygons in practice, so the hull is safer
+ * than preserving the exact bent corridor outline.
+ */
 function convexHull(points: XYPoint[]): XYPoint[] {
   const uniquePoints = dedupePoints(points).sort((a, b) =>
     a.x === b.x ? a.y - b.y : a.x - b.x,
@@ -232,6 +353,14 @@ function convexHull(points: XYPoint[]): XYPoint[] {
   return [...lower, ...upper];
 }
 
+/**
+ * Build one convex corridor polygon around a route chunk.
+ *
+ * The polygon is generated by offsetting each route vertex to both sides and
+ * then taking the convex hull of those offsets. The result is a simple,
+ * closed polygon that is more likely to be accepted by SkyFi than the raw
+ * offset polyline ring for bend-heavy chunks.
+ */
 function buildCorridorPolygon(points: XYPoint[], widthMeters: number): XYPoint[] {
   const halfWidth = widthMeters / 2;
   const offsetPoints: XYPoint[] = [];
@@ -265,6 +394,7 @@ function buildCorridorPolygon(points: XYPoint[], widthMeters: number): XYPoint[]
   return [...hull, firstHullPoint];
 }
 
+/** Sum polyline segment lengths in projected meters. */
 function totalLengthMeters(points: XYPoint[]): number {
   let total = 0;
   for (let index = 0; index < points.length - 1; index++) {
@@ -278,6 +408,7 @@ function totalLengthMeters(points: XYPoint[]): number {
   return total;
 }
 
+/** Convert a closed polygon ring into SkyFi-compatible WKT POLYGON text. */
 export function corridorPolygonToWkt(points: RoutePoint[]): string {
   const coordinates = points.map(
     (point) => `${formatCoordinate(point.lon)} ${formatCoordinate(point.lat)}`,
@@ -285,6 +416,17 @@ export function corridorPolygonToWkt(points: RoutePoint[]): string {
   return `POLYGON((${coordinates.join(", ")}))`;
 }
 
+/**
+ * Chunk an ordered route into SkyFi-safe corridor polygons.
+ *
+ * Inputs:
+ * - `route`: ordered centerline points
+ * - `corridorWidthMeters`: full corridor width, not half-width
+ * - `maxChunkLengthMeters`: maximum centerline distance per chunk
+ *
+ * Output chunks contain both the route subsegment and the derived polygon so
+ * downstream tools can inspect or reuse them before running feasibility.
+ */
 export function chunkRouteToCorridorPolygons(options: {
   route: RoutePoint[];
   corridorWidthMeters: number;
@@ -308,7 +450,18 @@ export function chunkRouteToCorridorPolygons(options: {
   const projectedRoute = route.map((point) =>
     projectPoint(point, originLat, originLon, cosOriginLat),
   );
-  const routeLengthMeters = totalLengthMeters(projectedRoute);
+  // Keep dense raw routes tractable without erasing meaningful shape. The
+  // tolerance is tied to corridor width and chunk length so simplification stays
+  // conservative for narrow or short corridors.
+  const simplificationToleranceMeters = Math.max(
+    5,
+    Math.min(corridorWidthMeters / 4, maxChunkLengthMeters / 20, 50),
+  );
+  const simplifiedRoute = simplifyProjectedRoute(
+    projectedRoute,
+    simplificationToleranceMeters,
+  );
+  const routeLengthMeters = totalLengthMeters(simplifiedRoute);
 
   if (routeLengthMeters < MIN_POINT_SPACING_METERS) {
     throw new Error("Route must contain at least one non-zero-length segment");
@@ -323,7 +476,7 @@ export function chunkRouteToCorridorPolygons(options: {
       routeLengthMeters,
     );
     const routeChunk = lineSubstring(
-      projectedRoute,
+      simplifiedRoute,
       startDistanceMeters,
       endDistanceMeters,
     );

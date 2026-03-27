@@ -47,6 +47,29 @@ function routeLengthMeters(points: RoutePoint[]): number {
   return total;
 }
 
+function densifyRoute(points: RoutePoint[], segmentLengthMeters: number): RoutePoint[] {
+  const result: RoutePoint[] = [];
+  for (let index = 0; index < points.length - 1; index++) {
+    const start = points[index]!;
+    const end = points[index + 1]!;
+    if (result.length === 0) {
+      result.push(start);
+    }
+
+    const segmentLength = distanceMeters(start, end);
+    const stepCount = Math.max(1, Math.ceil(segmentLength / segmentLengthMeters));
+    for (let step = 1; step < stepCount; step++) {
+      const ratio = step / stepCount;
+      result.push({
+        lat: start.lat + (end.lat - start.lat) * ratio,
+        lon: start.lon + (end.lon - start.lon) * ratio,
+      });
+    }
+    result.push(end);
+  }
+  return result;
+}
+
 function makeEastboundRoute(lengthMeters: number): RoutePoint[] {
   const lonDelta =
     (lengthMeters / (EARTH_RADIUS_METERS * Math.cos(toRadians(30)))) *
@@ -352,5 +375,55 @@ describe("corridor geometry helpers", () => {
     expect(routeLengthMeters(i81ScrantonToKnoxvilleFixture.route)).toBeGreaterThan(
       routeLengthMeters(i70DenverToVailFixture.route) * 5,
     );
+  });
+
+  test("internally downsampling a dense straight route preserves chunk structure", () => {
+    const sparseRoute = makeEastboundRoute(33000);
+    const denseRoute = densifyRoute(sparseRoute, 25);
+
+    const sparseChunks = chunkRouteToCorridorPolygons({
+      route: sparseRoute,
+      corridorWidthMeters: 1000,
+      maxChunkLengthMeters: 10000,
+    });
+    const denseChunks = chunkRouteToCorridorPolygons({
+      route: denseRoute,
+      corridorWidthMeters: 1000,
+      maxChunkLengthMeters: 10000,
+    });
+
+    expect(denseRoute.length).toBeGreaterThan(1000);
+    expect(denseChunks.length).toBe(sparseChunks.length);
+    expect(
+      denseChunks.map((chunk) => Math.round(chunk.lengthMeters)),
+    ).toEqual(sparseChunks.map((chunk) => Math.round(chunk.lengthMeters)));
+    expect(
+      denseChunks.map((chunk) => chunk.polygonPoints.length),
+    ).toEqual(sparseChunks.map((chunk) => chunk.polygonPoints.length));
+  });
+
+  test("internally downsampling a dense real route stays close to the sampled fixture output", () => {
+    const denseRoute = densifyRoute(i70DenverToVailFixture.route, 50);
+
+    const sampledChunks = chunkRouteToCorridorPolygons({
+      route: i70DenverToVailFixture.route,
+      corridorWidthMeters: 1000,
+      maxChunkLengthMeters: 10000,
+    });
+    const denseChunks = chunkRouteToCorridorPolygons({
+      route: denseRoute,
+      corridorWidthMeters: 1000,
+      maxChunkLengthMeters: 10000,
+    });
+
+    expect(denseRoute.length).toBeGreaterThan(i70DenverToVailFixture.route.length * 10);
+    expect(Math.abs(denseChunks.length - sampledChunks.length)).toBeLessThanOrEqual(1);
+
+    const sampledLength = sampledChunks.reduce((sum, chunk) => sum + chunk.lengthMeters, 0);
+    const denseLength = denseChunks.reduce((sum, chunk) => sum + chunk.lengthMeters, 0);
+    expect(Math.abs(denseLength - sampledLength) / sampledLength).toBeLessThan(0.003);
+    expect(
+      Math.max(...denseChunks.map((chunk) => chunk.polygonPoints.length)),
+    ).toBeLessThanOrEqual(25);
   });
 });
