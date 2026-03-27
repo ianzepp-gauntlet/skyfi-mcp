@@ -92,6 +92,25 @@ For each scenario:
 4. `orders_prepare`
 5. `orders_confirm` only after explicit human confirmation
 
+## Scenario 4B: Linear Asset Corridor Feasibility
+
+**User request**
+
+`I manage an oil pipeline. It needs updated imagery along the route next week, but the AOI is too long for one polygon. Break it into 1 km wide chunks and tell me which segments are feasible.`
+
+**Expected model behavior**
+
+- Recognize that this is a linear asset workflow, not a single-AOI workflow.
+- Convert the ordered route into corridor chunks first.
+- Show or summarize the generated chunks before feasibility if the user wants inspection.
+- Run feasibility across the returned chunks.
+- Summarize feasible vs. infeasible segments instead of flattening the whole route into one yes/no answer.
+
+**Expected MCP calls**
+
+1. `corridor_chunk`
+2. `feasibility_check_chunks`
+
 ## Scenario 5: Archive Purchase With Human Confirmation
 
 **User request**

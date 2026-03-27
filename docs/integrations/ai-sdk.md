@@ -158,6 +158,20 @@ console.log(confirmation);
 await mcpClient.close();
 ```
 
+For pipelines and other long linear assets, use the corridor tools before asking for feasibility:
+
+```typescript
+const { text: corridorReport } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  maxSteps: 8,
+  prompt:
+    "This oil pipeline is too long for one AOI polygon. Chunk the route into a 1 km wide corridor with 20 km maximum chunk length, then run feasibility next week.",
+});
+console.log(corridorReport);
+// Agent calls: corridor_chunk -> feasibility_check_chunks
+```
+
 ## AOI Monitoring
 
 Set up an Area of Interest monitor and poll for alerts:

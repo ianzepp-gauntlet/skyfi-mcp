@@ -309,6 +309,26 @@ asyncio.run(main())
 
 <!-- /example -->
 
+For long linear assets such as pipelines, let the agent chunk the route first and then run feasibility over the returned chunks:
+
+```python
+result = await agent.ainvoke(
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    "This oil pipeline is too long for one AOI polygon. Chunk the route "
+                    "into a 1 km wide corridor with 20 km maximum chunk length, then "
+                    "run feasibility next week."
+                ),
+            }
+        ]
+    }
+)
+# Agent calls corridor_chunk -> feasibility_check_chunks
+```
+
 Webhook payloads are delivered to your endpoint when new imagery appears over a monitored AOI.
 
 ## LangChain (without LangGraph)

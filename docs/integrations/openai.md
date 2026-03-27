@@ -202,6 +202,54 @@ print(r3.output_text)
 
 <!-- /example -->
 
+## Corridor Feasibility For Pipelines And Other Linear Assets
+
+Use the corridor workflow when the target is a long route rather than one compact AOI polygon:
+
+<!-- example: examples/openai/python/corridor_feasibility.py -->
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+mcp_tool = {
+    "type": "mcp",
+    "server_label": "skyfi",
+    "server_url": "https://skyfi-mcp.ian-zepp.workers.dev/mcp",
+    "headers": {"x-skyfi-api-key": "YOUR_SKYFI_API_KEY"},
+}
+
+# Step 1: generate chunk polygons for a long linear asset such as a pipeline.
+chunking = client.responses.create(
+    model="gpt-4o",
+    tools=[mcp_tool],
+    input=(
+        "I manage an oil pipeline. Chunk this pipeline route into 1 km wide corridor "
+        "polygons with 20 km maximum chunk length, then show me the chunks before "
+        "running feasibility. Route points: "
+        "[(29.7604, -95.3698), (29.8500, -95.1000), (29.9200, -94.8200)]."
+    ),
+)
+print(chunking.output_text)
+# -> Agent calls corridor_chunk and summarizes the returned chunks.
+
+# Step 2: run feasibility across the returned chunks.
+feasibility = client.responses.create(
+    model="gpt-4o",
+    tools=[mcp_tool],
+    previous_response_id=chunking.id,
+    input=(
+        "Now run feasibility on those chunks for a DAY product next week at "
+        "VERY_HIGH resolution and summarize which segments have opportunities."
+    ),
+)
+print(feasibility.output_text)
+# -> Agent calls feasibility_check_chunks and reports per-chunk feasibility.
+```
+
+<!-- /example -->
+
 ## AOI Monitoring
 
 <!-- example: examples/openai/python/aoi_monitoring.py -->
@@ -295,4 +343,5 @@ Use the ngrok HTTPS URL (e.g. `https://abc123.ngrok-free.app/mcp`) as `server_ur
 - The Cloudflare Workers deployment uses Durable Object-backed session state, which is compatible with OpenAI's connection model
 - Orders require two-step confirmation (prepare then confirm) to ensure human approval
 - `location_resolve` uses the OpenStreetMap Nominatim API to convert place names to WKT polygons
+- `corridor_chunk` and `feasibility_check_chunks` support long linear assets such as pipelines by chunking a route into reusable AOI polygons before feasibility
 - Use `previous_response_id` to chain multi-turn conversations in the Responses API

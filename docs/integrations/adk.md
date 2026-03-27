@@ -139,6 +139,19 @@ response = runner.run(
 
 The agent will never call `orders_confirm` without presenting the price first.
 
+For long linear assets such as pipelines, use the corridor workflow first:
+
+```python
+response = runner.run(
+    session_id=session.id,
+    user_message=(
+        "I manage an oil pipeline. Chunk this route into 1 km wide corridor polygons "
+        "with 20 km maximum chunk length and then run feasibility next week."
+    ),
+)
+# Agent calls: corridor_chunk → feasibility_check_chunks
+```
+
 ## AOI Monitoring
 
 Set up an Area of Interest monitor so the agent notifies a webhook when new imagery becomes available:
@@ -169,6 +182,8 @@ Once connected, the agent has access to all SkyFi MCP tools:
 - `archive_get` — inspect a specific archive scene in full detail
 - `passes_predict` — predict upcoming satellite passes over an AOI
 - `feasibility_check` — check if a new capture is possible
+- `corridor_chunk` — convert a GPS route into reusable corridor AOI chunks
+- `feasibility_check_chunks` — run `feasibility_check` semantics across those chunks
 - `pricing_get` — view pricing options
 - `account_whoami` — inspect account profile, budget, and payment readiness
 - `orders_list` / `orders_get` — browse order history

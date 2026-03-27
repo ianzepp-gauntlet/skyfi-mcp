@@ -110,6 +110,8 @@ All SkyFi MCP tools are available in the conversation:
 | `archive_get` | Inspect a specific archive scene in full detail |
 | `passes_predict` | Predict upcoming satellite passes over an AOI |
 | `feasibility_check` | Check if a new capture is possible |
+| `corridor_chunk` | Convert a GPS route into reusable corridor AOI chunks |
+| `feasibility_check_chunks` | Run `feasibility_check` semantics across chunked AOIs |
 | `pricing_get` | View pricing matrix |
 | `account_whoami` | Inspect account profile, budget, and payment readiness |
 | `orders_list` / `orders_get` | Browse order history |

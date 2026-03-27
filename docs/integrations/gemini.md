@@ -118,6 +118,18 @@ print(response.text)
 
 Use a multi-turn chat to walk through the full feasibility → prepare → confirm flow:
 
+For pipelines and other long linear assets, use the two-step corridor workflow:
+
+```python
+response = chat.send_message(
+    "This oil pipeline is too long for one AOI polygon. Chunk the route into "
+    "a 1 km wide corridor with 20 km maximum chunk length, then run feasibility "
+    "next week."
+)
+print(response.text)
+# Gemini calls corridor_chunk -> feasibility_check_chunks
+```
+
 ```python
 chat = client.chats.create(
     model="gemini-2.0-flash",

@@ -97,6 +97,13 @@ Claude Code follows a strict prepare → confirm flow. It will never place an or
 [Claude calls orders_confirm only after your explicit approval]
 ```
 
+For pipelines and other long linear assets:
+
+```
+> This oil pipeline is too long for one AOI polygon. Chunk it into a 1 km corridor and check feasibility next week.
+[Claude calls corridor_chunk → feasibility_check_chunks]
+```
+
 ## AOI Monitoring
 
 ```
