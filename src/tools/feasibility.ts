@@ -124,7 +124,7 @@ export function registerFeasibilityTools(
     {
       title: "Check Feasibility",
       description:
-        "Check whether a satellite tasking order is feasible for a given WKT AOI, capture window, product type, and resolution. This submits the request and polls until complete. A successful result may still return zero opportunities, which means no viable collection windows were found.",
+        "Check whether a satellite tasking order is feasible for one WKT AOI polygon, capture window, product type, and resolution. This is the single-area primitive. If you have a long linear asset such as a pipeline or road corridor, call corridor_chunk first and then feasibility_check_chunks instead of forcing one oversized polygon.",
       inputSchema: {
         aoi: z.string().describe("Area of interest as WKT POLYGON string"),
         window_start: z.string().describe("Start of capture window (ISO 8601)"),
@@ -161,7 +161,7 @@ export function registerFeasibilityTools(
     {
       title: "Chunk Corridor",
       description:
-        "Convert an ordered GPS route into corridor polygons and chunk the corridor into smaller AOIs. Use this for long linear assets such as pipelines, roads, or transmission lines when one large polygon is too long or too complex for the SkyFi API.",
+        "Convert an ordered GPS route into corridor polygons and split the corridor into smaller reusable AOI chunks. Use this first for long linear assets such as pipelines, roads, or transmission lines when one large polygon is too long or too complex for the SkyFi API. The returned chunks are meant to be passed into feasibility_check_chunks.",
       inputSchema: {
         route: z
           .array(
@@ -172,7 +172,7 @@ export function registerFeasibilityTools(
           )
           .min(2)
           .describe(
-            "Ordered GPS points describing the centerline of the corridor as a polyline.",
+            "Ordered GPS points describing the corridor centerline as a polyline. Keep the points in route order.",
           ),
         corridor_width_meters: z
           .number()
@@ -185,7 +185,7 @@ export function registerFeasibilityTools(
           .positive()
           .default(20000)
           .describe(
-            "Maximum centerline length per chunk in meters. Smaller chunks are safer for very long routes.",
+            "Maximum centerline length per chunk in meters. Smaller chunks are safer for very long routes and are usually easier for upstream AOI handling.",
           ),
       },
       annotations: { readOnlyHint: true },
@@ -228,12 +228,14 @@ export function registerFeasibilityTools(
     {
       title: "Check Feasibility For Chunks",
       description:
-        "Run feasibility_check semantics on a set of precomputed chunks. Use this after corridor_chunk so the route decomposition is inspectable and reusable before feasibility runs.",
+        "Run feasibility_check semantics across a set of precomputed corridor chunks. Use this after corridor_chunk when the route decomposition should stay inspectable and reusable before feasibility runs. Each chunk is evaluated independently and returned with its own feasibility result.",
       inputSchema: {
         chunks: z
           .array(corridorChunkInputSchema)
           .min(1)
-          .describe("Chunk objects returned by corridor_chunk."),
+          .describe(
+            "Chunk objects returned by corridor_chunk. Pass the chunks array directly unless you intentionally edited or filtered it.",
+          ),
         window_start: z.string().describe("Start of capture window (ISO 8601)"),
         window_end: z.string().describe("End of capture window (ISO 8601)"),
         product_type: z

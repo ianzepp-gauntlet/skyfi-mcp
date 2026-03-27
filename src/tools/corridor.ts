@@ -179,10 +179,62 @@ function computeVertexNormal(
   return { x: combined.x * scale, y: combined.y * scale };
 }
 
+function cross(origin: XYPoint, a: XYPoint, b: XYPoint): number {
+  return (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x);
+}
+
+function dedupePoints(points: XYPoint[]): XYPoint[] {
+  const seen = new Set<string>();
+  const result: XYPoint[] = [];
+  for (const point of points) {
+    const key = `${point.x.toFixed(6)}:${point.y.toFixed(6)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(point);
+  }
+  return result;
+}
+
+function convexHull(points: XYPoint[]): XYPoint[] {
+  const uniquePoints = dedupePoints(points).sort((a, b) =>
+    a.x === b.x ? a.y - b.y : a.x - b.x,
+  );
+
+  if (uniquePoints.length < 3) {
+    return uniquePoints;
+  }
+
+  const lower: XYPoint[] = [];
+  for (const point of uniquePoints) {
+    while (
+      lower.length >= 2 &&
+      cross(lower[lower.length - 2]!, lower[lower.length - 1]!, point) <= 0
+    ) {
+      lower.pop();
+    }
+    lower.push(point);
+  }
+
+  const upper: XYPoint[] = [];
+  for (let index = uniquePoints.length - 1; index >= 0; index--) {
+    const point = uniquePoints[index]!;
+    while (
+      upper.length >= 2 &&
+      cross(upper[upper.length - 2]!, upper[upper.length - 1]!, point) <= 0
+    ) {
+      upper.pop();
+    }
+    upper.push(point);
+  }
+
+  lower.pop();
+  upper.pop();
+  return [...lower, ...upper];
+}
+
 function buildCorridorPolygon(points: XYPoint[], widthMeters: number): XYPoint[] {
   const halfWidth = widthMeters / 2;
-  const leftSide: XYPoint[] = [];
-  const rightSide: XYPoint[] = [];
+  const offsetPoints: XYPoint[] = [];
 
   for (let index = 0; index < points.length; index++) {
     const point = points[index];
@@ -194,22 +246,23 @@ function buildCorridorPolygon(points: XYPoint[], widthMeters: number): XYPoint[]
       point,
       points[index + 1],
     );
-    leftSide.push({
+    offsetPoints.push({
       x: point.x + normal.x * halfWidth,
       y: point.y + normal.y * halfWidth,
     });
-    rightSide.push({
+    offsetPoints.push({
       x: point.x - normal.x * halfWidth,
       y: point.y - normal.y * halfWidth,
     });
   }
 
-  const firstLeft = leftSide[0];
-  if (!firstLeft) {
+  const hull = convexHull(offsetPoints);
+  const firstHullPoint = hull[0];
+  if (!firstHullPoint) {
     throw new Error("Corridor polygon requires at least one offset point");
   }
 
-  return [...leftSide, ...rightSide.reverse(), firstLeft];
+  return [...hull, firstHullPoint];
 }
 
 function totalLengthMeters(points: XYPoint[]): number {
