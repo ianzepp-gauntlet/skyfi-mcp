@@ -64,7 +64,7 @@ function logFeasibilityDebug(
 ): void {
   if (!feasibilityDebugEnabled()) return;
 
-  console.log(
+  console.error(
     "[feasibility-debug]",
     JSON.stringify({
       phase,

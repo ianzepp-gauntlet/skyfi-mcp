@@ -60,7 +60,7 @@ function logFeasibilityToolDebug(
   payload: Record<string, unknown>,
 ): void {
   if (!feasibilityDebugEnabled()) return;
-  console.log("[feasibility-tool]", JSON.stringify({ event, ...payload }));
+  console.error("[feasibility-tool]", JSON.stringify({ event, ...payload }));
 }
 
 async function runFeasibilityCheck(
