@@ -13,7 +13,10 @@
  * requests the real API would accept and can parse the responses it would get.
  *
  * Prerequisites:
- *   Prism must be running: bunx prism mock docs/openapi.json --port 4010 --host 127.0.0.1 --errors
+ *   Prism must be running for these tests to execute. When it is absent, the
+ *   suite is skipped so the default `bun test` path stays self-contained.
+ *   Start Prism with:
+ *   bunx prism mock docs/openapi.json --port 4010 --host 127.0.0.1 --errors
  */
 
 import { describe, test, expect, beforeAll } from "bun:test";
@@ -28,17 +31,21 @@ const AOI =
 const UUID = "497f6eca-6276-4993-bfeb-53cbbbba6f08";
 
 let client: SkyFiClient;
+const prismAvailable = await isPrismAvailable();
+const contractDescribe = prismAvailable ? describe : describe.skip;
 
-beforeAll(async () => {
+async function isPrismAvailable(): Promise<boolean> {
   try {
     const res = await fetch(`${PRISM_URL}/ping`);
-    if (!res.ok) throw new Error(`Prism returned ${res.status}`);
-  } catch (e) {
-    throw new Error(
-      `Prism mock server not reachable at ${PRISM_URL}. ` +
-        `Start it with: bunx prism mock docs/openapi.json --port 4010 --host 127.0.0.1 --errors\n` +
-        `Original error: ${e}`,
-    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+beforeAll(async () => {
+  if (!prismAvailable) {
+    return;
   }
 
   client = new SkyFiClient({ apiKey: "test-key", baseUrl: PRISM_URL });
@@ -46,7 +53,7 @@ beforeAll(async () => {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-describe("contract: auth", () => {
+contractDescribe("contract: auth", () => {
   test("GET /auth/whoami", async () => {
     const user = await client.whoami();
     expect(user).toHaveProperty("id");
@@ -56,7 +63,7 @@ describe("contract: auth", () => {
 
 // ── Archives ──────────────────────────────────────────────────────────────────
 
-describe("contract: archives", () => {
+contractDescribe("contract: archives", () => {
   test("POST /archives — search", async () => {
     const result = await client.searchArchives({
       aoi: AOI,
@@ -80,7 +87,7 @@ describe("contract: archives", () => {
 
 // ── Pricing ───────────────────────────────────────────────────────────────────
 
-describe("contract: pricing", () => {
+contractDescribe("contract: pricing", () => {
   test("POST /pricing — no AOI", async () => {
     const result = await client.getPricing();
     expect(result).toBeDefined();
@@ -94,7 +101,7 @@ describe("contract: pricing", () => {
 
 // ── Feasibility ───────────────────────────────────────────────────────────────
 
-describe("contract: feasibility", () => {
+contractDescribe("contract: feasibility", () => {
   test("POST /feasibility", async () => {
     const result = await client.checkFeasibility({
       aoi: AOI,
@@ -124,7 +131,7 @@ describe("contract: feasibility", () => {
 
 // ── Orders ────────────────────────────────────────────────────────────────────
 
-describe("contract: orders", () => {
+contractDescribe("contract: orders", () => {
   test("GET /orders", async () => {
     const result = await client.listOrders();
     expect(result).toHaveProperty("orders");
@@ -169,7 +176,7 @@ describe("contract: orders", () => {
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 
-describe("contract: notifications", () => {
+contractDescribe("contract: notifications", () => {
   test("POST /notifications", async () => {
     const notification = await client.createNotification({
       aoi: AOI,

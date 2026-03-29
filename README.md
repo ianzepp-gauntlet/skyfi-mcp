@@ -235,6 +235,15 @@ bun run docs:verify
 bun run evals --list
 ```
 
+Contract tests against the OpenAPI spec are present in
+[`src/client/contract_test.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/client/contract_test.ts),
+but they run only when a local Prism mock server is available at
+`http://127.0.0.1:4010`. Start it with:
+
+```bash
+bunx prism mock docs/openapi.json --port 4010 --host 127.0.0.1 --errors
+```
+
 ### Deployment
 
 The Cloudflare deployment configuration lives in [`wrangler.jsonc`](/Users/ianzepp/github/gauntlet/skyfi-mcp/wrangler.jsonc).
