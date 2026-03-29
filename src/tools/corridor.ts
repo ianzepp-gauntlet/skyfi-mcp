@@ -28,12 +28,16 @@ export interface CorridorChunk {
   polygonPoints: RoutePoint[];
   wktPolygon: string;
   lengthMeters: number;
+  areaSqKm: number;
 }
 
 /** Earth radius used for the local equirectangular projection. */
 const EARTH_RADIUS_METERS = 6_371_000;
 /** Minimum spacing used to ignore numerically-zero subsegments. */
 const MIN_POINT_SPACING_METERS = 0.01;
+/** Local equirectangular projection becomes too fragile near the poles. */
+const MAX_ABSOLUTE_CORRIDOR_LATITUDE_DEGREES = 80;
+const MIN_CHUNK_LENGTH_METERS = 10;
 
 function toRadians(value: number): number {
   return (value * Math.PI) / 180;
@@ -41,6 +45,14 @@ function toRadians(value: number): number {
 
 function toDegrees(value: number): number {
   return (value * 180) / Math.PI;
+}
+
+function normalizeLongitudeDelta(deltaDegrees: number): number {
+  return ((deltaDegrees + 540) % 360) - 180;
+}
+
+function normalizeLongitude(longitudeDegrees: number): number {
+  return normalizeLongitudeDelta(longitudeDegrees);
 }
 
 function distanceMeters(a: XYPoint, b: XYPoint): number {
@@ -97,7 +109,10 @@ function projectPoint(
   cosOriginLat: number,
 ): XYPoint {
   return {
-    x: EARTH_RADIUS_METERS * toRadians(point.lon - originLonDeg) * cosOriginLat,
+    x:
+      EARTH_RADIUS_METERS *
+      toRadians(normalizeLongitudeDelta(point.lon - originLonDeg)) *
+      cosOriginLat,
     y: EARTH_RADIUS_METERS * toRadians(point.lat - originLatDeg),
   };
 }
@@ -111,9 +126,10 @@ function unprojectPoint(
 ): RoutePoint {
   return {
     lat: originLatDeg + toDegrees(point.y / EARTH_RADIUS_METERS),
-    lon:
+    lon: normalizeLongitude(
       originLonDeg +
-      toDegrees(point.x / (EARTH_RADIUS_METERS * Math.max(cosOriginLat, 1e-9))),
+        toDegrees(point.x / (EARTH_RADIUS_METERS * Math.max(cosOriginLat, 1e-9))),
+    ),
   };
 }
 
@@ -247,6 +263,23 @@ function computeVertexNormal(
 
 function cross(origin: XYPoint, a: XYPoint, b: XYPoint): number {
   return (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x);
+}
+
+function polygonAreaSqMeters(points: XYPoint[]): number {
+  if (points.length < 4) {
+    return 0;
+  }
+
+  let area = 0;
+  for (let index = 0; index < points.length - 1; index++) {
+    const current = points[index];
+    const next = points[index + 1];
+    if (!current || !next) {
+      continue;
+    }
+    area += current.x * next.y - next.x * current.y;
+  }
+  return Math.abs(area) / 2;
 }
 
 /** Remove near-identical projected points before hull construction. */
@@ -431,8 +464,10 @@ export function chunkRouteToCorridorPolygons(options: {
   route: RoutePoint[];
   corridorWidthMeters: number;
   maxChunkLengthMeters: number;
+  maxChunkAreaSqKm?: number;
 }): CorridorChunk[] {
-  const { route, corridorWidthMeters, maxChunkLengthMeters } = options;
+  const { route, corridorWidthMeters, maxChunkLengthMeters, maxChunkAreaSqKm } =
+    options;
 
   if (route.length < 2) {
     throw new Error("Route must contain at least two GPS points");
@@ -443,9 +478,20 @@ export function chunkRouteToCorridorPolygons(options: {
   if (!Number.isFinite(maxChunkLengthMeters) || maxChunkLengthMeters <= 0) {
     throw new Error("maxChunkLengthMeters must be greater than 0");
   }
+  if (
+    maxChunkAreaSqKm !== undefined &&
+    (!Number.isFinite(maxChunkAreaSqKm) || maxChunkAreaSqKm <= 0)
+  ) {
+    throw new Error("maxChunkAreaSqKm must be greater than 0");
+  }
 
   const originLat = route.reduce((sum, point) => sum + point.lat, 0) / route.length;
-  const originLon = route.reduce((sum, point) => sum + point.lon, 0) / route.length;
+  if (Math.abs(originLat) > MAX_ABSOLUTE_CORRIDOR_LATITUDE_DEGREES) {
+    throw new Error(
+      `Routes above |${MAX_ABSOLUTE_CORRIDOR_LATITUDE_DEGREES}| degrees average latitude are not supported`,
+    );
+  }
+  const originLon = route[0]!.lon;
   const cosOriginLat = Math.cos(toRadians(originLat));
   const projectedRoute = route.map((point) =>
     projectPoint(point, originLat, originLon, cosOriginLat),
@@ -469,18 +515,39 @@ export function chunkRouteToCorridorPolygons(options: {
 
   const chunks: CorridorChunk[] = [];
   let startDistanceMeters = 0;
+  const maxChunkAreaSqMeters =
+    maxChunkAreaSqKm === undefined ? undefined : maxChunkAreaSqKm * 1_000_000;
 
   while (startDistanceMeters < routeLengthMeters - MIN_POINT_SPACING_METERS) {
-    const endDistanceMeters = Math.min(
+    let endDistanceMeters = Math.min(
       startDistanceMeters + maxChunkLengthMeters,
       routeLengthMeters,
     );
-    const routeChunk = lineSubstring(
+    let routeChunk = lineSubstring(
       simplifiedRoute,
       startDistanceMeters,
       endDistanceMeters,
     );
-    const polygon = buildCorridorPolygon(routeChunk, corridorWidthMeters);
+    let polygon = buildCorridorPolygon(routeChunk, corridorWidthMeters);
+    let areaSqMeters = polygonAreaSqMeters(polygon);
+
+    if (maxChunkAreaSqMeters !== undefined) {
+      while (
+        areaSqMeters > maxChunkAreaSqMeters &&
+        endDistanceMeters - startDistanceMeters > MIN_CHUNK_LENGTH_METERS
+      ) {
+        endDistanceMeters =
+          startDistanceMeters + (endDistanceMeters - startDistanceMeters) / 2;
+        routeChunk = lineSubstring(
+          simplifiedRoute,
+          startDistanceMeters,
+          endDistanceMeters,
+        );
+        polygon = buildCorridorPolygon(routeChunk, corridorWidthMeters);
+        areaSqMeters = polygonAreaSqMeters(polygon);
+      }
+    }
+
     const polygonPoints = polygon.map((point) =>
       unprojectPoint(point, originLat, originLon, cosOriginLat),
     );
@@ -494,6 +561,7 @@ export function chunkRouteToCorridorPolygons(options: {
       polygonPoints,
       wktPolygon: corridorPolygonToWkt(polygonPoints),
       lengthMeters: totalLengthMeters(routeChunk),
+      areaSqKm: areaSqMeters / 1_000_000,
     });
 
     startDistanceMeters = endDistanceMeters;

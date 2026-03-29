@@ -43,6 +43,13 @@ const corridorChunkInputSchema = z.object({
     .describe("Optional number of polygon vertices in this chunk"),
 });
 
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return String(error);
+}
+
 async function runFeasibilityCheck(
   client: SkyFiClient,
   params: {
@@ -187,14 +194,27 @@ export function registerFeasibilityTools(
           .describe(
             "Maximum centerline length per chunk in meters. Smaller chunks are safer for very long routes and are usually easier for upstream AOI handling.",
           ),
+        max_chunk_area_sqkm: z
+          .number()
+          .positive()
+          .optional()
+          .describe(
+            "Optional hard cap on chunk polygon area in square kilometers. When provided, chunk lengths are reduced until each corridor polygon fits within this area budget.",
+          ),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ route, corridor_width_meters, max_chunk_length_meters }) => {
+    async ({
+      route,
+      corridor_width_meters,
+      max_chunk_length_meters,
+      max_chunk_area_sqkm,
+    }) => {
       const chunks = chunkRouteToCorridorPolygons({
         route,
         corridorWidthMeters: corridor_width_meters,
         maxChunkLengthMeters: max_chunk_length_meters,
+        maxChunkAreaSqKm: max_chunk_area_sqkm,
       });
 
       return {
@@ -206,9 +226,11 @@ export function registerFeasibilityTools(
                 chunkCount: chunks.length,
                 corridorWidthMeters: corridor_width_meters,
                 maxChunkLengthMeters: max_chunk_length_meters,
+                maxChunkAreaSqKm: max_chunk_area_sqkm,
                 chunks: chunks.map((chunk) => ({
                   chunk_index: chunk.chunkIndex,
                   corridor_length_meters: Math.round(chunk.lengthMeters),
+                  area_sqkm: Number(chunk.areaSqKm.toFixed(3)),
                   route_point_count: chunk.routePoints.length,
                   polygon_vertex_count: chunk.polygonPoints.length - 1,
                   aoi: chunk.wktPolygon,
@@ -249,27 +271,45 @@ export function registerFeasibilityTools(
       const chunkResults = [];
 
       for (const chunk of chunks) {
-        const result = await runFeasibilityCheck(client, {
-          aoi: chunk.aoi,
-          window_start,
-          window_end,
-          product_type,
-          resolution,
-        });
-        chunkResults.push({
-          chunkIndex: chunk.chunk_index,
-          corridorLengthMeters:
-            typeof chunk.corridor_length_meters === "number"
-              ? Math.round(chunk.corridor_length_meters)
-              : undefined,
-          polygonVertexCount: chunk.polygon_vertex_count,
-          aoi: chunk.aoi,
-          feasibilityId: result.feasibilityId,
-          status: result.status,
-          opportunityCount: result.opportunities.length,
-          opportunities: result.opportunities,
-          message: result.message,
-        });
+        try {
+          const result = await runFeasibilityCheck(client, {
+            aoi: chunk.aoi,
+            window_start,
+            window_end,
+            product_type,
+            resolution,
+          });
+          chunkResults.push({
+            chunkIndex: chunk.chunk_index,
+            corridorLengthMeters:
+              typeof chunk.corridor_length_meters === "number"
+                ? Math.round(chunk.corridor_length_meters)
+                : undefined,
+            polygonVertexCount: chunk.polygon_vertex_count,
+            aoi: chunk.aoi,
+            feasibilityId: result.feasibilityId,
+            status: result.status,
+            opportunityCount: result.opportunities.length,
+            opportunities: result.opportunities,
+            message: result.message,
+          });
+        } catch (error) {
+          const message = toErrorMessage(error);
+          chunkResults.push({
+            chunkIndex: chunk.chunk_index,
+            corridorLengthMeters:
+              typeof chunk.corridor_length_meters === "number"
+                ? Math.round(chunk.corridor_length_meters)
+                : undefined,
+            polygonVertexCount: chunk.polygon_vertex_count,
+            aoi: chunk.aoi,
+            status: "ERROR",
+            opportunityCount: 0,
+            opportunities: [],
+            message,
+            error: message,
+          });
+        }
       }
 
       return {
@@ -281,6 +321,9 @@ export function registerFeasibilityTools(
                 chunkCount: chunkResults.length,
                 feasibleChunkCount: chunkResults.filter(
                   (chunk) => chunk.opportunityCount > 0,
+                ).length,
+                failedChunkCount: chunkResults.filter(
+                  (chunk) => chunk.status === "ERROR",
                 ).length,
                 totalOpportunityCount: chunkResults.reduce(
                   (sum, chunk) => sum + chunk.opportunityCount,

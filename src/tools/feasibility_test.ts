@@ -141,6 +141,41 @@ describe("registerFeasibilityTools", () => {
     expect(result.chunks[0].aoi.startsWith("POLYGON((")).toBe(true);
     expect(result.chunks[0].chunk_index).toBe(0);
     expect(result.chunks[0].corridor_length_meters).toBeGreaterThan(0);
+    expect(result.chunks[0].area_sqkm).toBeGreaterThan(0);
+  });
+
+  test("corridor_chunk enforces max_chunk_area_sqkm when requested", async () => {
+    const harness = createToolHarness();
+    const client = {
+      getPassPrediction: async () => ({}),
+      checkFeasibility: async () => ({
+        feasibility_id: "unused",
+        status: "PENDING",
+      }),
+      pollFeasibility: async () => ({
+        feasibility_id: "unused",
+        status: "COMPLETE",
+        opportunities: [],
+      }),
+    };
+
+    registerFeasibilityTools(harness.server as any, client as any);
+
+    const result = parseToolJson(
+      await harness.invoke("corridor_chunk", {
+        route: [
+          { lat: 30, lon: -97 },
+          { lat: 30, lon: -96.8 },
+        ],
+        corridor_width_meters: 1000,
+        max_chunk_length_meters: 20000,
+        max_chunk_area_sqkm: 5,
+      }),
+    );
+
+    expect(result.chunkCount).toBeGreaterThan(1);
+    expect(result.maxChunkAreaSqKm).toBe(5);
+    expect(result.chunks.every((chunk: any) => chunk.area_sqkm <= 5.01)).toBe(true);
   });
 
   test("feasibility_check_chunks runs feasibility_check semantics for each provided chunk", async () => {
@@ -196,5 +231,61 @@ describe("registerFeasibilityTools", () => {
     expect(seen.every((call) => call.resolution === "VERY HIGH")).toBe(true);
     expect(seen.every((call) => typeof call.aoi === "string")).toBe(true);
     expect(result.chunks[0].feasibilityId).toBe("f-0");
+  });
+
+  test("feasibility_check_chunks keeps later results when one chunk fails", async () => {
+    const harness = createToolHarness();
+    let callIndex = 0;
+    const client = {
+      getPassPrediction: async () => ({}),
+      checkFeasibility: async () => ({
+        feasibility_id: `f-${callIndex++}`,
+        status: "PENDING",
+      }),
+      pollFeasibility: async (feasibilityId: string) => {
+        if (feasibilityId === "f-1") {
+          throw new Error("upstream timeout");
+        }
+        return {
+          feasibility_id: feasibilityId,
+          status: "COMPLETE",
+          opportunities: [{ providerWindowId: `pw-${feasibilityId}` }],
+        };
+      },
+    };
+
+    registerFeasibilityTools(harness.server as any, client as any);
+
+    const result = parseToolJson(
+      await harness.invoke("feasibility_check_chunks", {
+        chunks: [
+          {
+            chunk_index: 0,
+            aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+          },
+          {
+            chunk_index: 1,
+            aoi: "POLYGON((1 0,2 0,2 1,1 1,1 0))",
+          },
+          {
+            chunk_index: 2,
+            aoi: "POLYGON((2 0,3 0,3 1,2 1,2 0))",
+          },
+        ],
+        window_start: "2026-01-01T00:00:00Z",
+        window_end: "2026-01-02T00:00:00Z",
+        product_type: "DAY",
+        resolution: "HIGH",
+      }),
+    );
+
+    expect(result.chunkCount).toBe(3);
+    expect(result.feasibleChunkCount).toBe(2);
+    expect(result.failedChunkCount).toBe(1);
+    expect(result.totalOpportunityCount).toBe(2);
+    expect(result.chunks[1].status).toBe("ERROR");
+    expect(result.chunks[1].opportunities).toEqual([]);
+    expect(result.chunks[1].error).toBe("upstream timeout");
+    expect(result.chunks[2].feasibilityId).toBe("f-2");
   });
 });

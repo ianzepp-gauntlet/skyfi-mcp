@@ -177,6 +177,17 @@ describe("corridor geometry helpers", () => {
     ).toThrow("maxChunkLengthMeters must be greater than 0");
   });
 
+  test("rejects non-positive max chunk area", () => {
+    expect(() =>
+      chunkRouteToCorridorPolygons({
+        route: makeEastboundRoute(1000),
+        corridorWidthMeters: 1000,
+        maxChunkLengthMeters: 10000,
+        maxChunkAreaSqKm: 0,
+      }),
+    ).toThrow("maxChunkAreaSqKm must be greater than 0");
+  });
+
   test("rejects a route with no non-zero-length segments", () => {
     expect(() =>
       chunkRouteToCorridorPolygons({
@@ -189,6 +200,19 @@ describe("corridor geometry helpers", () => {
         maxChunkLengthMeters: 10000,
       }),
     ).toThrow("Route must contain at least one non-zero-length segment");
+  });
+
+  test("rejects routes whose average latitude is above the polar safety limit", () => {
+    expect(() =>
+      chunkRouteToCorridorPolygons({
+        route: [
+          { lat: 80.2, lon: -20 },
+          { lat: 80.2, lon: -19.8 },
+        ],
+        corridorWidthMeters: 1000,
+        maxChunkLengthMeters: 10000,
+      }),
+    ).toThrow("Routes above |80| degrees average latitude are not supported");
   });
 
   test("returns a single chunk when the route is shorter than the chunk limit", () => {
@@ -300,6 +324,25 @@ describe("corridor geometry helpers", () => {
     expect(wideLatSpan).toBeGreaterThan(narrowLatSpan);
   });
 
+  test("respects a max chunk area budget by shrinking chunk length", () => {
+    const unconstrained = chunkRouteToCorridorPolygons({
+      route: makeEastboundRoute(20000),
+      corridorWidthMeters: 1000,
+      maxChunkLengthMeters: 20000,
+    });
+    const constrained = chunkRouteToCorridorPolygons({
+      route: makeEastboundRoute(20000),
+      corridorWidthMeters: 1000,
+      maxChunkLengthMeters: 20000,
+      maxChunkAreaSqKm: 5,
+    });
+
+    expect(unconstrained[0]!.areaSqKm).toBeGreaterThan(5);
+    expect(constrained.length).toBeGreaterThan(unconstrained.length);
+    expect(constrained.every((chunk) => chunk.areaSqKm <= 5.01)).toBe(true);
+    expect(constrained.every((chunk) => chunk.lengthMeters < 20000)).toBe(true);
+  });
+
   test("produces sensible polygons for a route with a right-angle turn", () => {
     const route = [
       { lat: 30, lon: -97 },
@@ -339,6 +382,45 @@ describe("corridor geometry helpers", () => {
     expect(chunks.every((chunk) => chunk.polygonPoints.length >= 4)).toBe(true);
     expect(chunks.every((chunk) => chunk.polygonPoints.length <= chunk.routePoints.length * 2 + 1)).toBe(true);
     expect(chunks.every((chunk) => corridorPolygonToWkt(chunk.polygonPoints) === chunk.wktPolygon)).toBe(true);
+  });
+
+  test("treats antimeridian-crossing routes as short local corridors", () => {
+    const chunks = chunkRouteToCorridorPolygons({
+      route: [
+        { lat: 10, lon: 179.9 },
+        { lat: 10, lon: -179.9 },
+      ],
+      corridorWidthMeters: 1000,
+      maxChunkLengthMeters: 50000,
+    });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]!.lengthMeters).toBeLessThan(25000);
+    expect(chunks[0]!.routePoints[0]!.lon).toBeCloseTo(179.9, 6);
+    expect(chunks[0]!.routePoints[1]!.lon).toBeCloseTo(-179.9, 6);
+    expectClosedPolygon(chunks[0]!);
+    expectChunkWktMatchesPolygonPoints(chunks[0]!);
+  });
+
+  test("keeps corridor chunking stable through the 70 to 80 latitude band", () => {
+    for (const latitude of [70, 75, 79.9]) {
+      const chunks = chunkRouteToCorridorPolygons({
+        route: [
+          { lat: latitude, lon: 10 },
+          { lat: latitude, lon: 10.35 },
+        ],
+        corridorWidthMeters: 1000,
+        maxChunkLengthMeters: 10000,
+      });
+
+      expect(chunks.length).toBeGreaterThanOrEqual(1);
+      expect(chunks.every((chunk) => chunk.lengthMeters > 0)).toBe(true);
+      expect(chunks.every((chunk) => chunk.lengthMeters <= 10000.5)).toBe(true);
+      expect(chunks.every((chunk) => chunk.polygonPoints.length >= 5)).toBe(true);
+      expect(chunks.every((chunk) => chunk.wktPolygon.startsWith("POLYGON(("))).toBe(
+        true,
+      );
+    }
   });
 
   test("assigns monotonically increasing chunk indexes", () => {
