@@ -134,6 +134,79 @@ describe("SkyFiClient request and wrappers", () => {
     expect(result.status).toBe("FEASIBLE");
   });
 
+  test("pollFeasibility returns early when opportunities exist even if providers are still pending", async () => {
+    const statuses = [
+      {
+        id: "f2",
+        validUntil: "2026-03-22T00:00:00Z",
+        overallScore: {
+          feasibility: -1,
+          providerScore: {
+            score: -1,
+            providerScores: [
+              {
+                provider: "PLANET",
+                status: "STARTED",
+                opportunities: [],
+              },
+            ],
+          },
+        },
+      },
+      {
+        id: "f2",
+        validUntil: "2026-03-22T00:00:00Z",
+        overallScore: {
+          feasibility: -1,
+          providerScore: {
+            score: -1,
+            providerScores: [
+              {
+                provider: "SIWEI",
+                status: "PENDING",
+                opportunities: [],
+              },
+              {
+                provider: "PLANET",
+                status: "COMPLETE",
+                opportunities: [{ providerWindowId: "pw-early" }],
+              },
+            ],
+          },
+        },
+      },
+    ];
+    let callIndex = 0;
+
+    globalThis.fetch = asFetchMock(async () =>
+      new Response(
+        JSON.stringify(statuses[Math.min(callIndex++, statuses.length - 1)]),
+        { status: 200 },
+      ));
+
+    globalThis.setTimeout = ((fn: TimeoutCallback) => {
+      if (typeof fn === "function") fn();
+      return 0 as any;
+    }) as typeof setTimeout;
+
+    const client = new SkyFiClient({
+      apiKey: "k",
+      baseUrl: "https://api.example.com",
+    });
+    const result = await client.pollFeasibility("f2", {
+      intervalMs: 1,
+      timeoutMs: 50,
+    });
+
+    expect(result.opportunities).toEqual([
+      {
+        provider: "PLANET",
+        status: "COMPLETE",
+        providerWindowId: "pw-early",
+      },
+    ]);
+  });
+
   test("checkFeasibility normalizes spec-shaped id to feasibility_id", async () => {
     globalThis.fetch = asFetchMock(async () =>
       new Response(

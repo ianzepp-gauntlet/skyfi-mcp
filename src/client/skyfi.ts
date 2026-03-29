@@ -417,6 +417,9 @@ export class SkyFiClient {
 
     while (Date.now() - start < timeout) {
       const result = await this.getFeasibilityStatus(feasibilityId);
+      if ((result.opportunities?.length ?? 0) > 0) {
+        return result;
+      }
       if (
         result.status !== "PENDING" &&
         result.status !== "PROCESSING" &&
