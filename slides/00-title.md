@@ -9,9 +9,9 @@ Create a wide-format (16:9) title slide for a technical presentation. The backgr
 - Dot 2: "CONFIRMATION GATE"
 - Dot 3: "EVAL HARNESS"
 - Dot 4: "COVERAGE"
-- Dot 5: "CLI"
-- Dot 6: "CORRIDOR PROBLEM"
-- Dot 7 (bottom): "CORRIDOR CHUNKING"
+- Dot 5: "CORRIDOR PROBLEM"
+- Dot 6: "CORRIDOR CHUNKING"
+- Dot 7 (bottom): "CLI"
 
 The tracking line should be thin, amber or white, with small filled circles at each waypoint. It should feel like a flight plan or an orbital pass schedule — not a corporate bullet list.
 
