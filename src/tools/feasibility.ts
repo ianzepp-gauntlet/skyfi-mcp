@@ -50,6 +50,19 @@ function toErrorMessage(error: unknown): string {
   return String(error);
 }
 
+function feasibilityDebugEnabled(): boolean {
+  const value = process.env.SKYFI_DEBUG_FEASIBILITY?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function logFeasibilityToolDebug(
+  event: string,
+  payload: Record<string, unknown>,
+): void {
+  if (!feasibilityDebugEnabled()) return;
+  console.log("[feasibility-tool]", JSON.stringify({ event, ...payload }));
+}
+
 async function runFeasibilityCheck(
   client: SkyFiClient,
   params: {
@@ -63,15 +76,33 @@ async function runFeasibilityCheck(
     required_provider?: string;
   },
 ) {
+  const normalizedResolution = normalizeTaskingResolution(params.resolution);
+  logFeasibilityToolDebug("start", {
+    windowStart: params.window_start,
+    windowEnd: params.window_end,
+    productType: params.product_type,
+    resolution: normalizedResolution,
+    maxCloudCoveragePercent: params.max_cloud_coverage_percent,
+    priorityItem: params.priority_item,
+    requiredProvider: params.required_provider,
+  });
+
   const initial = await client.checkFeasibility({
     aoi: params.aoi,
     startDate: params.window_start,
     endDate: params.window_end,
     productType: params.product_type,
-    resolution: normalizeTaskingResolution(params.resolution),
+    resolution: normalizedResolution,
     maxCloudCoveragePercent: params.max_cloud_coverage_percent,
     priorityItem: params.priority_item,
     requiredProvider: params.required_provider,
+  });
+
+  logFeasibilityToolDebug("submitted", {
+    feasibilityId: initial.feasibility_id,
+    status: initial.status,
+    opportunityCount: initial.opportunities?.length ?? 0,
+    providerCount: initial.providerScores?.length ?? 0,
   });
 
   const result = await client.pollFeasibility(initial.feasibility_id);
@@ -90,6 +121,26 @@ async function runFeasibilityCheck(
         "No opportunities were returned for the requested AOI, window, and constraints. passes_predict can still show overpasses that feasibility excludes.";
     }
   }
+
+  logFeasibilityToolDebug("complete", {
+    feasibilityId: result.feasibility_id,
+    status: result.status,
+    opportunityCount: result.opportunities?.length ?? 0,
+    message: synthesizedMessage,
+    providers: (result.providerScores ?? []).map((providerScore) => ({
+      provider:
+        typeof providerScore.provider === "string"
+          ? providerScore.provider
+          : undefined,
+      status:
+        typeof providerScore.status === "string"
+          ? providerScore.status
+          : undefined,
+      opportunityCount: Array.isArray(providerScore.opportunities)
+        ? providerScore.opportunities.length
+        : 0,
+    })),
+  });
 
   return {
     feasibilityId: result.feasibility_id,
