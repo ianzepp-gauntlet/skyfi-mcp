@@ -41,29 +41,30 @@ describe("createApp", () => {
     expect(seenEnvs.length).toBe(1);
   });
 
-  test("rejects resumed sessions in stateless mode", async () => {
+  test("ignores session headers in stateless mode instead of rejecting them", async () => {
+    const seenHeaders: Array<string | undefined> = [];
     const app = createApp(
-      () => new McpServer({ name: "test-server", version: "0.1.0" }),
+      (headerApiKey) => {
+        seenHeaders.push(headerApiKey);
+        return new McpServer({ name: "test-server", version: "0.1.0" });
+      },
       { sessionMode: "stateless" },
     );
 
     const response = await app.fetch(
       new Request("http://localhost/mcp", {
-        method: "POST",
+        method: "GET",
         headers: {
-          "content-type": "application/json",
+          accept: "text/event-stream",
           "mcp-session-id": "existing-session",
+          "x-skyfi-api-key": "header-key",
         },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
       }),
       {} as never,
     );
 
-    expect(response.status).toBe(501);
-    await expect(response.json()).resolves.toEqual({
-      error:
-        "MCP session resumption is not supported in this deployment. Reconnect without mcp-session-id.",
-    });
+    expect(response.status).toBe(200);
+    expect(seenHeaders).toEqual(["header-key"]);
   });
   test("returns 404 for unknown session id", async () => {
     const app = createApp(

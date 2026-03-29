@@ -166,24 +166,11 @@ export function createApp(
     const rawEnv = (c.env ?? {}) as Record<string, string>;
     const env = Object.keys(rawEnv).length > 0 ? rawEnv : undefined;
 
-    if (sessionMode === "stateless" && sessionId) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "MCP session resumption is not supported in this deployment. Reconnect without mcp-session-id.",
-        }),
-        {
-          status: 501,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
-
     // PHASE 1: EXISTING SESSION RESUMPTION
     // If the request carries a known session ID, route it directly to the
     // existing transport without creating new server/transport instances.
     // This is the hot path for all non-initialization requests.
-    if (sessionId && sessions.has(sessionId)) {
+    if (sessionMode === "stateful" && sessionId && sessions.has(sessionId)) {
       const { transport } = sessions.get(sessionId)!;
       return transport.handleRequest(c.req.raw);
     }
@@ -225,7 +212,7 @@ export function createApp(
     // PHASE 3: UNKNOWN SESSION — return a structured error
     // A request that carries a session ID not in our map means the session
     // was already closed or the request was routed to the wrong process.
-    if (sessionId && !sessions.has(sessionId)) {
+    if (sessionMode === "stateful" && sessionId && !sessions.has(sessionId)) {
       return new Response(JSON.stringify({ error: "Session not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
