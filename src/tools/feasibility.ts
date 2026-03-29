@@ -1,22 +1,17 @@
 /**
- * MCP tool: `feasibility_check`
+ * MCP feasibility tools.
  *
- * Exposes the SkyFi tasking feasibility API as a single synchronous-feeling
- * MCP tool. Feasibility analysis determines whether any satellites have viable
- * collection opportunities over a specified AOI within a given capture window.
+ * The SkyFi feasibility API is asynchronous: callers submit feasibility jobs,
+ * then poll later for status and opportunities. Railway's public HTTP path is
+ * not reliable enough for long synchronous feasibility waits, so the MCP layer
+ * exposes two batch-oriented primitives instead:
  *
- * The underlying SkyFi API is asynchronous: callers must submit a request and
- * then poll for results. This tool hides that async pattern by combining the
- * submit and poll steps, so the AI sees a single call-and-response interaction.
+ * - `feasibility_submit` — enqueue feasibility jobs for an array of AOIs
+ * - `feasibility_status` — fetch the latest status/opportunities for an array
+ *   of previously submitted feasibility IDs
  *
- * Design notes:
- * - Polling is delegated to `SkyFiClient.pollFeasibility`, which owns the
- *   retry interval and timeout configuration. Tool code stays linear.
- * - `opportunities` defaults to an empty array in the response so the AI can
- *   always iterate the field without checking for undefined.
- * - This tool must be called before `orders_prepare` when placing a tasking
- *   order, because the `provider_window_id` from an opportunity can be used
- *   to pin the order to a specific satellite pass.
+ * This keeps the AOI surface identical for normal polygons and corridor chunks:
+ * both are just arrays of `{ aoi, ...optional metadata }`.
  */
 
 import { z } from "zod";
@@ -43,6 +38,14 @@ const corridorChunkInputSchema = z.object({
     .describe("Optional number of polygon vertices in this chunk"),
 });
 
+const feasibilityAoiInputSchema = corridorChunkInputSchema;
+
+const feasibilityStatusInputSchema = feasibilityAoiInputSchema.extend({
+  feasibility_id: z
+    .string()
+    .describe("Feasibility job ID returned by feasibility_submit"),
+});
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -63,7 +66,60 @@ function logFeasibilityToolDebug(
   console.error("[feasibility-tool]", JSON.stringify({ event, ...payload }));
 }
 
-async function runFeasibilityCheck(
+function summarizeProviders(result: {
+  providerScores?: Array<Record<string, unknown>>;
+}) {
+  return (result.providerScores ?? []).map((providerScore) => ({
+    provider:
+      typeof providerScore.provider === "string"
+        ? providerScore.provider
+        : undefined,
+    status:
+      typeof providerScore.status === "string"
+        ? providerScore.status
+        : undefined,
+    opportunityCount: Array.isArray(providerScore.opportunities)
+      ? providerScore.opportunities.length
+      : 0,
+  }));
+}
+
+function summarizeFeasibilityResult(
+  result: {
+    feasibility_id: string;
+    status: string;
+    opportunities?: Array<Record<string, unknown>>;
+    message?: string;
+    providerScores?: Array<Record<string, unknown>>;
+  },
+  options?: { synthesizeNoOpportunityHint?: boolean },
+) {
+  const upstreamMessage =
+    typeof result.message === "string" && result.message.trim().length > 0
+      ? result.message
+      : undefined;
+  let message = upstreamMessage;
+
+  if (
+    options?.synthesizeNoOpportunityHint &&
+    !message &&
+    (result.opportunities ?? []).length === 0
+  ) {
+    message =
+      "No opportunities were returned for the requested AOI, window, and constraints. passes_predict can still show overpasses that feasibility excludes.";
+  }
+
+  return {
+    feasibilityId: result.feasibility_id,
+    status: result.status,
+    opportunityCount: result.opportunities?.length ?? 0,
+    opportunities: result.opportunities ?? [],
+    message,
+    providers: summarizeProviders(result),
+  };
+}
+
+async function submitFeasibility(
   client: SkyFiClient,
   params: {
     aoi: string;
@@ -77,7 +133,7 @@ async function runFeasibilityCheck(
   },
 ) {
   const normalizedResolution = normalizeTaskingResolution(params.resolution);
-  logFeasibilityToolDebug("start", {
+  logFeasibilityToolDebug("submit-start", {
     windowStart: params.window_start,
     windowEnd: params.window_end,
     productType: params.product_type,
@@ -87,7 +143,7 @@ async function runFeasibilityCheck(
     requiredProvider: params.required_provider,
   });
 
-  const initial = await client.checkFeasibility({
+  const result = await client.checkFeasibility({
     aoi: params.aoi,
     startDate: params.window_start,
     endDate: params.window_end,
@@ -98,60 +154,26 @@ async function runFeasibilityCheck(
     requiredProvider: params.required_provider,
   });
 
-  logFeasibilityToolDebug("submitted", {
-    feasibilityId: initial.feasibility_id,
-    status: initial.status,
-    opportunityCount: initial.opportunities?.length ?? 0,
-    providerCount: initial.providerScores?.length ?? 0,
+  const summary = summarizeFeasibilityResult(result);
+  logFeasibilityToolDebug("submitted", summary);
+  return summary;
+}
+
+async function fetchFeasibilityStatus(
+  client: SkyFiClient,
+  feasibilityId: string,
+) {
+  logFeasibilityToolDebug("status-start", { feasibilityId });
+  const result = await client.getFeasibilityStatus(feasibilityId);
+  const summary = summarizeFeasibilityResult(result, {
+    synthesizeNoOpportunityHint: true,
   });
-
-  const result = await client.pollFeasibility(initial.feasibility_id);
-  const upstreamMessage =
-    typeof result.message === "string" && result.message.trim().length > 0
-      ? result.message
-      : undefined;
-  let synthesizedMessage = upstreamMessage;
-
-  if (!synthesizedMessage && (result.opportunities ?? []).length === 0) {
-    if (params.max_cloud_coverage_percent === undefined) {
-      synthesizedMessage =
-        "No opportunities were returned. The SkyFi feasibility API may be filtering by its default cloud-cover threshold when max_cloud_coverage_percent is omitted. passes_predict can still show overpasses that feasibility excludes. Try setting max_cloud_coverage_percent (for example 100) and optionally narrowing required_provider.";
-    } else {
-      synthesizedMessage =
-        "No opportunities were returned for the requested AOI, window, and constraints. passes_predict can still show overpasses that feasibility excludes.";
-    }
-  }
-
-  logFeasibilityToolDebug("complete", {
-    feasibilityId: result.feasibility_id,
-    status: result.status,
-    opportunityCount: result.opportunities?.length ?? 0,
-    message: synthesizedMessage,
-    providers: (result.providerScores ?? []).map((providerScore) => ({
-      provider:
-        typeof providerScore.provider === "string"
-          ? providerScore.provider
-          : undefined,
-      status:
-        typeof providerScore.status === "string"
-          ? providerScore.status
-          : undefined,
-      opportunityCount: Array.isArray(providerScore.opportunities)
-        ? providerScore.opportunities.length
-        : 0,
-    })),
-  });
-
-  return {
-    feasibilityId: result.feasibility_id,
-    status: result.status,
-    opportunities: result.opportunities ?? [],
-    message: synthesizedMessage,
-  };
+  logFeasibilityToolDebug("status-complete", summary);
+  return summary;
 }
 
 /**
- * Register the `feasibility_check` tool on the given MCP server.
+ * Register the feasibility tools on the given MCP server.
  *
  * The tool is read-only — it queries satellite pass schedules but does not
  * commit any order or consume credits.
@@ -199,13 +221,18 @@ export function registerFeasibilityTools(
   );
 
   server.registerTool(
-    "feasibility_check",
+    "feasibility_submit",
     {
-      title: "Check Feasibility",
+      title: "Submit Feasibility",
       description:
-        "Check whether a satellite tasking order is feasible for one WKT AOI polygon, capture window, product type, and resolution. This is the single-area primitive. If you have a long linear asset such as a pipeline or road corridor, call corridor_chunk first and then feasibility_check_chunks instead of forcing one oversized polygon.",
+        "Submit SkyFi feasibility jobs for an array of AOIs. Use the same AOI list shape for ordinary polygons and corridor_chunk outputs, then poll later with feasibility_status.",
       inputSchema: {
-        aoi: z.string().describe("Area of interest as WKT POLYGON string"),
+        aois: z
+          .array(feasibilityAoiInputSchema)
+          .min(1)
+          .describe(
+            "Array of AOI objects. Pass plain polygons directly or reuse corridor_chunk output objects.",
+          ),
         window_start: z.string().describe("Start of capture window (ISO 8601)"),
         window_end: z.string().describe("End of capture window (ISO 8601)"),
         product_type: z
@@ -236,7 +263,7 @@ export function registerFeasibilityTools(
       annotations: { readOnlyHint: true },
     },
     async ({
-      aoi,
+      aois,
       window_start,
       window_end,
       product_type,
@@ -245,22 +272,61 @@ export function registerFeasibilityTools(
       priority_item,
       required_provider,
     }) => {
-      const result = await runFeasibilityCheck(client, {
-        aoi,
-        window_start,
-        window_end,
-        product_type,
-        resolution,
-        max_cloud_coverage_percent,
-        priority_item,
-        required_provider,
-      });
+      const results = [];
+
+      for (const item of aois) {
+        try {
+          const result = await submitFeasibility(client, {
+            aoi: item.aoi,
+            window_start,
+            window_end,
+            product_type,
+            resolution,
+            max_cloud_coverage_percent,
+            priority_item,
+            required_provider,
+          });
+          results.push({
+            ...result,
+            aoi: item.aoi,
+            chunkIndex: item.chunk_index,
+            corridorLengthMeters:
+              typeof item.corridor_length_meters === "number"
+                ? Math.round(item.corridor_length_meters)
+                : undefined,
+            polygonVertexCount: item.polygon_vertex_count,
+          });
+        } catch (error) {
+          const message = toErrorMessage(error);
+          results.push({
+            aoi: item.aoi,
+            chunkIndex: item.chunk_index,
+            corridorLengthMeters:
+              typeof item.corridor_length_meters === "number"
+                ? Math.round(item.corridor_length_meters)
+                : undefined,
+            polygonVertexCount: item.polygon_vertex_count,
+            status: "ERROR",
+            opportunityCount: 0,
+            opportunities: [],
+            message,
+            error: message,
+          });
+        }
+      }
 
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify(
+              {
+                requestCount: results.length,
+                requests: results,
+              },
+              null,
+              2,
+            ),
           },
         ],
       };
@@ -272,7 +338,7 @@ export function registerFeasibilityTools(
     {
       title: "Chunk Corridor",
       description:
-        "Convert an ordered GPS route into corridor polygons and split the corridor into smaller reusable AOI chunks. Use this first for long linear assets such as pipelines, roads, or transmission lines when one large polygon is too long or too complex for the SkyFi API. The returned chunks are meant to be passed into feasibility_check_chunks.",
+        "Convert an ordered GPS route into corridor polygons and split the corridor into smaller reusable AOI chunks. Use this first for long linear assets such as pipelines, roads, or transmission lines when one large polygon is too long or too complex for the SkyFi API. The returned chunks can be passed directly into feasibility_submit.",
       inputSchema: {
         route: z
           .array(
@@ -350,95 +416,51 @@ export function registerFeasibilityTools(
   );
 
   server.registerTool(
-    "feasibility_check_chunks",
+    "feasibility_status",
     {
-      title: "Check Feasibility For Chunks",
+      title: "Get Feasibility Status",
       description:
-        "Run feasibility_check semantics across a set of precomputed corridor chunks. Use this after corridor_chunk when the route decomposition should stay inspectable and reusable before feasibility runs. Each chunk is evaluated independently and returned with its own feasibility result.",
+        "Fetch the latest feasibility status for an array of AOIs that were previously submitted with feasibility_submit. Use the same AOI object shape, plus feasibility_id for each item.",
       inputSchema: {
-        chunks: z
-          .array(corridorChunkInputSchema)
+        aois: z
+          .array(feasibilityStatusInputSchema)
           .min(1)
           .describe(
-            "Chunk objects returned by corridor_chunk. Pass the chunks array directly unless you intentionally edited or filtered it.",
-          ),
-        window_start: z.string().describe("Start of capture window (ISO 8601)"),
-        window_end: z.string().describe("End of capture window (ISO 8601)"),
-        product_type: z
-          .enum(["DAY", "MULTISPECTRAL", "SAR"])
-          .describe("Product type for the requested tasking opportunity"),
-        resolution: taskingResolutionInputSchema,
-        max_cloud_coverage_percent: z
-          .number()
-          .min(0)
-          .max(100)
-          .optional()
-          .describe(
-            "Optional maximum cloud coverage percentage applied to every chunk feasibility request.",
-          ),
-        priority_item: z
-          .boolean()
-          .optional()
-          .describe(
-            "Optional priority flag applied to every chunk feasibility request.",
-          ),
-        required_provider: z
-          .string()
-          .optional()
-          .describe(
-            "Optional provider constraint applied to every chunk feasibility request.",
+            "Array of AOI objects with feasibility_id values returned by feasibility_submit.",
           ),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({
-      chunks,
-      window_start,
-      window_end,
-      product_type,
-      resolution,
-      max_cloud_coverage_percent,
-      priority_item,
-      required_provider,
-    }) => {
-      const chunkResults = [];
+    async ({ aois }) => {
+      const results = [];
 
-      for (const chunk of chunks) {
+      for (const item of aois) {
         try {
-          const result = await runFeasibilityCheck(client, {
-            aoi: chunk.aoi,
-            window_start,
-            window_end,
-            product_type,
-            resolution,
-            max_cloud_coverage_percent,
-            priority_item,
-            required_provider,
-          });
-          chunkResults.push({
-            chunkIndex: chunk.chunk_index,
+          const result = await fetchFeasibilityStatus(
+            client,
+            item.feasibility_id,
+          );
+          results.push({
+            ...result,
+            aoi: item.aoi,
+            chunkIndex: item.chunk_index,
             corridorLengthMeters:
-              typeof chunk.corridor_length_meters === "number"
-                ? Math.round(chunk.corridor_length_meters)
+              typeof item.corridor_length_meters === "number"
+                ? Math.round(item.corridor_length_meters)
                 : undefined,
-            polygonVertexCount: chunk.polygon_vertex_count,
-            aoi: chunk.aoi,
-            feasibilityId: result.feasibilityId,
-            status: result.status,
-            opportunityCount: result.opportunities.length,
-            opportunities: result.opportunities,
-            message: result.message,
+            polygonVertexCount: item.polygon_vertex_count,
           });
         } catch (error) {
           const message = toErrorMessage(error);
-          chunkResults.push({
-            chunkIndex: chunk.chunk_index,
+          results.push({
+            aoi: item.aoi,
+            feasibilityId: item.feasibility_id,
+            chunkIndex: item.chunk_index,
             corridorLengthMeters:
-              typeof chunk.corridor_length_meters === "number"
-                ? Math.round(chunk.corridor_length_meters)
+              typeof item.corridor_length_meters === "number"
+                ? Math.round(item.corridor_length_meters)
                 : undefined,
-            polygonVertexCount: chunk.polygon_vertex_count,
-            aoi: chunk.aoi,
+            polygonVertexCount: item.polygon_vertex_count,
             status: "ERROR",
             opportunityCount: 0,
             opportunities: [],
@@ -454,18 +476,18 @@ export function registerFeasibilityTools(
             type: "text" as const,
             text: JSON.stringify(
               {
-                chunkCount: chunkResults.length,
-                feasibleChunkCount: chunkResults.filter(
-                  (chunk) => chunk.opportunityCount > 0,
+                requestCount: results.length,
+                feasibleCount: results.filter(
+                  (item) => item.opportunityCount > 0,
                 ).length,
-                failedChunkCount: chunkResults.filter(
-                  (chunk) => chunk.status === "ERROR",
+                failedCount: results.filter(
+                  (item) => item.status === "ERROR",
                 ).length,
-                totalOpportunityCount: chunkResults.reduce(
-                  (sum, chunk) => sum + chunk.opportunityCount,
+                totalOpportunityCount: results.reduce(
+                  (sum, item) => sum + item.opportunityCount,
                   0,
                 ),
-                chunks: chunkResults,
+                requests: results,
               },
               null,
               2,
