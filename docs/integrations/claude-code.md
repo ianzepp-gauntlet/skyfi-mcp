@@ -88,7 +88,7 @@ Claude Code follows a strict prepare → confirm flow. It will never place an or
 
 ```
 > I want to order a high-res image of the Port of Los Angeles. Is a new capture feasible?
-[Claude calls feasibility_check, reports available pass windows]
+[Claude calls feasibility_submit, then feasibility_status, and reports available pass windows]
 
 > Great. What would a tasking order cost for next week?
 [Claude calls orders_prepare, presents price summary]
@@ -101,7 +101,7 @@ For pipelines and other long linear assets:
 
 ```
 > This oil pipeline is too long for one AOI polygon. Chunk it into a 1 km corridor and check feasibility next week.
-[Claude calls corridor_chunk → feasibility_check_chunks]
+[Claude calls corridor_chunk → feasibility_submit → feasibility_status]
 ```
 
 ## AOI Monitoring

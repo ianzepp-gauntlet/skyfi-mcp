@@ -127,7 +127,7 @@ response = chat.send_message(
     "next week."
 )
 print(response.text)
-# Gemini calls corridor_chunk -> feasibility_check_chunks
+# Gemini calls corridor_chunk -> feasibility_submit -> feasibility_status
 ```
 
 ```python

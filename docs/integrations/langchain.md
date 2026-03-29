@@ -326,7 +326,7 @@ result = await agent.ainvoke(
         ]
     }
 )
-# Agent calls corridor_chunk -> feasibility_check_chunks
+# Agent calls corridor_chunk -> feasibility_submit -> feasibility_status
 ```
 
 Webhook payloads are delivered to your endpoint when new imagery appears over a monitored AOI.

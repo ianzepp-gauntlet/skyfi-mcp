@@ -67,8 +67,9 @@ For each scenario:
 **Expected MCP calls**
 
 1. `location_resolve` if needed
-2. `feasibility_check`
-3. `passes_predict` if the user wants more detail on candidate passes
+2. `feasibility_submit`
+3. `feasibility_status`
+4. `passes_predict` if the user wants more detail on candidate passes
 
 ## Scenario 4: Pass-Targeted Tasking Purchase
 
@@ -88,9 +89,10 @@ For each scenario:
 
 1. `location_resolve` if needed
 2. `passes_predict`
-3. `feasibility_check`
-4. `orders_prepare`
-5. `orders_confirm` only after explicit human confirmation
+3. `feasibility_submit`
+4. `feasibility_status`
+5. `orders_prepare`
+6. `orders_confirm` only after explicit human confirmation
 
 ## Scenario 4B: Linear Asset Corridor Feasibility
 
@@ -109,7 +111,8 @@ For each scenario:
 **Expected MCP calls**
 
 1. `corridor_chunk`
-2. `feasibility_check_chunks`
+2. `feasibility_submit`
+3. `feasibility_status`
 
 ## Scenario 5: Archive Purchase With Human Confirmation
 

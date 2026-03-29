@@ -34,4 +34,4 @@ feasibility = client.responses.create(
     ),
 )
 print(feasibility.output_text)
-# -> Agent calls feasibility_check_chunks and reports per-chunk feasibility.
+# -> Agent calls feasibility_submit, then feasibility_status, and reports per-chunk feasibility.

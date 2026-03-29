@@ -70,7 +70,8 @@ This is a good MVP decision because it removes a major practical failure mode fo
 The same principle now extends to long linear assets. For pipelines, roads, transmission lines, and similar corridor-shaped targets, the server exposes:
 
 - `corridor_chunk` to convert an ordered GPS route into chunked WKT polygons
-- `feasibility_check_chunks` to run the existing `feasibility_check` semantics across those chunks
+- `feasibility_submit` to create a batch feasibility job for ordinary AOIs or corridor chunks
+- `feasibility_status` to poll that job until upstream feasibility results settle
 
 That matters because very long polygons are awkward for the upstream SkyFi API, while operators often reason about assets as centerlines plus width rather than hand-drawn convex polygons.
 
@@ -95,7 +96,7 @@ The target brief is defined in [`REQUIREMENTS.md`](/Users/ianzepp/github/gauntle
 | Built on the SkyFi public API | Met | Typed client in [`src/client/skyfi.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/client/skyfi.ts), local spec copy at [`docs/openapi.json`](/Users/ianzepp/github/gauntlet/skyfi-mcp/docs/openapi.json) |
 | Local hosting support | Met | Bun server entrypoint in [`src/index.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/index.ts) |
 | Conversational image ordering with price review and human confirmation | Met | `orders_prepare` and `orders_confirm` in [`src/tools/orders.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/orders.ts), token lifecycle tests in [`src/tools/confirmation_test.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/confirmation_test.ts) |
-| Feasibility before order placement | Met | Feasibility tooling in [`src/tools/feasibility.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/feasibility.ts), including corridor chunking plus multi-chunk feasibility for long linear assets, and ordering/feasibility scenarios under [`evals/scenarios`](/Users/ianzepp/github/gauntlet/skyfi-mcp/evals/scenarios) |
+| Feasibility before order placement | Met | Feasibility tooling in [`src/tools/feasibility.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/feasibility.ts), including corridor chunking plus job-based batch feasibility for long linear assets, and ordering/feasibility scenarios under [`evals/scenarios`](/Users/ianzepp/github/gauntlet/skyfi-mcp/evals/scenarios) |
 | Data exploration across search, pricing, orders, and deliverables | Met | Search/pricing/order tools under [`src/tools`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools) |
 | AOI monitoring and webhook notifications | Met | AOI tools and webhook persistence in [`src/tools/aoi.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/tools/aoi.ts), [`src/worker_routes.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/worker_routes.ts), and [`src/alerts_object.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/alerts_object.ts) |
 | Local JSON config plus cloud header-based auth | Met | Config resolution in [`src/config/index.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/config/index.ts) and local config loader in [`src/config/local.ts`](/Users/ianzepp/github/gauntlet/skyfi-mcp/src/config/local.ts) |
@@ -121,8 +122,8 @@ The current server exposes tools across eight workflow areas:
 
 - account readiness and budget inspection
 - archive search and archive detail lookup
-- pass prediction and feasibility checks for tasking
-- corridor chunking and chunk-level feasibility for long linear assets
+- pass prediction and job-based feasibility checks for tasking
+- corridor chunking and batch feasibility for long linear assets
 - pricing exploration
 - order history, deliverable retrieval, redelivery, and controlled ordering
 - AOI monitor creation, review, deletion, and alert retrieval
@@ -135,9 +136,10 @@ The MCP composition root in [`src/server/mcp.ts`](/Users/ianzepp/github/gauntlet
 For linear assets that are hard to express as one practical AOI polygon, use:
 
 1. `corridor_chunk` with an ordered GPS route, corridor width, and maximum chunk length.
-2. `feasibility_check_chunks` with the returned chunks plus the tasking window, product type, and resolution.
+2. `feasibility_submit` with the returned chunks plus the tasking window, product type, and resolution.
+3. `feasibility_status` with the returned `job_id` until the per-chunk results settle.
 
-This keeps route decomposition inspectable before feasibility runs and reuses the existing single-AOI `feasibility_check` behavior for each chunk.
+This keeps route decomposition inspectable before feasibility runs and uses the same batch feasibility path for ordinary polygons and corridor chunks.
 
 ## Validation, Reliability, And Testing
 
@@ -172,6 +174,7 @@ This repo is credible as an MCP submission, but there are still clear boundaries
 - "Payments support" is currently satisfied through SkyFi account/payment readiness and order confirmation flows, not through a bespoke payment UX or wallet layer.
 - The remote transport is intentionally modernized around Streamable HTTP semantics and session-backed Cloudflare Agents behavior, which should be treated as an upgrade over the older stateless HTTP + SSE pattern.
 - Bun-hosted AOI alert persistence is in-memory; Cloudflare gets the stronger shared Durable Object implementation.
+- Railway demo-mode feasibility jobs are also in-memory. They survive across stateless MCP requests inside one process, but not across restarts or redeploys.
 - LangSmith tracing is not implemented in the current codebase.
 
 The most credible next steps would be:

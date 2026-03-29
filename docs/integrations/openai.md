@@ -245,7 +245,7 @@ feasibility = client.responses.create(
     ),
 )
 print(feasibility.output_text)
-# -> Agent calls feasibility_check_chunks and reports per-chunk feasibility.
+# -> Agent calls feasibility_submit, then feasibility_status, and reports per-chunk feasibility.
 ```
 
 <!-- /example -->
@@ -343,5 +343,5 @@ Use the ngrok HTTPS URL (e.g. `https://abc123.ngrok-free.app/mcp`) as `server_ur
 - The Cloudflare Workers deployment uses Durable Object-backed session state, which is compatible with OpenAI's connection model
 - Orders require two-step confirmation (prepare then confirm) to ensure human approval
 - `location_resolve` uses the OpenStreetMap Nominatim API to convert place names to WKT polygons
-- `corridor_chunk` and `feasibility_check_chunks` support long linear assets such as pipelines by chunking a route into reusable AOI polygons before feasibility
+- `corridor_chunk`, `feasibility_submit`, and `feasibility_status` support long linear assets such as pipelines by chunking a route into reusable AOI polygons and polling one job across the whole batch
 - Use `previous_response_id` to chain multi-turn conversations in the Responses API
