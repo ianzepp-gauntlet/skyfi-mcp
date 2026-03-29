@@ -22,7 +22,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SkyFiClient } from "../client/skyfi.js";
 import type { SkyFiConfig } from "../config/index.js";
 import { registerSearchTools } from "../tools/search.js";
-import { registerFeasibilityTools } from "../tools/feasibility.js";
+import {
+  registerFeasibilityTools,
+  type FeasibilityJobStoreLike,
+} from "../tools/feasibility.js";
 import { registerPricingTools } from "../tools/pricing.js";
 import { registerAccountTools, registerOrderTools } from "../tools/orders.js";
 import { registerAoiTools } from "../tools/aoi.js";
@@ -56,6 +59,12 @@ export interface CreateMcpServerOptions {
    * handles both prepare and confirm within the same process/session.
    */
   confirmationStore?: ConfirmationStoreLike;
+  /**
+   * Optional shared feasibility job store. In Bun/Railway mode this lets
+   * submit/status calls coordinate through process memory even in stateless
+   * MCP transport mode.
+   */
+  feasibilityJobStore?: FeasibilityJobStoreLike;
 }
 
 /**
@@ -87,7 +96,7 @@ export function createMcpServer(
   // Register all tool groups. Order does not affect functionality — tools are
   // looked up by name at call time, not by registration order.
   registerSearchTools(server, client);
-  registerFeasibilityTools(server, client);
+  registerFeasibilityTools(server, client, options?.feasibilityJobStore);
   registerPricingTools(server, client);
   registerAccountTools(server, client);
   registerOrderTools(

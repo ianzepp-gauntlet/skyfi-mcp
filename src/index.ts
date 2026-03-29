@@ -21,6 +21,7 @@ import { createMcpServer } from "./server/mcp.js";
 import { createApp } from "./server/transport.js";
 import { AlertStore } from "./tools/alerts.js";
 import { ConfirmationStore } from "./tools/confirmation.js";
+import { FeasibilityJobStore } from "./tools/feasibility.js";
 
 const port = parseInt(process.env.PORT ?? "3000", 10);
 const alertStore = new AlertStore();
@@ -35,6 +36,7 @@ const confirmationTtlMs =
     : undefined;
 const publicBaseUrl = process.env.SKYFI_MCP_PUBLIC_BASE_URL?.trim();
 const confirmationStore = new ConfirmationStore(confirmationTtlMs);
+const feasibilityJobStore = new FeasibilityJobStore();
 const defaultAoiWebhookUrl = publicBaseUrl
   ? new URL("/webhooks/aoi", `${publicBaseUrl.replace(/\/+$/, "")}/`).toString()
   : undefined;
@@ -48,6 +50,7 @@ const app = createApp(
       defaultAoiWebhookUrl,
       confirmationTtlMs,
       confirmationStore,
+      feasibilityJobStore,
     });
   },
   {

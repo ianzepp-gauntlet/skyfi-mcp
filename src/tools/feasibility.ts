@@ -24,6 +24,123 @@ import {
 } from "./resolution.js";
 import { chunkRouteToCorridorPolygons } from "./corridor.js";
 
+type FeasibilityRequestSummary = {
+  feasibilityId: string;
+  status: string;
+  opportunityCount: number;
+  opportunities: Array<Record<string, unknown>>;
+  message?: string;
+  providers: Array<{
+    provider?: string;
+    status?: string;
+    opportunityCount: number;
+  }>;
+};
+
+type FeasibilityJobStatus =
+  | "QUEUED"
+  | "SUBMITTING"
+  | "SUBMITTED"
+  | "STARTED"
+  | "COMPLETE"
+  | "ERROR";
+
+type FeasibilityJobItem = {
+  aoi: string;
+  chunkIndex?: number;
+  corridorLengthMeters?: number;
+  polygonVertexCount?: number;
+  feasibilityId?: string;
+  status: FeasibilityJobStatus;
+  opportunityCount: number;
+  opportunities: Array<Record<string, unknown>>;
+  message?: string;
+  error?: string;
+  providers?: Array<{
+    provider?: string;
+    status?: string;
+    opportunityCount: number;
+  }>;
+};
+
+type FeasibilityJob = {
+  jobId: string;
+  createdAt: string;
+  updatedAt: string;
+  requestCount: number;
+  status: "QUEUED" | "RUNNING" | "COMPLETE" | "ERROR";
+  submit: {
+    window_start: string;
+    window_end: string;
+    product_type: "DAY" | "MULTISPECTRAL" | "SAR";
+    resolution: TaskingResolutionInput;
+    max_cloud_coverage_percent?: number;
+    priority_item?: boolean;
+    required_provider?: string;
+  };
+  items: FeasibilityJobItem[];
+  started: boolean;
+};
+
+export interface FeasibilityJobStoreLike {
+  create(input: FeasibilityJob["submit"] & { aois: FeasibilityJobAoi[] }): FeasibilityJob;
+  get(jobId: string): FeasibilityJob | undefined;
+  update(jobId: string, updater: (job: FeasibilityJob) => void): FeasibilityJob | undefined;
+}
+
+export class FeasibilityJobStore implements FeasibilityJobStoreLike {
+  private readonly jobs = new Map<string, FeasibilityJob>();
+  private nextId = 1;
+
+  create(input: FeasibilityJob["submit"] & { aois: FeasibilityJobAoi[] }): FeasibilityJob {
+    const now = new Date().toISOString();
+    const jobId = `feas-job-${this.nextId++}`;
+    const job: FeasibilityJob = {
+      jobId,
+      createdAt: now,
+      updatedAt: now,
+      requestCount: input.aois.length,
+      status: "QUEUED",
+      submit: {
+        window_start: input.window_start,
+        window_end: input.window_end,
+        product_type: input.product_type,
+        resolution: input.resolution,
+        max_cloud_coverage_percent: input.max_cloud_coverage_percent,
+        priority_item: input.priority_item,
+        required_provider: input.required_provider,
+      },
+      items: input.aois.map((item) => ({
+        aoi: item.aoi,
+        chunkIndex: item.chunk_index,
+        corridorLengthMeters:
+          typeof item.corridor_length_meters === "number"
+            ? Math.round(item.corridor_length_meters)
+            : undefined,
+        polygonVertexCount: item.polygon_vertex_count,
+        status: "QUEUED",
+        opportunityCount: 0,
+        opportunities: [],
+      })),
+      started: false,
+    };
+    this.jobs.set(jobId, job);
+    return job;
+  }
+
+  get(jobId: string): FeasibilityJob | undefined {
+    return this.jobs.get(jobId);
+  }
+
+  update(jobId: string, updater: (job: FeasibilityJob) => void): FeasibilityJob | undefined {
+    const job = this.jobs.get(jobId);
+    if (!job) return undefined;
+    updater(job);
+    job.updatedAt = new Date().toISOString();
+    return job;
+  }
+}
+
 const feasibilityAoiInputSchema = z.object({
   aoi: z.string().describe("AOI as a WKT POLYGON string"),
   chunk_index: z
@@ -43,11 +160,7 @@ const feasibilityAoiInputSchema = z.object({
     .describe("Optional polygon vertex count when the AOI came from corridor_chunk"),
 });
 
-const feasibilityStatusInputSchema = feasibilityAoiInputSchema.extend({
-  feasibility_id: z
-    .string()
-    .describe("Feasibility job ID returned by feasibility_submit"),
-});
+type FeasibilityJobAoi = z.infer<typeof feasibilityAoiInputSchema>;
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -122,6 +235,62 @@ function summarizeFeasibilityResult(
   };
 }
 
+function jobItemFromSummary(
+  item: FeasibilityJobItem,
+  summary: FeasibilityRequestSummary,
+): FeasibilityJobItem {
+  return {
+    ...item,
+    feasibilityId: summary.feasibilityId,
+    status:
+      summary.status === "COMPLETE"
+        ? "COMPLETE"
+        : summary.status === "ERROR"
+          ? "ERROR"
+          : "STARTED",
+    opportunityCount: summary.opportunityCount,
+    opportunities: summary.opportunities,
+    message: summary.message,
+    providers: summary.providers,
+  };
+}
+
+function summarizeJob(job: FeasibilityJob) {
+  const completeCount = job.items.filter((item) => item.status === "COMPLETE").length;
+  const errorCount = job.items.filter((item) => item.status === "ERROR").length;
+  const startedCount = job.items.filter(
+    (item) => item.status === "STARTED" || item.status === "SUBMITTED" || item.status === "SUBMITTING",
+  ).length;
+  return {
+    jobId: job.jobId,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    requestCount: job.requestCount,
+    status: job.status,
+    feasibleCount: job.items.filter((item) => item.opportunityCount > 0).length,
+    failedCount: errorCount,
+    totalOpportunityCount: job.items.reduce(
+      (sum, item) => sum + item.opportunityCount,
+      0,
+    ),
+    completeCount,
+    startedCount,
+    requests: job.items.map((item) => ({
+      aoi: item.aoi,
+      feasibilityId: item.feasibilityId,
+      chunkIndex: item.chunkIndex,
+      corridorLengthMeters: item.corridorLengthMeters,
+      polygonVertexCount: item.polygonVertexCount,
+      status: item.status,
+      opportunityCount: item.opportunityCount,
+      opportunities: item.opportunities,
+      message: item.message,
+      error: item.error,
+      providers: item.providers ?? [],
+    })),
+  };
+}
+
 async function submitFeasibility(
   client: SkyFiClient,
   params: {
@@ -175,6 +344,80 @@ async function fetchFeasibilityStatus(
   return summary;
 }
 
+async function startFeasibilityJob(
+  client: SkyFiClient,
+  jobStore: FeasibilityJobStoreLike,
+  jobId: string,
+) {
+  const existing = jobStore.get(jobId);
+  if (!existing || existing.started) return;
+
+  jobStore.update(jobId, (job) => {
+    job.started = true;
+    job.status = "RUNNING";
+  });
+
+  void (async () => {
+    const current = jobStore.get(jobId);
+    if (!current) return;
+
+    for (let index = 0; index < current.items.length; index += 1) {
+      const item = current.items[index];
+      if (!item) continue;
+      if (item.feasibilityId || item.status === "ERROR") continue;
+
+      jobStore.update(jobId, (job) => {
+        const jobItem = job.items[index];
+        if (!jobItem) return;
+        jobItem.status = "SUBMITTING";
+      });
+
+      try {
+        const summary = await submitFeasibility(client, {
+          aoi: item.aoi,
+          window_start: current.submit.window_start,
+          window_end: current.submit.window_end,
+          product_type: current.submit.product_type,
+          resolution: current.submit.resolution,
+          max_cloud_coverage_percent: current.submit.max_cloud_coverage_percent,
+          priority_item: current.submit.priority_item,
+          required_provider: current.submit.required_provider,
+        });
+
+        jobStore.update(jobId, (job) => {
+          const jobItem = job.items[index];
+          if (!jobItem) return;
+          job.items[index] = jobItemFromSummary(jobItem, summary);
+          if (job.items[index]?.status !== "COMPLETE") {
+            job.items[index]!.status = "SUBMITTED";
+          }
+        });
+      } catch (error) {
+        const message = toErrorMessage(error);
+        jobStore.update(jobId, (job) => {
+          const jobItem = job.items[index];
+          if (!jobItem) return;
+          job.items[index] = {
+            ...jobItem,
+            status: "ERROR",
+            message,
+            error: message,
+            providers: [],
+            opportunities: [],
+            opportunityCount: 0,
+          };
+        });
+      }
+    }
+
+    jobStore.update(jobId, (job) => {
+      if (job.items.every((item) => item.status === "COMPLETE" || item.status === "ERROR")) {
+        job.status = job.items.some((item) => item.status === "ERROR") ? "ERROR" : "COMPLETE";
+      }
+    });
+  })();
+}
+
 /**
  * Register the feasibility tools on the given MCP server.
  *
@@ -187,6 +430,7 @@ async function fetchFeasibilityStatus(
 export function registerFeasibilityTools(
   server: McpServer,
   client: SkyFiClient,
+  jobStore: FeasibilityJobStoreLike = new FeasibilityJobStore(),
 ) {
   server.registerTool(
     "passes_predict",
@@ -275,48 +519,17 @@ export function registerFeasibilityTools(
       priority_item,
       required_provider,
     }) => {
-      const results = [];
-
-      for (const item of aois) {
-        try {
-          const result = await submitFeasibility(client, {
-            aoi: item.aoi,
-            window_start,
-            window_end,
-            product_type,
-            resolution,
-            max_cloud_coverage_percent,
-            priority_item,
-            required_provider,
-          });
-          results.push({
-            ...result,
-            aoi: item.aoi,
-            chunkIndex: item.chunk_index,
-            corridorLengthMeters:
-              typeof item.corridor_length_meters === "number"
-                ? Math.round(item.corridor_length_meters)
-                : undefined,
-            polygonVertexCount: item.polygon_vertex_count,
-          });
-        } catch (error) {
-          const message = toErrorMessage(error);
-          results.push({
-            aoi: item.aoi,
-            chunkIndex: item.chunk_index,
-            corridorLengthMeters:
-              typeof item.corridor_length_meters === "number"
-                ? Math.round(item.corridor_length_meters)
-                : undefined,
-            polygonVertexCount: item.polygon_vertex_count,
-            status: "ERROR",
-            opportunityCount: 0,
-            opportunities: [],
-            message,
-            error: message,
-          });
-        }
-      }
+      const job = jobStore.create({
+        aois,
+        window_start,
+        window_end,
+        product_type,
+        resolution,
+        max_cloud_coverage_percent,
+        priority_item,
+        required_provider,
+      });
+      await startFeasibilityJob(client, jobStore, job.jobId);
 
       return {
         content: [
@@ -324,8 +537,10 @@ export function registerFeasibilityTools(
             type: "text" as const,
             text: JSON.stringify(
               {
-                requestCount: results.length,
-                requests: results,
+                job_id: job.jobId,
+                requestCount: job.requestCount,
+                queuedCount: job.requestCount,
+                status: job.status,
               },
               null,
               2,
@@ -423,78 +638,70 @@ export function registerFeasibilityTools(
     {
       title: "Get Feasibility Status",
       description:
-        "Fetch the latest feasibility status for an array of AOIs that were previously submitted with feasibility_submit. Use the same AOI object shape, plus feasibility_id for each item.",
+        "Fetch the latest feasibility status for a previously submitted feasibility job_id. The server tracks the AOIs and SkyFi feasibility IDs internally.",
       inputSchema: {
-        aois: z
-          .array(feasibilityStatusInputSchema)
-          .min(1)
-          .describe(
-            "Array of AOI objects with feasibility_id values returned by feasibility_submit.",
-          ),
+        job_id: z.string().describe("Job ID returned by feasibility_submit"),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ aois }) => {
-      const results = [];
+    async ({ job_id }) => {
+      const job = jobStore.get(job_id);
+      if (!job) {
+        throw new Error(`Feasibility job not found: ${job_id}`);
+      }
 
-      for (const item of aois) {
+      await startFeasibilityJob(client, jobStore, job_id);
+
+      for (let index = 0; index < job.items.length; index += 1) {
+        const item = job.items[index];
+        if (!item) continue;
+        if (!item.feasibilityId || item.status === "COMPLETE" || item.status === "ERROR") {
+          continue;
+        }
+
         try {
-          const result = await fetchFeasibilityStatus(
-            client,
-            item.feasibility_id,
-          );
-          results.push({
-            ...result,
-            aoi: item.aoi,
-            chunkIndex: item.chunk_index,
-            corridorLengthMeters:
-              typeof item.corridor_length_meters === "number"
-                ? Math.round(item.corridor_length_meters)
-                : undefined,
-            polygonVertexCount: item.polygon_vertex_count,
+          const result = await fetchFeasibilityStatus(client, item.feasibilityId);
+          jobStore.update(job_id, (currentJob) => {
+            const jobItem = currentJob.items[index];
+            if (!jobItem) return;
+            currentJob.items[index] = jobItemFromSummary(jobItem, result);
           });
         } catch (error) {
           const message = toErrorMessage(error);
-          results.push({
-            aoi: item.aoi,
-            feasibilityId: item.feasibility_id,
-            chunkIndex: item.chunk_index,
-            corridorLengthMeters:
-              typeof item.corridor_length_meters === "number"
-                ? Math.round(item.corridor_length_meters)
-                : undefined,
-            polygonVertexCount: item.polygon_vertex_count,
-            status: "ERROR",
-            opportunityCount: 0,
-            opportunities: [],
-            message,
-            error: message,
+          jobStore.update(job_id, (currentJob) => {
+            const jobItem = currentJob.items[index];
+            if (!jobItem) return;
+            currentJob.items[index] = {
+              ...jobItem,
+              status: "ERROR",
+              message,
+              error: message,
+              providers: [],
+              opportunities: [],
+              opportunityCount: 0,
+            };
           });
         }
       }
+
+      const updatedJob = jobStore.update(job_id, (currentJob) => {
+        const hasRunning = currentJob.items.some((item) =>
+          ["QUEUED", "SUBMITTING", "SUBMITTED", "STARTED"].includes(item.status),
+        );
+        if (hasRunning) {
+          currentJob.status = "RUNNING";
+        } else if (currentJob.items.some((item) => item.status === "ERROR")) {
+          currentJob.status = "ERROR";
+        } else {
+          currentJob.status = "COMPLETE";
+        }
+      });
 
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(
-              {
-                requestCount: results.length,
-                feasibleCount: results.filter(
-                  (item) => item.opportunityCount > 0,
-                ).length,
-                failedCount: results.filter(
-                  (item) => item.status === "ERROR",
-                ).length,
-                totalOpportunityCount: results.reduce(
-                  (sum, item) => sum + item.opportunityCount,
-                  0,
-                ),
-                requests: results,
-              },
-              null,
-              2,
-            ),
+            text: JSON.stringify(summarizeJob(updatedJob ?? job), null, 2),
           },
         ],
       };

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { registerFeasibilityTools } from "./feasibility.js";
+import { FeasibilityJobStore, registerFeasibilityTools } from "./feasibility.js";
 import { createToolHarness } from "./test_harness.js";
 
 function parseToolJson(result: any) {
@@ -45,10 +45,11 @@ describe("registerFeasibilityTools", () => {
     ]);
   });
 
-  test("feasibility_submit submits a batch of AOIs", async () => {
+  test("feasibility_submit returns a job id for a batch of AOIs", async () => {
     const harness = createToolHarness();
     const seen: Array<Record<string, unknown>> = [];
     let callIndex = 0;
+    const jobStore = new FeasibilityJobStore();
     const client = {
       getPassPrediction: async () => ({}),
       checkFeasibility: async (params: Record<string, unknown>) => {
@@ -65,7 +66,7 @@ describe("registerFeasibilityTools", () => {
       }),
     };
 
-    registerFeasibilityTools(harness.server as any, client as any);
+    registerFeasibilityTools(harness.server as any, client as any, jobStore);
 
     const result = parseToolJson(
       await harness.invoke("feasibility_submit", {
@@ -86,11 +87,9 @@ describe("registerFeasibilityTools", () => {
     );
 
     expect(result.requestCount).toBe(2);
-    expect(result.requests[0].feasibilityId).toBe("f-0");
-    expect(result.requests[1].feasibilityId).toBe("f-1");
-    expect(result.requests[1].chunkIndex).toBe(1);
-    expect(result.requests[1].corridorLengthMeters).toBe(9000);
-    expect(seen).toHaveLength(2);
+    expect(result.job_id).toMatch(/^feas-job-/);
+    expect(result.queuedCount).toBe(2);
+    expect(seen.length).toBeGreaterThan(0);
   });
 
   test("feasibility_submit normalizes underscore resolution aliases before calling the client", async () => {
@@ -167,31 +166,41 @@ describe("registerFeasibilityTools", () => {
     });
   });
 
-  test("feasibility_status returns batch statuses and adds a useful hint when no opportunities are returned", async () => {
+  test("feasibility_status returns job-backed statuses and adds a useful hint when no opportunities are returned", async () => {
     const harness = createToolHarness();
+    const jobStore = new FeasibilityJobStore();
     const client = {
       getPassPrediction: async () => ({}),
       checkFeasibility: async () => ({
-        feasibility_id: "f-hint",
+        feasibility_id: "f-hint-1",
         status: "PENDING",
       }),
       getFeasibilityStatus: async () => ({
-        feasibility_id: "f-hint",
+        feasibility_id: "f-hint-1",
         status: "COMPLETE",
         opportunities: [],
       }),
     };
 
-    registerFeasibilityTools(harness.server as any, client as any);
+    registerFeasibilityTools(harness.server as any, client as any, jobStore);
 
-    const result = parseToolJson(
-      await harness.invoke("feasibility_status", {
+    const submit = parseToolJson(
+      await harness.invoke("feasibility_submit", {
         aois: [
           {
             aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
-            feasibility_id: "f-hint",
           },
         ],
+        window_start: "2026-01-01T00:00:00Z",
+        window_end: "2026-01-02T00:00:00Z",
+        product_type: "DAY",
+        resolution: "VERY_HIGH",
+      }),
+    );
+
+    const result = parseToolJson(
+      await harness.invoke("feasibility_status", {
+        job_id: submit.job_id,
       }),
     );
 
@@ -273,6 +282,7 @@ describe("registerFeasibilityTools", () => {
     const harness = createToolHarness();
     const seen: Array<Record<string, unknown>> = [];
     let callIndex = 0;
+    const jobStore = new FeasibilityJobStore();
     const client = {
       getPassPrediction: async () => ({}),
       checkFeasibility: async (params: Record<string, unknown>) => {
@@ -290,7 +300,7 @@ describe("registerFeasibilityTools", () => {
       }),
     };
 
-    registerFeasibilityTools(harness.server as any, client as any);
+    registerFeasibilityTools(harness.server as any, client as any, jobStore);
 
     const result = parseToolJson(
       await harness.invoke("feasibility_submit", {
@@ -316,18 +326,19 @@ describe("registerFeasibilityTools", () => {
     );
 
     expect(result.requestCount).toBe(2);
-    expect(result.requests[0].aoi).toBe("POLYGON((0 0,1 0,1 1,0 1,0 0))");
+    expect(result.job_id).toMatch(/^feas-job-/);
     expect(seen.every((call) => call.resolution === "VERY HIGH")).toBe(true);
     expect(seen.every((call) => typeof call.aoi === "string")).toBe(true);
-    expect(result.requests[0].feasibilityId).toBe("f-0");
   });
 
   test("feasibility_status keeps later results when one request fails", async () => {
     const harness = createToolHarness();
+    let callIndex = 0;
+    const jobStore = new FeasibilityJobStore();
     const client = {
       getPassPrediction: async () => ({}),
       checkFeasibility: async () => ({
-        feasibility_id: "unused",
+        feasibility_id: `f-${callIndex++}`,
         status: "PENDING",
       }),
       getFeasibilityStatus: async (feasibilityId: string) => {
@@ -342,27 +353,34 @@ describe("registerFeasibilityTools", () => {
       },
     };
 
-    registerFeasibilityTools(harness.server as any, client as any);
+    registerFeasibilityTools(harness.server as any, client as any, jobStore);
 
-    const result = parseToolJson(
-      await harness.invoke("feasibility_status", {
+    const submit = parseToolJson(
+      await harness.invoke("feasibility_submit", {
         aois: [
           {
             chunk_index: 0,
-            feasibility_id: "f-0",
             aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
           },
           {
             chunk_index: 1,
-            feasibility_id: "f-1",
             aoi: "POLYGON((1 0,2 0,2 1,1 1,1 0))",
           },
           {
             chunk_index: 2,
-            feasibility_id: "f-2",
             aoi: "POLYGON((2 0,3 0,3 1,2 1,2 0))",
           },
         ],
+        window_start: "2026-01-01T00:00:00Z",
+        window_end: "2026-01-02T00:00:00Z",
+        product_type: "DAY",
+        resolution: "VERY_HIGH",
+      }),
+    );
+
+    const result = parseToolJson(
+      await harness.invoke("feasibility_status", {
+        job_id: submit.job_id,
       }),
     );
 
