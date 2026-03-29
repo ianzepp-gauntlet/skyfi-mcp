@@ -65,6 +65,11 @@ export interface CreateMcpServerOptions {
    * MCP transport mode.
    */
   feasibilityJobStore?: FeasibilityJobStoreLike;
+  /**
+   * Optional owner key used to scope feasibility jobs to one authenticated
+   * caller when a shared in-memory store is reused across requests.
+   */
+  feasibilityJobOwnerKey?: string;
 }
 
 /**
@@ -96,7 +101,10 @@ export function createMcpServer(
   // Register all tool groups. Order does not affect functionality — tools are
   // looked up by name at call time, not by registration order.
   registerSearchTools(server, client);
-  registerFeasibilityTools(server, client, options?.feasibilityJobStore);
+  registerFeasibilityTools(server, client, {
+    jobStore: options?.feasibilityJobStore,
+    ownerKey: options?.feasibilityJobOwnerKey ?? config.apiKey,
+  });
   registerPricingTools(server, client);
   registerAccountTools(server, client);
   registerOrderTools(

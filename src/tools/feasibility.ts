@@ -65,6 +65,7 @@ type FeasibilityJobItem = {
 
 type FeasibilityJob = {
   jobId: string;
+  ownerKey: string;
   createdAt: string;
   updatedAt: string;
   requestCount: number;
@@ -83,20 +84,34 @@ type FeasibilityJob = {
 };
 
 export interface FeasibilityJobStoreLike {
-  create(input: FeasibilityJob["submit"] & { aois: FeasibilityJobAoi[] }): FeasibilityJob;
-  get(jobId: string): FeasibilityJob | undefined;
-  update(jobId: string, updater: (job: FeasibilityJob) => void): FeasibilityJob | undefined;
+  create(
+    input: FeasibilityJob["submit"] & {
+      aois: FeasibilityJobAoi[];
+      ownerKey: string;
+    },
+  ): FeasibilityJob;
+  get(jobId: string, ownerKey: string): FeasibilityJob | undefined;
+  update(
+    jobId: string,
+    ownerKey: string,
+    updater: (job: FeasibilityJob) => void,
+  ): FeasibilityJob | undefined;
 }
 
 export class FeasibilityJobStore implements FeasibilityJobStoreLike {
   private readonly jobs = new Map<string, FeasibilityJob>();
-  private nextId = 1;
 
-  create(input: FeasibilityJob["submit"] & { aois: FeasibilityJobAoi[] }): FeasibilityJob {
+  create(
+    input: FeasibilityJob["submit"] & {
+      aois: FeasibilityJobAoi[];
+      ownerKey: string;
+    },
+  ): FeasibilityJob {
     const now = new Date().toISOString();
-    const jobId = `feas-job-${this.nextId++}`;
+    const jobId = crypto.randomUUID();
     const job: FeasibilityJob = {
       jobId,
+      ownerKey: input.ownerKey,
       createdAt: now,
       updatedAt: now,
       requestCount: input.aois.length,
@@ -128,12 +143,18 @@ export class FeasibilityJobStore implements FeasibilityJobStoreLike {
     return job;
   }
 
-  get(jobId: string): FeasibilityJob | undefined {
-    return this.jobs.get(jobId);
+  get(jobId: string, ownerKey: string): FeasibilityJob | undefined {
+    const job = this.jobs.get(jobId);
+    if (!job || job.ownerKey !== ownerKey) return undefined;
+    return job;
   }
 
-  update(jobId: string, updater: (job: FeasibilityJob) => void): FeasibilityJob | undefined {
-    const job = this.jobs.get(jobId);
+  update(
+    jobId: string,
+    ownerKey: string,
+    updater: (job: FeasibilityJob) => void,
+  ): FeasibilityJob | undefined {
+    const job = this.get(jobId, ownerKey);
     if (!job) return undefined;
     updater(job);
     job.updatedAt = new Date().toISOString();
@@ -152,12 +173,16 @@ const feasibilityAoiInputSchema = z.object({
   corridor_length_meters: z
     .number()
     .optional()
-    .describe("Optional corridor length in meters when the AOI came from corridor_chunk"),
+    .describe(
+      "Optional corridor length in meters when the AOI came from corridor_chunk",
+    ),
   polygon_vertex_count: z
     .number()
     .int()
     .optional()
-    .describe("Optional polygon vertex count when the AOI came from corridor_chunk"),
+    .describe(
+      "Optional polygon vertex count when the AOI came from corridor_chunk",
+    ),
 });
 
 type FeasibilityJobAoi = z.infer<typeof feasibilityAoiInputSchema>;
@@ -271,33 +296,39 @@ function jobItemFromSubmit(
 }
 
 function summarizeJob(job: FeasibilityJob) {
-  const completeCount = job.items.filter((item) => item.status === "COMPLETE").length;
+  const completeCount = job.items.filter(
+    (item) => item.status === "COMPLETE",
+  ).length;
   const errorCount = job.items.filter((item) => item.status === "ERROR").length;
   const startedCount = job.items.filter(
-    (item) => item.status === "STARTED" || item.status === "SUBMITTED" || item.status === "SUBMITTING",
+    (item) =>
+      item.status === "STARTED" ||
+      item.status === "SUBMITTED" ||
+      item.status === "SUBMITTING",
   ).length;
   return {
-    jobId: job.jobId,
-    createdAt: job.createdAt,
-    updatedAt: job.updatedAt,
-    requestCount: job.requestCount,
+    job_id: job.jobId,
+    created_at: job.createdAt,
+    updated_at: job.updatedAt,
+    request_count: job.requestCount,
     status: job.status,
-    feasibleCount: job.items.filter((item) => item.opportunityCount > 0).length,
-    failedCount: errorCount,
-    totalOpportunityCount: job.items.reduce(
+    feasible_count: job.items.filter((item) => item.opportunityCount > 0)
+      .length,
+    failed_count: errorCount,
+    total_opportunity_count: job.items.reduce(
       (sum, item) => sum + item.opportunityCount,
       0,
     ),
-    completeCount,
-    startedCount,
+    complete_count: completeCount,
+    started_count: startedCount,
     requests: job.items.map((item) => ({
       aoi: item.aoi,
-      feasibilityId: item.feasibilityId,
-      chunkIndex: item.chunkIndex,
-      corridorLengthMeters: item.corridorLengthMeters,
-      polygonVertexCount: item.polygonVertexCount,
+      feasibility_id: item.feasibilityId,
+      chunk_index: item.chunkIndex,
+      corridor_length_meters: item.corridorLengthMeters,
+      polygon_vertex_count: item.polygonVertexCount,
       status: item.status,
-      opportunityCount: item.opportunityCount,
+      opportunity_count: item.opportunityCount,
       opportunities: item.opportunities,
       message: item.message,
       error: item.error,
@@ -363,17 +394,18 @@ async function startFeasibilityJob(
   client: SkyFiClient,
   jobStore: FeasibilityJobStoreLike,
   jobId: string,
+  ownerKey: string,
 ) {
-  const existing = jobStore.get(jobId);
+  const existing = jobStore.get(jobId, ownerKey);
   if (!existing || existing.started) return;
 
-  jobStore.update(jobId, (job) => {
+  jobStore.update(jobId, ownerKey, (job) => {
     job.started = true;
     job.status = "RUNNING";
   });
 
   void (async () => {
-    const current = jobStore.get(jobId);
+    const current = jobStore.get(jobId, ownerKey);
     if (!current) return;
 
     for (let index = 0; index < current.items.length; index += 1) {
@@ -381,7 +413,7 @@ async function startFeasibilityJob(
       if (!item) continue;
       if (item.feasibilityId || item.status === "ERROR") continue;
 
-      jobStore.update(jobId, (job) => {
+      jobStore.update(jobId, ownerKey, (job) => {
         const jobItem = job.items[index];
         if (!jobItem) return;
         jobItem.status = "SUBMITTING";
@@ -399,14 +431,14 @@ async function startFeasibilityJob(
           required_provider: current.submit.required_provider,
         });
 
-        jobStore.update(jobId, (job) => {
+        jobStore.update(jobId, ownerKey, (job) => {
           const jobItem = job.items[index];
           if (!jobItem) return;
           job.items[index] = jobItemFromSubmit(jobItem, summary);
         });
       } catch (error) {
         const message = toErrorMessage(error);
-        jobStore.update(jobId, (job) => {
+        jobStore.update(jobId, ownerKey, (job) => {
           const jobItem = job.items[index];
           if (!jobItem) return;
           job.items[index] = {
@@ -422,12 +454,23 @@ async function startFeasibilityJob(
       }
     }
 
-    jobStore.update(jobId, (job) => {
-      if (job.items.every((item) => item.status === "COMPLETE" || item.status === "ERROR")) {
-        job.status = job.items.some((item) => item.status === "ERROR") ? "ERROR" : "COMPLETE";
+    jobStore.update(jobId, ownerKey, (job) => {
+      if (
+        job.items.every(
+          (item) => item.status === "COMPLETE" || item.status === "ERROR",
+        )
+      ) {
+        job.status = job.items.some((item) => item.status === "ERROR")
+          ? "ERROR"
+          : "COMPLETE";
       }
     });
   })();
+}
+
+export interface RegisterFeasibilityToolsOptions {
+  jobStore?: FeasibilityJobStoreLike;
+  ownerKey?: string;
 }
 
 /**
@@ -442,8 +485,11 @@ async function startFeasibilityJob(
 export function registerFeasibilityTools(
   server: McpServer,
   client: SkyFiClient,
-  jobStore: FeasibilityJobStoreLike = new FeasibilityJobStore(),
+  options: RegisterFeasibilityToolsOptions = {},
 ) {
+  const jobStore = options.jobStore ?? new FeasibilityJobStore();
+  const ownerKey = options.ownerKey ?? "default";
+
   server.registerTool(
     "passes_predict",
     {
@@ -533,6 +579,7 @@ export function registerFeasibilityTools(
     }) => {
       const job = jobStore.create({
         aois,
+        ownerKey,
         window_start,
         window_end,
         product_type,
@@ -541,7 +588,7 @@ export function registerFeasibilityTools(
         priority_item,
         required_provider,
       });
-      await startFeasibilityJob(client, jobStore, job.jobId);
+      await startFeasibilityJob(client, jobStore, job.jobId, ownerKey);
 
       return {
         content: [
@@ -550,8 +597,8 @@ export function registerFeasibilityTools(
             text: JSON.stringify(
               {
                 job_id: job.jobId,
-                requestCount: job.requestCount,
-                queuedCount: job.requestCount,
+                request_count: job.requestCount,
+                queued_count: job.requestCount,
                 status: job.status,
               },
               null,
@@ -657,30 +704,37 @@ export function registerFeasibilityTools(
       annotations: { readOnlyHint: true },
     },
     async ({ job_id }) => {
-      const job = jobStore.get(job_id);
+      const job = jobStore.get(job_id, ownerKey);
       if (!job) {
-        throw new Error(`Feasibility job not found: ${job_id}`);
+        throw new Error("Feasibility job not found.");
       }
 
-      await startFeasibilityJob(client, jobStore, job_id);
+      await startFeasibilityJob(client, jobStore, job_id, ownerKey);
 
       for (let index = 0; index < job.items.length; index += 1) {
         const item = job.items[index];
         if (!item) continue;
-        if (!item.feasibilityId || item.status === "COMPLETE" || item.status === "ERROR") {
+        if (
+          !item.feasibilityId ||
+          item.status === "COMPLETE" ||
+          item.status === "ERROR"
+        ) {
           continue;
         }
 
         try {
-          const result = await fetchFeasibilityStatus(client, item.feasibilityId);
-          jobStore.update(job_id, (currentJob) => {
+          const result = await fetchFeasibilityStatus(
+            client,
+            item.feasibilityId,
+          );
+          jobStore.update(job_id, ownerKey, (currentJob) => {
             const jobItem = currentJob.items[index];
             if (!jobItem) return;
             currentJob.items[index] = jobItemFromSummary(jobItem, result);
           });
         } catch (error) {
           const message = toErrorMessage(error);
-          jobStore.update(job_id, (currentJob) => {
+          jobStore.update(job_id, ownerKey, (currentJob) => {
             const jobItem = currentJob.items[index];
             if (!jobItem) return;
             currentJob.items[index] = {
@@ -696,9 +750,11 @@ export function registerFeasibilityTools(
         }
       }
 
-      const updatedJob = jobStore.update(job_id, (currentJob) => {
+      const updatedJob = jobStore.update(job_id, ownerKey, (currentJob) => {
         const hasRunning = currentJob.items.some((item) =>
-          ["QUEUED", "SUBMITTING", "SUBMITTED", "STARTED"].includes(item.status),
+          ["QUEUED", "SUBMITTING", "SUBMITTED", "STARTED"].includes(
+            item.status,
+          ),
         );
         if (hasRunning) {
           currentJob.status = "RUNNING";
