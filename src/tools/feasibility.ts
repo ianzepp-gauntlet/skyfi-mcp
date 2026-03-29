@@ -255,6 +255,21 @@ function jobItemFromSummary(
   };
 }
 
+function jobItemFromSubmit(
+  item: FeasibilityJobItem,
+  summary: FeasibilityRequestSummary,
+): FeasibilityJobItem {
+  return {
+    ...item,
+    feasibilityId: summary.feasibilityId,
+    status: "SUBMITTED",
+    opportunityCount: 0,
+    opportunities: [],
+    message: summary.message,
+    providers: summary.providers,
+  };
+}
+
 function summarizeJob(job: FeasibilityJob) {
   const completeCount = job.items.filter((item) => item.status === "COMPLETE").length;
   const errorCount = job.items.filter((item) => item.status === "ERROR").length;
@@ -387,10 +402,7 @@ async function startFeasibilityJob(
         jobStore.update(jobId, (job) => {
           const jobItem = job.items[index];
           if (!jobItem) return;
-          job.items[index] = jobItemFromSummary(jobItem, summary);
-          if (job.items[index]?.status !== "COMPLETE") {
-            job.items[index]!.status = "SUBMITTED";
-          }
+          job.items[index] = jobItemFromSubmit(jobItem, summary);
         });
       } catch (error) {
         const message = toErrorMessage(error);
