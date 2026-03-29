@@ -58,6 +58,9 @@ async function runFeasibilityCheck(
     window_end: string;
     product_type: "DAY" | "MULTISPECTRAL" | "SAR";
     resolution: TaskingResolutionInput;
+    max_cloud_coverage_percent?: number;
+    priority_item?: boolean;
+    required_provider?: string;
   },
 ) {
   const initial = await client.checkFeasibility({
@@ -66,15 +69,33 @@ async function runFeasibilityCheck(
     endDate: params.window_end,
     productType: params.product_type,
     resolution: normalizeTaskingResolution(params.resolution),
+    maxCloudCoveragePercent: params.max_cloud_coverage_percent,
+    priorityItem: params.priority_item,
+    requiredProvider: params.required_provider,
   });
 
   const result = await client.pollFeasibility(initial.feasibility_id);
+  const upstreamMessage =
+    typeof result.message === "string" && result.message.trim().length > 0
+      ? result.message
+      : undefined;
+  let synthesizedMessage = upstreamMessage;
+
+  if (!synthesizedMessage && (result.opportunities ?? []).length === 0) {
+    if (params.max_cloud_coverage_percent === undefined) {
+      synthesizedMessage =
+        "No opportunities were returned. The SkyFi feasibility API may be filtering by its default cloud-cover threshold when max_cloud_coverage_percent is omitted. passes_predict can still show overpasses that feasibility excludes. Try setting max_cloud_coverage_percent (for example 100) and optionally narrowing required_provider.";
+    } else {
+      synthesizedMessage =
+        "No opportunities were returned for the requested AOI, window, and constraints. passes_predict can still show overpasses that feasibility excludes.";
+    }
+  }
 
   return {
     feasibilityId: result.feasibility_id,
     status: result.status,
     opportunities: result.opportunities ?? [],
-    message: result.message,
+    message: synthesizedMessage,
   };
 }
 
@@ -140,16 +161,48 @@ export function registerFeasibilityTools(
           .enum(["DAY", "MULTISPECTRAL", "SAR"])
           .describe("Product type for the requested tasking opportunity"),
         resolution: taskingResolutionInputSchema,
+        max_cloud_coverage_percent: z
+          .number()
+          .min(0)
+          .max(100)
+          .optional()
+          .describe(
+            "Optional maximum cloud coverage percentage. Useful when feasibility returns no opportunities but passes_predict still shows overpasses.",
+          ),
+        priority_item: z
+          .boolean()
+          .optional()
+          .describe(
+            "Optional priority flag for expedited feasibility processing when supported upstream.",
+          ),
+        required_provider: z
+          .string()
+          .optional()
+          .describe(
+            "Optional provider constraint such as PLANET, UMBRA, or SIWEI when the upstream account/provider supports it.",
+          ),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ aoi, window_start, window_end, product_type, resolution }) => {
+    async ({
+      aoi,
+      window_start,
+      window_end,
+      product_type,
+      resolution,
+      max_cloud_coverage_percent,
+      priority_item,
+      required_provider,
+    }) => {
       const result = await runFeasibilityCheck(client, {
         aoi,
         window_start,
         window_end,
         product_type,
         resolution,
+        max_cloud_coverage_percent,
+        priority_item,
+        required_provider,
       });
 
       return {
@@ -264,10 +317,39 @@ export function registerFeasibilityTools(
           .enum(["DAY", "MULTISPECTRAL", "SAR"])
           .describe("Product type for the requested tasking opportunity"),
         resolution: taskingResolutionInputSchema,
+        max_cloud_coverage_percent: z
+          .number()
+          .min(0)
+          .max(100)
+          .optional()
+          .describe(
+            "Optional maximum cloud coverage percentage applied to every chunk feasibility request.",
+          ),
+        priority_item: z
+          .boolean()
+          .optional()
+          .describe(
+            "Optional priority flag applied to every chunk feasibility request.",
+          ),
+        required_provider: z
+          .string()
+          .optional()
+          .describe(
+            "Optional provider constraint applied to every chunk feasibility request.",
+          ),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ chunks, window_start, window_end, product_type, resolution }) => {
+    async ({
+      chunks,
+      window_start,
+      window_end,
+      product_type,
+      resolution,
+      max_cloud_coverage_percent,
+      priority_item,
+      required_provider,
+    }) => {
       const chunkResults = [];
 
       for (const chunk of chunks) {
@@ -278,6 +360,9 @@ export function registerFeasibilityTools(
             window_end,
             product_type,
             resolution,
+            max_cloud_coverage_percent,
+            priority_item,
+            required_provider,
           });
           chunkResults.push({
             chunkIndex: chunk.chunk_index,

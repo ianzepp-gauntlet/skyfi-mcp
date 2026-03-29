@@ -228,6 +228,17 @@ export interface FeasibilityRequest {
   productType: ProductType;
   /** Required resolution tier for the capture. */
   resolution: Resolution;
+  /** Optional maximum cloud coverage percentage allowed for optical imagery. */
+  maxCloudCoveragePercent?: number;
+  /** Optional priority flag for expedited feasibility processing. */
+  priorityItem?: boolean;
+  /**
+   * Optional provider constraint.
+   *
+   * Typed as string rather than a narrow enum because live upstream behavior
+   * has included providers beyond the currently documented feasibility schema.
+   */
+  requiredProvider?: string;
 }
 
 /**

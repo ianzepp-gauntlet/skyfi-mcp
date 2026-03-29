@@ -109,6 +109,79 @@ describe("registerFeasibilityTools", () => {
     expect(seen[0]).toMatchObject({ resolution: "ULTRA HIGH" });
   });
 
+  test("forwards optional feasibility constraints to the client", async () => {
+    const harness = createToolHarness();
+    const seen: Array<Record<string, unknown>> = [];
+    const client = {
+      getPassPrediction: async () => ({}),
+      checkFeasibility: async (params: Record<string, unknown>) => {
+        seen.push(params);
+        return {
+          feasibility_id: "f-opts",
+          status: "PENDING",
+        };
+      },
+      pollFeasibility: async () => ({
+        feasibility_id: "f-opts",
+        status: "COMPLETE",
+        opportunities: [],
+      }),
+    };
+
+    registerFeasibilityTools(harness.server as any, client as any);
+
+    await harness.invoke("feasibility_check", {
+      aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+      window_start: "2026-01-01T00:00:00Z",
+      window_end: "2026-01-02T00:00:00Z",
+      product_type: "DAY",
+      resolution: "VERY_HIGH",
+      max_cloud_coverage_percent: 100,
+      priority_item: true,
+      required_provider: "SIWEI",
+    });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      resolution: "VERY HIGH",
+      maxCloudCoveragePercent: 100,
+      priorityItem: true,
+      requiredProvider: "SIWEI",
+    });
+  });
+
+  test("adds a useful hint when no opportunities are returned and cloud threshold is implicit", async () => {
+    const harness = createToolHarness();
+    const client = {
+      getPassPrediction: async () => ({}),
+      checkFeasibility: async () => ({
+        feasibility_id: "f-hint",
+        status: "PENDING",
+      }),
+      pollFeasibility: async () => ({
+        feasibility_id: "f-hint",
+        status: "COMPLETE",
+        opportunities: [],
+      }),
+    };
+
+    registerFeasibilityTools(harness.server as any, client as any);
+
+    const result = parseToolJson(
+      await harness.invoke("feasibility_check", {
+        aoi: "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+        window_start: "2026-01-01T00:00:00Z",
+        window_end: "2026-01-02T00:00:00Z",
+        product_type: "DAY",
+        resolution: "HIGH",
+      }),
+    );
+
+    expect(result.opportunities).toEqual([]);
+    expect(result.message).toContain("max_cloud_coverage_percent");
+    expect(result.message).toContain("passes_predict");
+  });
+
   test("corridor_chunk returns reusable chunk AOIs for a route", async () => {
     const harness = createToolHarness();
     const client = {
