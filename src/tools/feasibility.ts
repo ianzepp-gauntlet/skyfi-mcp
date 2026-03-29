@@ -24,21 +24,24 @@ import {
 } from "./resolution.js";
 import { chunkRouteToCorridorPolygons } from "./corridor.js";
 
-const corridorChunkInputSchema = z.object({
-  chunk_index: z.number().int().nonnegative().describe("Zero-based chunk index"),
-  aoi: z.string().describe("Chunk AOI as a WKT POLYGON string"),
+const feasibilityAoiInputSchema = z.object({
+  aoi: z.string().describe("AOI as a WKT POLYGON string"),
+  chunk_index: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe("Optional chunk index when the AOI came from corridor_chunk"),
   corridor_length_meters: z
     .number()
     .optional()
-    .describe("Optional centerline length of this chunk in meters"),
+    .describe("Optional corridor length in meters when the AOI came from corridor_chunk"),
   polygon_vertex_count: z
     .number()
     .int()
     .optional()
-    .describe("Optional number of polygon vertices in this chunk"),
+    .describe("Optional polygon vertex count when the AOI came from corridor_chunk"),
 });
-
-const feasibilityAoiInputSchema = corridorChunkInputSchema;
 
 const feasibilityStatusInputSchema = feasibilityAoiInputSchema.extend({
   feasibility_id: z
