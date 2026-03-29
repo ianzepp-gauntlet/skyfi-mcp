@@ -19,7 +19,7 @@ Create a wide-format (16:9) technical diagram slide titled "SKYFI-CLI // NATIVE 
 
 **Layout:** The slide is split vertically into two halves by a thin dashed line down the center, with a shared bottom section.
 
-**Left half, labeled "MCP SERVER (TypeScript)":** A vertical stack showing the MCP agent path. Top: "AI Agent" → arrow labeled "tool calls via Streamable HTTP" → "MCP Server (18 tools)" → "SkyFi API". Annotation callouts: "Rich agent autonomy", "Multi-step tool loops", "Session state in Durable Objects", "Best for: conversational workflows". A small label: "Token cost: full MCP overhead per call".
+**Left half, labeled "MCP SERVER (TypeScript)":** A vertical stack showing the MCP agent path. Top: "AI Agent" → arrow labeled "tool calls via Streamable HTTP" → "MCP Server (20 tools)" → "SkyFi API". Annotation callouts: "Rich agent autonomy", "Multi-step tool loops", "Session state in Durable Objects", "Best for: conversational workflows". A small label: "Token cost: full MCP overhead per call".
 
 **Right half, labeled "CLI (Rust, 5.5K LOC)":** A vertical stack showing the CLI path. Top: "Terminal / Script" → arrow labeled "direct commands" → "skyfi-cli binary" → "SkyFi API". Below the binary box, show a compact command tree as a vertical list: "archives search | get", "orders list | get | order-archive | order-tasking | pass-targeted | download", "feasibility check | status | pass-prediction", "notifications create | list | get | delete", "alerts poll | watch | install", "pricing", "research". Annotation callouts: "Zero token overhead", "Structured JSON output for piping", "Homebrew installable", "Best for: scripting, automation, low-cost exploration".
 

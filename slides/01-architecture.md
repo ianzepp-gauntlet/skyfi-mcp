@@ -1,15 +1,15 @@
 # Slide 1 — "MISSION OVERVIEW" — System Architecture
 
 ## Corrected Facts
-- 18 tools across 6 groups: search (2), feasibility (2), pricing (1), orders/account (7), AOI monitoring (5), location (1)
+- 20 tools across 6 groups: search (2), feasibility (4), pricing (1), orders/account (7), AOI monitoring (5), location (1)
 - Bun path: Hono + Streamable HTTP transport, in-memory session map, process-local AlertStore
 - Cloudflare path: Durable Object per session (SkyFiMcpAgent), shared DO for alerts (SkyFiAlertStore), shared DO for confirmations (SkyFiConfirmationStore), custom Streamable HTTP → WebSocket → DO bridge
 - Shared layer: createMcpServer() — identical tool registration on both runtimes
-- Upstream: SkyFi Platform API (17 tools) + OpenStreetMap Nominatim (1 tool)
+- Upstream services: SkyFi Platform API + OpenStreetMap Nominatim
 - Auth: x-skyfi-api-key header or local ~/.skyfi/config.json
 
 ## Talking Point
-"Same 18 tools on both runtimes. Locally, sessions live in memory. On Cloudflare, each session is a Durable Object — API key persists inside the DO, alerts share a separate DO so they're visible across sessions."
+"Same 20 tools on both runtimes. Locally, sessions live in memory. On Cloudflare, each session is a Durable Object — API key persists inside the DO, alerts share a separate DO so they're visible across sessions."
 
 ---
 
@@ -27,9 +27,9 @@ Left path labeled "BUN (LOCAL)": contains a box "Hono + Streamable HTTP", connec
 
 Right path labeled "CLOUDFLARE (REMOTE)": contains a box "Custom Streamable HTTP → WebSocket → DO Bridge", connected to a box "Durable Object per Session (SkyFiMcpAgent)", connected to a separate box "Shared Alert DO (SkyFiAlertStore)" with a label "cross-session visibility".
 
-Both paths converge into a single shared box at the bottom of the middle lane labeled "createMcpServer() — 18 TOOLS / 6 GROUPS". Inside or below this box, show 6 small labeled blocks in a row: "Search (2)" "Feasibility (2)" "Pricing (1)" "Orders (7)" "AOI (5)" "Location (1)".
+Both paths converge into a single shared box at the bottom of the middle lane labeled "createMcpServer() — 20 TOOLS / 6 GROUPS". Inside or below this box, show 6 small labeled blocks in a row: "Search (2)" "Feasibility (4)" "Pricing (1)" "Orders (7)" "AOI (5)" "Location (1)".
 
-**Bottom lane, labeled "UPSTREAM":** Two boxes. Left box: "SkyFi Platform API" with a label "17 tools". Right box: "OpenStreetMap Nominatim" with a label "1 tool". Dashed arrows connect the tool groups above to the appropriate upstream: Location connects to OSM, everything else connects to SkyFi.
+**Bottom lane, labeled "UPSTREAM":** Two boxes. Left box: "SkyFi Platform API". Right box: "OpenStreetMap Nominatim". Dashed arrows connect the tool groups above to the appropriate upstream: Location connects to OSM, everything else connects to SkyFi.
 
 **Annotation callouts** (styled as monospace labels with thin border boxes, positioned around the margins):
 - Top right: "AUTH: x-skyfi-api-key header | ~/.skyfi/config.json"
@@ -44,7 +44,7 @@ Style: Think satellite ground station network diagram. Boxes have thin 1px amber
 
 Create a wide-format (16:9) technical diagram slide titled "SYSTEM ARCHITECTURE" in a hand-drawn satellite operations schematic style on a dark navy/charcoal background. Use a sketched/hand-drawn line quality for boxes and arrows (not perfectly straight — slightly organic like an engineer's whiteboard sketch). White and amber ink on dark background. Monospace labels.
 
-**Center of the diagram:** A large circle or orbital ring labeled "MCP TOOL CORE" containing the text "createMcpServer()" and "18 tools / 6 groups". Around the inside of the ring, arrange 6 small labeled boxes like satellites in orbit: "Search (2)", "Feasibility (2)", "Pricing (1)", "Orders/Account (7)", "AOI Monitoring (5)", "Location (1)".
+**Center of the diagram:** A large circle or orbital ring labeled "MCP TOOL CORE" containing the text "createMcpServer()" and "20 tools / 6 groups". Around the inside of the ring, arrange 6 small labeled boxes like satellites in orbit: "Search (2)", "Feasibility (4)", "Pricing (1)", "Orders/Account (7)", "AOI Monitoring (5)", "Location (1)".
 
 **Above the ring (12 o'clock position):** A box labeled "AI AGENT" with subtitle "Claude · OpenAI · Gemini · any MCP client". A sketched arrow points down into the ring labeled "tool calls via Streamable HTTP".
 
@@ -52,7 +52,7 @@ Create a wide-format (16:9) technical diagram slide titled "SYSTEM ARCHITECTURE"
 
 **Right of the ring (3 o'clock):** A box labeled "CLOUDFLARE WORKERS (REMOTE)" with three annotation callouts: "1 Durable Object per session", "Shared Alert DO (cross-session)", "WebSocket bridge to DO". A dashed line connects it to the central ring.
 
-**Below the ring (6 o'clock):** Two boxes side by side. Left: "SkyFi Platform API" (connected by a solid arrow from the ring, labeled "17 tools"). Right: "OpenStreetMap Nominatim" (connected by a solid arrow, labeled "1 tool — location_resolve").
+**Below the ring (6 o'clock):** Two boxes side by side. Left: "SkyFi Platform API" (connected by a solid arrow from the ring). Right: "OpenStreetMap Nominatim" (connected by a solid arrow, labeled "location_resolve").
 
 **Corner annotations** (styled as pinned sticky notes or torn paper scraps with handwritten-style monospace text):
 - Top right corner: "AUTH: x-skyfi-api-key header or local ~/.skyfi/config.json"
@@ -74,9 +74,9 @@ Create a wide-format (16:9) technical diagram slide titled "SYSTEM ARCHITECTURE"
 
 **Right node (mid-level):** "CLOUDFLARE (REMOTE)" drawn as a rounded box with three internal annotation lines: "1 Durable Object per session", "Shared Alert DO (cross-session)", "HTTP → WebSocket → DO bridge". A solid path connects it down to the shared tool node. A small label on the path: "edge network".
 
-**Center node (large, prominent):** "TOOL CORE — 18 TOOLS" as the largest node on the diagram. Inside it, six smaller boxes arranged in two rows of three: "Search (2)", "Feasibility (2)", "Pricing (1)" on top row; "Orders (7)", "AOI (5)", "Location (1)" on bottom row.
+**Center node (large, prominent):** "TOOL CORE — 20 TOOLS" as the largest node on the diagram. Inside it, six smaller boxes arranged in two rows of three: "Search (2)", "Feasibility (4)", "Pricing (1)" on top row; "Orders (7)", "AOI (5)", "Location (1)" on bottom row.
 
-**Bottom left node:** "SkyFi Platform API" connected to the tool core by a solid line labeled "17 tools". Draw a small satellite dish icon next to it.
+**Bottom left node:** "SkyFi Platform API" connected to the tool core by a solid line. Draw a small satellite dish icon next to it.
 
 **Bottom right node:** "OpenStreetMap Nominatim" connected to the tool core by a dashed line labeled "1 tool — location_resolve". Draw a small map pin icon next to it.
 

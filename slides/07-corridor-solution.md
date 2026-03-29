@@ -1,7 +1,7 @@
 # Slide 7 — "CORRIDOR CHUNKING" — Automated Pipeline
 
 ## Key Facts
-- Two MCP tools: corridor_chunk (geometry) → feasibility_check_chunks (satellite availability)
+- Three MCP tool calls: corridor_chunk (geometry) → feasibility_submit (batch job) → feasibility_status (per-chunk results)
 - Pipeline: raw GPS route → local equirectangular projection → Douglas-Peucker simplification → distance-based splitting → convex hull per chunk → area budget bisection → WKT output
 - Convex hull is deliberate: live testing showed SkyFi rejects raw offset rings at bends, but convex hulls are accepted
 - Area budget (maxChunkAreaSqKm): binary search halves chunk length until polygon fits within area cap
@@ -9,10 +9,10 @@
 - Polar guard: rejects routes above 80° average latitude (equirectangular projection breaks down)
 - Feasibility fan-out: each chunk runs independently, per-chunk error isolation (one failure doesn't abort the batch)
 - Output summary: chunkCount, feasibleChunkCount, failedChunkCount, totalOpportunityCount
-- Replaces ~2 hours of manual work with two tool calls
+- Replaces ~2 hours of manual work with three tool calls
 
 ## Talking Point
-"Two tool calls replace two hours. corridor_chunk takes a raw GPS route, projects it locally, simplifies dense points, splits by distance, and builds a convex hull polygon per section — with an optional area cap that bisects chunks that are too large. Then feasibility_check_chunks fans out independent feasibility checks per chunk, with error isolation so one failure doesn't kill the batch. The agent gets back a per-section coverage map."
+"Three tool calls replace two hours. corridor_chunk takes a raw GPS route, projects it locally, simplifies dense points, splits by distance, and builds a convex hull polygon per section — with an optional area cap that bisects chunks that are too large. Then feasibility_submit creates one batch job across all chunks, and feasibility_status returns the per-section results with error isolation so one failure doesn't kill the batch. The agent gets back a per-section coverage map."
 
 ---
 
@@ -34,7 +34,7 @@ At the bottom of Phase 1, show the output: a row of 4-5 small convex polygon ico
 
 **Connector between phases:** A wide arrow labeled "chunks array" pointing from Phase 1 output to Phase 2 input.
 
-**Phase 2 — right side, labeled "feasibility_check_chunks":** Show the chunks fanning out into parallel feasibility checks. Each of the 4-5 chunk polygons has an arrow pointing to its own "Feasibility Check" box. Below the checks, show results merging back: some chunks marked green ("opportunities found"), one marked amber ("no opportunities"), one marked red ("ERROR — isolated"). A summary box at the bottom:
+**Phase 2 — right side, labeled "feasibility_submit → feasibility_status":** Show the chunks fanning out into parallel feasibility checks. Each of the 4-5 chunk polygons has an arrow pointing to its own "Feasibility Check" box. Below the checks, show results merging back: some chunks marked green ("opportunities found"), one marked amber ("no opportunities"), one marked red ("ERROR — isolated"). A summary box at the bottom:
 - "chunkCount: 5"
 - "feasibleChunkCount: 3"
 - "failedChunkCount: 1"
@@ -42,7 +42,7 @@ At the bottom of Phase 1, show the output: a row of 4-5 small convex polygon ico
 
 **Annotation callouts:**
 - Top left: "INPUT: any ordered GPS polyline — pipelines, roads, rail, power lines"
-- Top right: "2 tool calls replace ~2 hours of manual polygon work"
+- Top right: "3 tool calls replace ~2 hours of manual polygon work"
 - Bottom left: "Antimeridian-safe · polar guard (< 80° lat) · convex-only output"
 
 Style: Mission control data processing pipeline. Thin amber borders on all boxes. The two phases should be visually distinct (Phase 1 = geometry, Phase 2 = satellite availability). Green/amber/red status indicators on the feasibility results. Clean and precise.
@@ -77,9 +77,9 @@ Step 4: One of the chunks is visually too large. Show it being bisected in half 
 A summary note: "feasibleChunkCount: 3 / failedChunkCount: 1 / totalOpportunityCount: 7"
 
 **Right margin annotation panel (field notes):**
-- "2 MCP tool calls total"
+- "3 MCP tool calls total"
 - "corridor_chunk → geometry"
-- "feasibility_check_chunks → availability"
+- "feasibility_submit/status → availability"
 - "One failure doesn't kill the batch"
 - "Replaces ~2 hrs manual work"
 
@@ -110,9 +110,9 @@ KM markers along the route: "KM 0", "KM 40", "KM 80", "KM 120", "KM 160", "KM 20
 5. "Feasibility per chunk"
 6. "Per-section coverage map"
 
-Labels: "corridor_chunk" next to steps 1-4, "feasibility_check_chunks" next to steps 5-6.
+Labels: "corridor_chunk" next to steps 1-4, "feasibility_submit/status" next to steps 5-6.
 
-**Top left annotation (field note style):** "2 tool calls. ~2 seconds. Replaces ~2 hours of manual polygon work."
+**Top left annotation (field note style):** "3 tool calls. ~2 seconds. Replaces ~2 hours of manual polygon work."
 
 **Bottom annotation spanning width:** "Each chunk: independent feasibility check, independent error handling. The agent sees exactly which corridor sections have satellite coverage."
 

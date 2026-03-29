@@ -8,7 +8,7 @@
 - Linear assets are a common commercial use case (oil/gas pipelines, highways, power lines, rail corridors)
 
 ## Talking Point
-"When a customer asks SkyFi to image a 200km pipeline, today that's a 2-hour manual exercise — someone traces the route by hand, draws polygon sections, and submits feasibility checks one at a time. We automated the entire workflow into two MCP tool calls."
+"When a customer asks SkyFi to image a 200km pipeline, today that's a 2-hour manual exercise — someone traces the route by hand, draws polygon sections, and submits feasibility checks one at a time. We automated the entire workflow into three MCP tool calls: chunk the route, submit one batch feasibility job, then poll for the per-section results."
 
 ---
 
