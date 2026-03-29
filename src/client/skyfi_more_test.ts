@@ -207,6 +207,81 @@ describe("SkyFiClient request and wrappers", () => {
     ]);
   });
 
+  test("pollFeasibility keeps polling when COMPLETE arrives with no provider rows yet", async () => {
+    const statuses = [
+      {
+        id: "f-shell",
+        validUntil: "2026-03-22T00:00:00Z",
+        overallScore: {
+          feasibility: -1,
+        },
+      },
+      {
+        id: "f-shell",
+        validUntil: "2026-03-22T00:00:00Z",
+        overallScore: {
+          feasibility: -1,
+          providerScore: {
+            score: -1,
+            providerScores: [
+              {
+                provider: "PLANET",
+                status: "STARTED",
+                opportunities: [],
+              },
+            ],
+          },
+        },
+      },
+      {
+        id: "f-shell",
+        validUntil: "2026-03-22T00:00:00Z",
+        overallScore: {
+          feasibility: -1,
+          providerScore: {
+            score: -1,
+            providerScores: [
+              {
+                provider: "PLANET",
+                status: "STARTED",
+                opportunities: [{ providerWindowId: "pw-shell" }],
+              },
+            ],
+          },
+        },
+      },
+    ];
+    let callIndex = 0;
+
+    globalThis.fetch = asFetchMock(async () =>
+      new Response(
+        JSON.stringify(statuses[Math.min(callIndex++, statuses.length - 1)]),
+        { status: 200 },
+      ));
+
+    globalThis.setTimeout = ((fn: TimeoutCallback) => {
+      if (typeof fn === "function") fn();
+      return 0 as any;
+    }) as typeof setTimeout;
+
+    const client = new SkyFiClient({
+      apiKey: "k",
+      baseUrl: "https://api.example.com",
+    });
+    const result = await client.pollFeasibility("f-shell", {
+      intervalMs: 1,
+      timeoutMs: 50,
+    });
+
+    expect(result.opportunities).toEqual([
+      {
+        provider: "PLANET",
+        status: "STARTED",
+        providerWindowId: "pw-shell",
+      },
+    ]);
+  });
+
   test("checkFeasibility normalizes spec-shaped id to feasibility_id", async () => {
     globalThis.fetch = asFetchMock(async () =>
       new Response(

@@ -183,6 +183,32 @@ function extractFeasibilityOpportunities(
   });
 }
 
+function shouldContinueFeasibilityPolling(result: FeasibilityResponse): boolean {
+  if ((result.opportunities?.length ?? 0) > 0) {
+    return false;
+  }
+
+  if (
+    result.status === "PENDING" ||
+    result.status === "PROCESSING" ||
+    result.status === "STARTED"
+  ) {
+    return true;
+  }
+
+  // Live SkyFi feasibility occasionally returns an early shell response that
+  // normalizes to COMPLETE but contains no provider rows yet. Treat that as
+  // still in flight rather than terminal.
+  if (
+    result.status === "COMPLETE" &&
+    (result.providerScores?.length ?? 0) === 0
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function normalizeFeasibilityResponse(payload: unknown): FeasibilityResponse {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error("SkyFi feasibility response must be a JSON object");
@@ -457,14 +483,7 @@ export class SkyFiClient {
 
     while (Date.now() - start < timeout) {
       const result = await this.getFeasibilityStatus(feasibilityId);
-      if ((result.opportunities?.length ?? 0) > 0) {
-        return result;
-      }
-      if (
-        result.status !== "PENDING" &&
-        result.status !== "PROCESSING" &&
-        result.status !== "STARTED"
-      ) {
+      if (!shouldContinueFeasibilityPolling(result)) {
         return result;
       }
       await new Promise((r) => setTimeout(r, interval));
