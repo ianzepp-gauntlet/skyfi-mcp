@@ -235,6 +235,55 @@ describe("SkyFiClient request and wrappers", () => {
       },
     ]);
   });
+
+  test("getFeasibilityStatus treats provider-level pending rows as non-terminal", async () => {
+    globalThis.fetch = asFetchMock(async () =>
+      new Response(
+        JSON.stringify({
+          id: "f-spec-3",
+          validUntil: "2026-03-22T00:00:00Z",
+          overallScore: {
+            feasibility: -1,
+            providerScore: {
+              score: -1,
+              providerScores: [
+                {
+                  provider: "SIWEI",
+                  status: "PENDING",
+                  opportunities: [],
+                },
+                {
+                  provider: "PLANET",
+                  status: "COMPLETE",
+                  opportunities: [
+                    {
+                      providerWindowId: "pw-2",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+        { status: 200 },
+      ));
+
+    const client = new SkyFiClient({
+      apiKey: "test-key",
+      baseUrl: "https://example.com",
+    });
+
+    const result = await client.getFeasibilityStatus("f-spec-3");
+
+    expect(result.status).toBe("PENDING");
+    expect(result.opportunities).toEqual([
+      {
+        provider: "PLANET",
+        status: "COMPLETE",
+        providerWindowId: "pw-2",
+      },
+    ]);
+  });
 });
 
 describe("SkyFiClient request and wrappers (additional)", () => {

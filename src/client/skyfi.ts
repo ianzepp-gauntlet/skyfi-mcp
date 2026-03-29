@@ -84,6 +84,8 @@ function inferFeasibilityStatus(record: Record<string, unknown>): string | undef
       )
       .filter((status): status is string => typeof status === "string");
 
+    if (statuses.includes("PENDING")) return "PENDING";
+    if (statuses.includes("PROCESSING")) return "PROCESSING";
     if (statuses.includes("STARTED")) return "STARTED";
     if (statuses.includes("ERROR")) return "ERROR";
     if (statuses.includes("COMPLETE")) return "COMPLETE";
