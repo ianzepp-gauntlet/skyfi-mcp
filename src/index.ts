@@ -50,7 +50,12 @@ const app = createApp(
       confirmationStore,
     });
   },
-  { alertStore },
+  {
+    alertStore,
+    // Railway's HTTP edge/proxy path is not a reliable place to depend on
+    // process-local MCP session affinity. Use stateless transports here.
+    sessionMode: "stateless",
+  },
 );
 
 console.log(`SkyFi MCP server listening on http://localhost:${port}/mcp`);
