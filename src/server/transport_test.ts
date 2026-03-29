@@ -100,6 +100,32 @@ describe("createApp", () => {
     await expect(response.json()).resolves.toEqual({ status: "ok" });
   });
 
+  test("returns a useful 401 when server initialization fails due to missing SkyFi API key", async () => {
+    const app = createApp(() => {
+      throw new Error(
+        "SkyFi API key not found. Set SKYFI_API_KEY env var or create ~/.skyfi/config.json",
+      );
+    });
+
+    const response = await app.fetch(
+      new Request("http://localhost/mcp", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
+      }),
+      {} as never,
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      error:
+        "SkyFi API key is required. Configure SKYFI_API_KEY on the server or have the client send the x-skyfi-api-key header with the customer's SkyFi API key.",
+    });
+  });
+
   test("aoi webhook endpoint acknowledges payload", async () => {
     const app = createApp(
       () => new McpServer({ name: "test-server", version: "0.1.0" }),

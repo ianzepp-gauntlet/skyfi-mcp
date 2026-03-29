@@ -105,6 +105,26 @@ interface CreateAppOptions {
  */
 const INBOUND_API_KEY_HEADER = "x-skyfi-api-key";
 
+function missingApiKeyResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      error:
+        "SkyFi API key is required. Configure SKYFI_API_KEY on the server or have the client send the x-skyfi-api-key header with the customer's SkyFi API key.",
+    }),
+    {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
+function isMissingApiKeyError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.includes("SkyFi API key not found")
+  );
+}
+
 /**
  * Create the Hono application that serves the SkyFi MCP server over HTTP.
  *
@@ -173,7 +193,15 @@ export function createApp(
     // Create a fresh server + transport pair, register lifecycle callbacks,
     // then handle the initialization request through the new transport.
     if (c.req.method === "POST" && !sessionId) {
-      const server = createServer(headerApiKey, env);
+      let server: McpServer;
+      try {
+        server = createServer(headerApiKey, env);
+      } catch (error) {
+        if (isMissingApiKeyError(error)) {
+          return missingApiKeyResponse();
+        }
+        throw error;
+      }
       const transport = transportFactory({
         sessionIdGenerator:
           options.sessionIdGenerator ?? (() => crypto.randomUUID()),
@@ -209,7 +237,15 @@ export function createApp(
     // served by a stateless transport that creates a new server per request.
     // No session map entry is created. This is also the only mode used for
     // runtimes that cannot reliably guarantee per-session affinity.
-    const server = createServer(headerApiKey, env);
+    let server: McpServer;
+    try {
+      server = createServer(headerApiKey, env);
+    } catch (error) {
+      if (isMissingApiKeyError(error)) {
+        return missingApiKeyResponse();
+      }
+      throw error;
+    }
     const transport = transportFactory({});
     await server.connect(transport);
     return transport.handleRequest(c.req.raw);
