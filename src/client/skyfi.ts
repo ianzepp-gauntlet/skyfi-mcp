@@ -52,6 +52,42 @@ import type {
 } from "./types";
 import { parseJson } from "../lib/json.js";
 
+function feasibilityDebugEnabled(): boolean {
+  const value = process.env.SKYFI_DEBUG_FEASIBILITY?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function logFeasibilityDebug(
+  phase: string,
+  feasibilityId: string,
+  result: FeasibilityResponse,
+): void {
+  if (!feasibilityDebugEnabled()) return;
+
+  console.log(
+    "[feasibility-debug]",
+    JSON.stringify({
+      phase,
+      feasibilityId,
+      status: result.status,
+      opportunityCount: result.opportunities?.length ?? 0,
+      providers: (result.providerScores ?? []).map((providerScore) => ({
+        provider:
+          typeof providerScore.provider === "string"
+            ? providerScore.provider
+            : undefined,
+        status:
+          typeof providerScore.status === "string"
+            ? providerScore.status
+            : undefined,
+        opportunityCount: Array.isArray(providerScore.opportunities)
+          ? providerScore.opportunities.length
+          : 0,
+      })),
+    }),
+  );
+}
+
 function inferFeasibilityStatus(record: Record<string, unknown>): string | undefined {
   if (typeof record.status === "string") {
     return record.status;
@@ -359,7 +395,9 @@ export class SkyFiClient {
     params: FeasibilityRequest,
   ): Promise<FeasibilityResponse> {
     const response = await this.request<unknown>("POST", "/feasibility", params);
-    return normalizeFeasibilityResponse(response);
+    const result = normalizeFeasibilityResponse(response);
+    logFeasibilityDebug("submit", result.feasibility_id, result);
+    return result;
   }
 
   /**
@@ -374,7 +412,9 @@ export class SkyFiClient {
       "GET",
       `/feasibility/${feasibilityId}`,
     );
-    return normalizeFeasibilityResponse(response);
+    const result = normalizeFeasibilityResponse(response);
+    logFeasibilityDebug("poll", feasibilityId, result);
+    return result;
   }
 
   /**
